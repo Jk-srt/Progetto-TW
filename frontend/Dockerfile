@@ -20,17 +20,17 @@ RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 # Installa dipendenze con cache mount per velocizzare i rebuild
-RUN --mount=type=cache,target=/home/nodejs/.npm \
-    npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copia il codice sorgente
 COPY --chown=nodejs:nodejs ./src ./src
 
 # Esponi la porta
 EXPOSE 3000
+EXPOSE 4200
 
 # Usa dumb-init per gestire correttamente i segnali
 ENTRYPOINT ["dumb-init", "--"]
 
 # Comando per sviluppo con hot reload
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "dev", "ng", "serve", "--host", "0.0.0.0", "--port", "4200", "--poll", "2000", "--disable-host-check"]

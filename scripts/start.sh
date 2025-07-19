@@ -35,6 +35,23 @@ sleep 10
 echo "📊 Stato dei servizi:"
 docker compose ps
 
+# Verifica se ci sono container attivi
+RUNNING_CONTAINERS=$(docker compose ps -q)
+
+if [ -z "$RUNNING_CONTAINERS" ]; then
+    echo ""
+    echo "❌ ERRORE: Nessun container è stato avviato!"
+    echo "🔍 Controlla i log per vedere gli errori:"
+    echo "   docker compose logs"
+    exit 1
+else
+    echo ""
+    echo "✅ Progetto TAW avviato con successo!"
+    echo "🌐 Frontend: http://localhost:4200"
+    echo "🔧 Backend API: http://localhost:3000"
+    echo "☁️  Database: MongoDB Atlas"
+fi
+
 echo ""
 echo "✅ Progetto TAW avviato con successo!"
 echo "🌐 Frontend: http://localhost:4200"
