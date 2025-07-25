@@ -1,5 +1,28 @@
 services:
-  # Backend Node.js/Express (connesso a MongoDB Atlas)
+  # Database MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: taw-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-taw_flights}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+      - ./docker/mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - taw-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend Node.js/Express
   backend:
     build:
       context: ./backend
@@ -10,7 +33,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL}
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/${MONGO_DATABASE:-taw_flights}?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
     ports:
       - "3000:3000"
@@ -19,6 +42,9 @@ services:
       - ./backend/package-lock.json:/app/package-lock.json:ro
       - ./backend/src:/app/src:ro
       - backend_node_modules:/app/node_modules
+    depends_on:
+      mongodb:
+        condition: service_healthy
     networks:
       - taw-network
     develop:
@@ -63,6 +89,10 @@ services:
 
 # Volumi persistenti
 volumes:
+  mongodb_data:
+    name: taw_mongodb_data
+  mongodb_config:
+    name: taw_mongodb_config
   backend_node_modules:
     name: taw_backend_node_modules
   frontend_node_modules:

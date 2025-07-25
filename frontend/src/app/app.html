@@ -167,6 +167,26 @@
     fill: var(--gray-900);
   }
 
+  .navbar {
+    display: flex;
+    gap: 20px;
+    background: #1976d2;
+    padding: 15px 30px;
+    margin-bottom: 30px;
+  }
+  .navbar a {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1.1rem;
+  }
+  .navbar a.active {
+    border-bottom: 2px solid #fff;
+  }
+  main {
+    padding: 0 30px;
+  }
+
   @media screen and (max-width: 650px) {
     .content {
       flex-direction: column;
@@ -181,6 +201,16 @@
     }
   }
 </style>
+
+<nav class="navbar">
+  <a routerLink="/" routerLinkActive="active">Home</a>
+  <a routerLink="/search" routerLinkActive="active">Cerca Voli</a>
+  <a routerLink="/purchase" routerLinkActive="active">Acquista Biglietto</a>
+  <a routerLink="/login" routerLinkActive="active">Login</a>
+</nav>
+<main>
+  <router-outlet></router-outlet>
+</main>
 
 <main class="main">
   <div class="content">
