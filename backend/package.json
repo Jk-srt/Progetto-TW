@@ -14,7 +14,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@types/mongoose": "^5.11.96",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/pg": "^8.15.4",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -22,7 +23,6 @@
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
     "pg": "^8.16.3"
   },

@@ -49,14 +49,14 @@ else
     echo "✅ Progetto TAW avviato con successo!"
     echo "🌐 Frontend: http://localhost:4200"
     echo "🔧 Backend API: http://localhost:3000"
-    echo "☁️  Database: MongoDB Atlas"
+    echo "🗄️  Database: PostgreSQL (Neon)"
 fi
 
 echo ""
 echo "✅ Progetto TAW avviato con successo!"
 echo "🌐 Frontend: http://localhost:4200"
 echo "🔧 Backend API: http://localhost:3000"
-echo "📊 MongoDB: mongodb://localhost:27017"
+echo "🗄️  Database: PostgreSQL (Neon)"
 echo ""
 echo "📝 Per vedere i log: docker compose logs -f"
 echo "🛑 Per fermare: docker compose down"
