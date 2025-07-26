@@ -11,6 +11,9 @@ services:
       NODE_ENV: development
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - ./.env
     ports:
       - "3000:3000"
     volumes:

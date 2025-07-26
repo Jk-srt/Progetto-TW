@@ -5,6 +5,9 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { DatabaseService } from './models/database';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -24,11 +27,27 @@ const pool = new Pool({
 // Istanza del servizio database
 const dbService = new DatabaseService(pool);
 
+const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
+
+// Middleware per autenticazione JWT
+function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.sendStatus(401);
+    try {
+        const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+        (req as any).userId = payload.userId;
+        next();
+    } catch (err) {
+        return res.sendStatus(403);
+    }
+}
 
 // Health check endpoint
 app.get('/api/health', (_req: express.Request, res: express.Response) => {
@@ -96,6 +115,62 @@ app.get('/api/flights/search', async (req: express.Request, res: express.Respons
             error: 'Errore durante la ricerca voli',
             message: error instanceof Error ? error.message : 'Unknown error'
         });
+    }
+});
+
+// Rotte utenti: registrazione e login
+app.post('/api/users/register', async (req, res) => {
+    try {
+        const { email, password, first_name, last_name, phone } = req.body;
+        const existing = await dbService.getUserByEmail(email);
+        if (existing) return res.status(400).json({ error: 'Utente già esistente' });
+        const password_hash = await bcrypt.hash(password, 10);
+        const user = await dbService.createUser({ email, password_hash, first_name, last_name, phone });
+        res.json({ id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+app.post('/api/users/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await dbService.getUserByEmail(email);
+        if (!user) return res.status(400).json({ error: 'Credenziali non valide' });
+        const match = await bcrypt.compare(password, user.password_hash);
+        if (!match) return res.status(400).json({ error: 'Credenziali non valide' });
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
+        res.json({ token });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+// Rotte prenotazioni
+app.post('/api/bookings', authenticateToken, async (req, res) => {
+    try {
+        const userId = (req as any).userId as number;
+        const { flight_id, passenger_count } = req.body;
+        const booking_reference = crypto.randomBytes(8).toString('hex');
+        const flight = await dbService.getFlightById(flight_id);
+        if (!flight) return res.status(404).json({ error: 'Volo non trovato' });
+        if (flight.available_seats < passenger_count) return res.status(400).json({ error: 'Posti insufficienti' });
+        const total_price = flight.price * passenger_count;
+        const booking = await dbService.createBooking({ user_id: userId, flight_id, booking_reference, passenger_count, total_price, status: 'confirmed' });
+        await dbService.updateFlightSeats(flight_id, -passenger_count);
+        res.json(booking);
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+app.get('/api/bookings', authenticateToken, async (req, res) => {
+    try {
+        const userId = (req as any).userId as number;
+        const bookings = await dbService.getBookingsByUserId(userId);
+        res.json(bookings);
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
     }
 });
 
