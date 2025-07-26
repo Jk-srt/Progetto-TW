@@ -2,13 +2,16 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
 
 @Component({
   selector: 'app-user-register',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HttpClientModule],
   template: `
     <div class="register-container">
+      <div *ngIf="errorMessage" class="error">{{ errorMessage }}</div>
+      <div *ngIf="successMessage" class="success">{{ successMessage }}</div>
       <div class="register-card">
         <h2>📝 Crea un nuovo account</h2>
         <form (ngSubmit)="onRegister()" #registerForm="ngForm">
@@ -228,6 +231,18 @@ import { Router } from '@angular/router';
     .register-footer a:hover {
       text-decoration: underline;
     }
+
+    .error {
+      color: red;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .success {
+      color: green;
+      margin-bottom: 20px;
+      text-align: center;
+    }
   `]
 })
 export class UserRegisterComponent {
@@ -242,8 +257,10 @@ export class UserRegisterComponent {
   };
 
   isLoading = false;
+  errorMessage: string | null = null;
+  successMessage: string | null = null;
 
-  constructor(private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {}
 
   passwordsMatch(): boolean {
     return this.registerData.password === this.registerData.confirmPassword;
@@ -256,14 +273,26 @@ export class UserRegisterComponent {
     }
 
     this.isLoading = true;
-
-    // Simulazione chiamata API
-    setTimeout(() => {
-      console.log('Registration attempt:', this.registerData);
-      // TODO: Implementare chiamata reale al backend
-      this.isLoading = false;
-      alert('Registrazione completata con successo!');
-      this.router.navigate(['/login']);
-    }, 2000);
+    this.errorMessage = null;
+    this.successMessage = null;
+    this.http.post('http://localhost:3000/api/users/register', {
+      email: this.registerData.email,
+      password: this.registerData.password,
+      first_name: this.registerData.firstName,
+      last_name: this.registerData.lastName,
+      phone: this.registerData.phone
+    }).subscribe({
+      next: res => {
+        console.debug('[DEBUG] Registration success', res);
+        this.isLoading = false;
+        this.successMessage = 'Registrazione completata con successo!';
+        setTimeout(() => this.router.navigate(['/login']), 1500);
+      },
+      error: (err: HttpErrorResponse) => {
+        console.error('[ERROR] Registration error', err);
+        this.errorMessage = err.error?.error || 'Errore durante la registrazione';
+        this.isLoading = false;
+      }
+    });
   }
 }

@@ -1,4 +1,29 @@
 services:
+  # Database PostgreSQL
+  database:
+    image: postgres:15-alpine
+    container_name: taw-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taw_flights
+      POSTGRES_USER: taw_user
+      POSTGRES_PASSWORD: taw_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - taw-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taw_user -d taw_flights"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    profiles:
+      - local
+
   # Backend Node.js/Express
   backend:
     build:
@@ -11,7 +36,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql://neondb_owner:npg_VATdkwzO94Wr@ep-holy-water-a2lusn2u-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
     env_file:
       - ./.env
     ports:
@@ -21,12 +46,13 @@ services:
       - ./backend/package-lock.json:/app/package-lock.json:ro
       - ./backend/src:/app/src:ro
       - backend_node_modules:/app/node_modules
+      - ./database/postgres-init:/app/database-init:ro
     networks:
       - taw-network
     develop:
       watch:
         - action: sync
-          path: frontend/src
+          path: backend/src
           target: /app/src
         - action: rebuild
           path: ./backend/package*.json
@@ -69,6 +95,8 @@ volumes:
     name: taw_backend_node_modules
   frontend_node_modules:
     name: taw_frontend_node_modules
+  postgres_data:
+    name: taw_postgres_data
 
 # Rete personalizzata
 networks:

@@ -2,11 +2,12 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
 
 @Component({
   selector: 'app-user-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HttpClientModule],
   template: `
     <div class="login-container">
       <div class="login-card">
@@ -143,18 +144,27 @@ export class UserLoginComponent {
   };
 
   isLoading = false;
+  errorMessage: string | null = null;
 
-  constructor(private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {}
 
   onLogin() {
     this.isLoading = true;
+    this.errorMessage = null;
 
-    // Simulazione chiamata API
-    setTimeout(() => {
-      console.log('Login attempt:', this.loginData);
-      // TODO: Implementare chiamata reale al backend
-      this.isLoading = false;
-      this.router.navigate(['/']);
-    }, 2000);
+    this.http.post<{ token: string }>('http://localhost:3000/api/users/login', this.loginData)
+      .subscribe({
+        next: res => {
+          console.log('Login success', res);
+          localStorage.setItem('token', res.token);
+          this.isLoading = false;
+          this.router.navigate(['/']);
+        },
+        error: (err: HttpErrorResponse) => {
+          console.error('Login error', err);
+          this.errorMessage = err.error?.error || 'Errore durante il login';
+          this.isLoading = false;
+        }
+      });
   }
 }

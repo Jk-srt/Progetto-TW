@@ -8,10 +8,27 @@ import { DatabaseService } from './models/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import {readFile} from "node:fs/promises";
+import path from 'path';
 
 dotenv.config();
 
+
+// Debug global errors
+if (process.env.NODE_ENV === 'development') {
+    process.on('unhandledRejection', (reason, promise) => console.error('[UNHANDLED REJECTION]', reason, promise));
+}
+process.on('uncaughtException', err => console.error('[UNCAUGHT EXCEPTION]', err));
+
 const app = express();
+
+app.use(express.json());
+
+// Debug request middleware
+app.use((req, res, next) => {
+    console.debug(`[DEBUG] ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+    next();
+});
 
 // Converti PORT in number e assicurati sia valido
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -19,10 +36,23 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 // Configurazione PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
 });
+
+async function runInitSql() {
+    const sqlPath = path.join(__dirname, '../database-init/init.sql');
+    console.debug('[DEBUG] Running init.sql from', sqlPath);
+    const sql = await readFile(sqlPath, 'utf-8');
+    try {
+        await pool.query(sql);
+        console.log('✅ Script init.sql eseguito');
+    } catch (err: any) {
+        if (err.code === '23505') {
+            console.warn('[WARN] init.sql: duplicate key violation, skipping initialization');
+        } else {
+            throw err;
+        }
+    }
+}
 
 // Istanza del servizio database
 const dbService = new DatabaseService(pool);
@@ -33,7 +63,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
-app.use(express.json());
 
 // Middleware per autenticazione JWT
 function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -120,28 +149,39 @@ app.get('/api/flights/search', async (req: express.Request, res: express.Respons
 
 // Rotte utenti: registrazione e login
 app.post('/api/users/register', async (req, res) => {
+    console.debug('[DEBUG] /api/users/register called with body:', req.body);
     try {
         const { email, password, first_name, last_name, phone } = req.body;
+        console.debug('[DEBUG] Registration details:', { email, first_name, last_name, phone });
         const existing = await dbService.getUserByEmail(email);
+        console.debug('[DEBUG] Existing user check result:', existing);
         if (existing) return res.status(400).json({ error: 'Utente già esistente' });
         const password_hash = await bcrypt.hash(password, 10);
         const user = await dbService.createUser({ email, password_hash, first_name, last_name, phone });
+        console.debug('[DEBUG] New user created:', { id: user.id, email: user.email });
         res.json({ id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name });
     } catch (err) {
+        console.error('[ERROR] Registration failed:', err);
         res.status(500).json({ error: (err as Error).message });
     }
 });
 
 app.post('/api/users/login', async (req, res) => {
+    console.debug('[DEBUG] /api/users/login called with body:', req.body);
     try {
         const { email, password } = req.body;
+        console.debug('[DEBUG] Login attempt for email:', email);
         const user = await dbService.getUserByEmail(email);
+        console.debug('[DEBUG] User lookup result:', user);
         if (!user) return res.status(400).json({ error: 'Credenziali non valide' });
         const match = await bcrypt.compare(password, user.password_hash);
+        console.debug('[DEBUG] Password match result:', match);
         if (!match) return res.status(400).json({ error: 'Credenziali non valide' });
+        console.debug('[DEBUG] Generating JWT for userId:', user.id);
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
         res.json({ token });
     } catch (err) {
+        console.error('[ERROR] Login failed:', err);
         res.status(500).json({ error: (err as Error).message });
     }
 });
@@ -183,6 +223,7 @@ async function connectToDatabase() {
         }
 
         // Test della connessione
+        console.debug('[DEBUG] Connecting to database using', databaseUrl);
         const client = await pool.connect();
         await client.query('SELECT 1');
         client.release();
@@ -197,6 +238,7 @@ async function connectToDatabase() {
 // Avvio server - CORREZIONE: usa PORT come number e '0.0.0.0' come string
 async function startServer() {
     await connectToDatabase();
+    await runInitSql();
 
     // Corretto: PORT è number, '0.0.0.0' è string
     app.listen(PORT, '0.0.0.0', () => {
