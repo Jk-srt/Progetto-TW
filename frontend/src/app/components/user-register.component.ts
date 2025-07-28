@@ -245,6 +245,7 @@ import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common
     }
   `]
 })
+
 export class UserRegisterComponent {
   registerData = {
     firstName: '',
@@ -280,7 +281,8 @@ export class UserRegisterComponent {
       password: this.registerData.password,
       first_name: this.registerData.firstName,
       last_name: this.registerData.lastName,
-      phone: this.registerData.phone
+      phone: this.registerData.phone,
+      role : 'user'
     }).subscribe({
       next: res => {
         console.debug('[DEBUG] Registration success', res);

@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const app = express();
 const userRoutes = require('./routes/users');
 const flightRoutes = require('./routes/flights');
@@ -7,16 +6,19 @@ const routeRoutes = require('./routes/routes');
 
 app.use(express.json());
 
-// Connessione a MongoDB
-mongoose.connect('mongodb://localhost:27017/exam_project', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('Connesso a MongoDB');
-}).catch((err) => {
-  console.error('Errore connessione MongoDB:', err);
+// Connessione a Neon PostgreSQL
+const { Client } = require('pg');
+const client = new Client({
+  connectionString: process.env.DATABASE_URL // imposta la variabile d'ambiente con la stringa di connessione Neon
 });
 
+client.connect()
+  .then(() => {
+    console.log('Connesso a Neon PostgreSQL');
+  })
+  .catch((err) => {
+    console.error('Errore connessione Neon PostgreSQL:', err);
+  });
 app.get('/', (req, res) => {
   res.send('Applicazione avviata!');
 });

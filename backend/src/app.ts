@@ -3,16 +3,19 @@ import { Pool } from 'pg';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import dotenv from 'dotenv';
 import { DatabaseService } from './models/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import {readFile} from "node:fs/promises";
-import path from 'path';
 
-dotenv.config();
 
+// Load environment variables from workspace root .env
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+console.debug('[DEBUG] Loaded .env from', path.resolve(__dirname, '../../.env'));
+console.debug('[DEBUG] DATABASE_URL:', process.env.DATABASE_URL);
 
 // Debug global errors
 if (process.env.NODE_ENV === 'development') {
@@ -69,13 +72,29 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.sendStatus(401);
+
     try {
-        const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+        const payload = jwt.verify(token, JWT_SECRET) as {
+            userId: number;
+            role: string};
         (req as any).userId = payload.userId;
+        (req as any).userRole = payload.role;
+        console.debug('[DEBUG] Token verified for userId:', payload.userId, 'with role:', payload.role);
+        // Aggiungi il ruolo al request object
         next();
     } catch (err) {
         return res.sendStatus(403);
     }
+}
+
+function verifyRole(requiredRole: string) {
+    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        const role = (req as any).userRole;
+        if (role !== requiredRole) {
+            return res.status(403).json({error: 'Accesso negato: ruolo non autorizzato'});
+        }
+        next();
+    };
 }
 
 // Health check endpoint
@@ -107,6 +126,20 @@ app.get('/api/db-test', async (_req: express.Request, res: express.Response) => 
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
+});
+
+// API test endpoint
+app.get('/api/test', (_req: express.Request, res: express.Response) => {
+    res.json({
+        message: 'API funzionante',
+        data: {
+            utenti: ['admin', 'compagnia1', 'passeggero1'],
+            voli: [
+                { id: 1, partenza: 'Roma', arrivo: 'Milano', costo: 120 },
+                { id: 2, partenza: 'Milano', arrivo: 'Parigi', costo: 180 }
+            ]
+        }
+    });
 });
 
 // Endpoint per ottenere tutti i voli
@@ -151,14 +184,17 @@ app.get('/api/flights/search', async (req: express.Request, res: express.Respons
 app.post('/api/users/register', async (req, res) => {
     console.debug('[DEBUG] /api/users/register called with body:', req.body);
     try {
-        const { email, password, first_name, last_name, phone } = req.body;
-        console.debug('[DEBUG] Registration details:', { email, first_name, last_name, phone });
+        const { email, password, first_name, last_name, phone, role } = req.body;
+        console.debug('[DEBUG] Registration details:', { email, first_name, last_name, phone, role, password });
+
         const existing = await dbService.getUserByEmail(email);
         console.debug('[DEBUG] Existing user check result:', existing);
+
         if (existing) return res.status(400).json({ error: 'Utente già esistente' });
         const password_hash = await bcrypt.hash(password, 10);
-        const user = await dbService.createUser({ email, password_hash, first_name, last_name, phone });
+        const user = await dbService.createUser({ email, password_hash, first_name, last_name, phone, role, temporary_password: false, created_at: new Date(), updated_at: new Date() });
         console.debug('[DEBUG] New user created:', { id: user.id, email: user.email });
+
         res.json({ id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name });
     } catch (err) {
         console.error('[ERROR] Registration failed:', err);
@@ -178,7 +214,7 @@ app.post('/api/users/login', async (req, res) => {
         console.debug('[DEBUG] Password match result:', match);
         if (!match) return res.status(400).json({ error: 'Credenziali non valide' });
         console.debug('[DEBUG] Generating JWT for userId:', user.id);
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
+        const token = jwt.sign({ userId: user.id, role : user.role }, JWT_SECRET, { expiresIn: '2h' });
         
         // Restituisci il token insieme ai dati dell'utente (senza password)
         res.json({ 
@@ -187,7 +223,8 @@ app.post('/api/users/login', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 first_name: user.first_name,
-                last_name: user.last_name
+                last_name: user.last_name,
+                role : user.role
             }
         });
     } catch (err) {
@@ -245,16 +282,38 @@ async function connectToDatabase() {
     }
 }
 
+async function ensureAdminExists() {
+    const existing = await dbService.getUserByEmail(process.env.ADMIN_EMAIL!);
+    if (!existing) {
+        const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10);
+        await dbService.createUser({
+            email: process.env.ADMIN_EMAIL!,
+            password_hash: hash,
+            first_name: 'Super',
+            last_name: 'Admin',
+            phone: '',
+            role: 'admin',
+            temporary_password: false,
+            created_at: new Date(),
+            updated_at: new Date()
+        });
+        console.log('✅ Admin user created:', process.env.ADMIN_EMAIL);
+    }
+}
+
 // Avvio server - CORREZIONE: usa PORT come number e '0.0.0.0' come string
 async function startServer() {
     await connectToDatabase();
     await runInitSql();
+    await ensureAdminExists();
 
     // Corretto: PORT è number, '0.0.0.0' è string
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 Server in ascolto su http://0.0.0.0:${PORT}`);
         console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
     });
+
+    await ensureAdminExists();
 }
 
 startServer().catch(error => {

@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    tempporary_password BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -73,7 +75,7 @@ INSERT INTO flights (flight_number, departure_airport_id, arrival_airport_id, de
 
 -- Creazione di un utente di test
 INSERT INTO users (email, password_hash, first_name, last_name, phone) VALUES
-('test@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Mario', 'Rossi', '+39 123 456 7890');
+('test@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Mario', 'Rossi', '+39 123 456 7890', 'user');
 
 -- Creazione di prenotazioni di test
 INSERT INTO bookings (user_id, flight_id, booking_reference, passenger_count, total_price, status) VALUES

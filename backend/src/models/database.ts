@@ -7,6 +7,8 @@ export interface User {
     first_name: string;
     last_name: string;
     phone?: string;
+    role: 'user' | 'admin' | 'airlines';
+    temporary_password: boolean;
     created_at: Date;
     updated_at: Date;
 }
@@ -60,13 +62,23 @@ export class DatabaseService {
     }
 
     // Utenti
-    async createUser(user: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<User> {
+    async createUser(user: {
+        email: any;
+        password_hash: string;
+        first_name: any;
+        last_name: any;
+        phone: any;
+        role: any;
+        temporary_password: boolean;
+        created_at: Date;
+        updated_at: Date
+    }): Promise<User> {
         const query = `
-            INSERT INTO users (email, password_hash, first_name, last_name, phone)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, temporary_password, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
         `;
-        const values = [user.email, user.password_hash, user.first_name, user.last_name, user.phone];
+        const values = [user.email, user.password_hash, user.first_name, user.last_name, user.phone, user.role, user.temporary_password, user.created_at, user.updated_at ];
         const result = await this.pool.query(query, values);
         return result.rows[0];
     }
