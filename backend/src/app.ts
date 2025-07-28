@@ -64,7 +64,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(morgan('combined'));
 
 // Middleware per autenticazione JWT
@@ -175,6 +180,46 @@ app.get('/api/flights/search', async (req: express.Request, res: express.Respons
     } catch (error) {
         res.status(500).json({
             error: 'Errore durante la ricerca voli',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Endpoint per ottenere voli attivi
+app.get('/api/flights/active', async (_req: express.Request, res: express.Response) => {
+    try {
+        const flights = await dbService.getActiveFlights();
+        res.json(flights);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero dei voli attivi',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Endpoint per ottenere voli in orario
+app.get('/api/flights/on-time', async (_req: express.Request, res: express.Response) => {
+    try {
+        const flights = await dbService.getOnTimeFlights();
+        res.json(flights);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero dei voli in orario',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Endpoint per filtrare voli
+app.get('/api/flights/filter/:type', async (req: express.Request, res: express.Response) => {
+    try {
+        const { type } = req.params;
+        const flights = await dbService.filterFlights(type as 'all' | 'departures' | 'arrivals');
+        res.json(flights);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il filtraggio dei voli',
             message: error instanceof Error ? error.message : 'Unknown error'
         });
     }

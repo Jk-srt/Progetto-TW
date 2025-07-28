@@ -1,5 +1,48 @@
 /* Griglia voli */
+/* Griglia voli */
 .flights-grid {
   display: grid;
   gap: 1.5rem;
+}
+
+.flights-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 2rem;
+}
+
+.flight-card-wrapper {
+  transition: transform 0.2s ease;
+}
+
+.no-flights {
+  text-align: center;
+  padding: 3rem;
+  color: #718096;
+  background: #f7fafc;
+  border-radius: 15px;
+  border: 1px solid #e2e8f0;
+}
+
+.no-flights-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-flights h3 {
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.no-flights p {
+  color: #718096;
+}
+
+@media (max-width: 768px) {
+  .flights-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }

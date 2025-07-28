@@ -1,21 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Flight } from '../models/flight.model';
-import { FlightService } from '../services/flight.service';
+import { GlobalFlightsService } from '../services/global-flights.service';
+import { FlightsGridComponent } from './flights-grid/flights-grid.component';
 import { WelcomeSectionComponent } from './welcome-section/welcome-section.component';
 import { StatsSectionComponent, StatCard } from './stats-section/stats-section.component';
-import { FlightFiltersComponent, FilterType } from './flight-filters/flight-filters.component';
-import { FlightsGridComponent } from './flights-grid/flights-grid.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
   imports: [
     CommonModule,
+    FlightsGridComponent,
     WelcomeSectionComponent,
-    StatsSectionComponent,
-    FlightFiltersComponent,
-    FlightsGridComponent
+    StatsSectionComponent
   ],
   template: `
     <div class="home-container">
@@ -27,76 +24,62 @@ import { FlightsGridComponent } from './flights-grid/flights-grid.component';
 
       <!-- Sezione voli -->
       <div class="flights-section">
-        <app-flight-filters 
-          [selectedFilter]="selectedFilter"
-          (filterChange)="onFilterChange($event)">
-        </app-flight-filters>
-
-        <app-flights-grid [flights]="filteredFlights"></app-flights-grid>
+        <div class="section-header">
+          <h2>Voli Disponibili</h2>
+          <p class="flights-count">{{flights.length}} voli trovati</p>
+        </div>
+        <app-flights-grid [flights]="flights"></app-flights-grid>
       </div>
     </div>
   `,
   styleUrl: './home.component.scss'
 })
 export class HomeComponent implements OnInit {
-  selectedFilter: FilterType = 'all';
-  flights: Flight[] = [];
-  filteredFlights: Flight[] = [];
+  flights: any[] = [];
   stats: StatCard[] = [];
 
-  constructor(private flightService: FlightService) {}
+  constructor(private globalFlights: GlobalFlightsService) {}
 
   ngOnInit() {
+    // Sottoscrizione ai flights globali
+    this.globalFlights.flights$.subscribe(flights => {
+      this.flights = flights;
+      this.updateStats();
+    });
+    
+    // Carica i voli
     this.loadFlights();
-    this.updateStats();
   }
 
   private loadFlights() {
-    this.flightService.getFlights().subscribe(flights => {
-      this.flights = flights;
-      this.updateFilteredFlights();
-    });
+    this.globalFlights.loadFlightsGlobally()
+      .catch(error => {
+        console.error('Error loading flights:', error);
+      });
   }
 
   private updateStats() {
-    this.flightService.getFlights().subscribe(flights => {
-      this.flightService.getActiveFlights().subscribe(activeFlights => {
-        this.flightService.getOnTimeFlights().subscribe(onTimeFlights => {
-          this.stats = [
-            {
-              icon: '🛫',
-              number: flights.length,
-              label: 'Voli Oggi'
-            },
-            {
-              icon: '✈️',
-              number: activeFlights.length,
-              label: 'Voli Attivi'
-            },
-            {
-              icon: '⏰',
-              number: onTimeFlights.length,
-              label: 'In Orario'
-            },
-            {
-              icon: '🎫',
-              number: 247,
-              label: 'Prenotazioni'
-            }
-          ];
-        });
-      });
-    });
-  }
-
-  onFilterChange(filter: FilterType) {
-    this.selectedFilter = filter;
-    this.updateFilteredFlights();
-  }
-
-  private updateFilteredFlights() {
-    this.flightService.filterFlights(this.selectedFilter).subscribe(flights => {
-      this.filteredFlights = flights;
-    });
+    this.stats = [
+      {
+        icon: '🛫',
+        number: this.flights.length,
+        label: 'Voli Oggi'
+      },
+      {
+        icon: '✈️',
+        number: this.flights.filter(f => f.status === 'scheduled').length,
+        label: 'Voli Attivi'
+      },
+      {
+        icon: '⏰',
+        number: this.flights.filter(f => f.status === 'scheduled').length,
+        label: 'In Orario'
+      },
+      {
+        icon: '🎫',
+        number: 247,
+        label: 'Prenotazioni'
+      }
+    ];
   }
 }
