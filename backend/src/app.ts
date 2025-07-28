@@ -225,6 +225,101 @@ app.get('/api/flights/filter/:type', async (req: express.Request, res: express.R
     }
 });
 
+// API Compagnie aeree
+app.get('/api/airlines', async (_req: express.Request, res: express.Response) => {
+    try {
+        const airlines = await dbService.getAllAirlines();
+        res.json(airlines);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero delle compagnie aeree',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+app.get('/api/airlines/:id', async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const airline = await dbService.getAirlineById(parseInt(id));
+        if (!airline) {
+            return res.status(404).json({ error: 'Compagnia aerea non trovata' });
+        }
+        res.json(airline);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero della compagnia aerea',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+app.post('/api/airlines', authenticateToken, verifyRole('admin'), async (req: express.Request, res: express.Response) => {
+    try {
+        const airline = await dbService.createAirline(req.body);
+        res.status(201).json(airline);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante la creazione della compagnia aerea',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// API Aerei
+app.get('/api/aircrafts', async (_req: express.Request, res: express.Response) => {
+    try {
+        const aircrafts = await dbService.getAllAircrafts();
+        res.json(aircrafts);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero degli aerei',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+app.get('/api/aircrafts/:id', async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const aircraft = await dbService.getAircraftById(parseInt(id));
+        if (!aircraft) {
+            return res.status(404).json({ error: 'Aereo non trovato' });
+        }
+        res.json(aircraft);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero dell\'aereo',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+app.get('/api/airlines/:id/aircrafts', async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const aircrafts = await dbService.getAircraftsByAirline(parseInt(id));
+        res.json(aircrafts);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante il recupero degli aerei della compagnia',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+app.post('/api/aircrafts', authenticateToken, verifyRole('admin'), async (req: express.Request, res: express.Response) => {
+    try {
+        const aircraft = await dbService.createAircraft(req.body);
+        res.status(201).json(aircraft);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante la creazione dell\'aereo',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 // Rotte utenti: registrazione e login
 app.post('/api/users/register', async (req, res) => {
     console.debug('[DEBUG] /api/users/register called with body:', req.body);

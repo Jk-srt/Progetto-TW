@@ -13,10 +13,44 @@ export interface User {
     updated_at: Date;
 }
 
+export interface Airline {
+    id: number;
+    name: string;
+    iata_code: string;
+    icao_code: string;
+    country: string;
+    founded_year?: number;
+    website?: string;
+    logo_url?: string;
+    active: boolean;
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface Aircraft {
+    id: number;
+    airline_id: number;
+    registration: string;
+    aircraft_type: string;
+    manufacturer: string;
+    model: string;
+    seat_capacity: number;
+    business_class_seats: number;
+    economy_class_seats: number;
+    manufacturing_year?: number;
+    last_maintenance?: Date;
+    status: 'active' | 'maintenance' | 'retired';
+    created_at: Date;
+    updated_at: Date;
+}
+
 export interface Flight {
     id: number;
     flight_number: string;
+    airline_id?: number;
+    aircraft_id?: number;
     airline?: string;
+    aircraft?: string;
     departure_airport: string;
     arrival_airport: string;
     departure_time: Date;
@@ -94,6 +128,99 @@ export class DatabaseService {
         return result.rows[0] || null;
     }
 
+    // Compagnie aeree
+    async getAllAirlines(): Promise<Airline[]> {
+        const query = 'SELECT * FROM airlines WHERE active = true ORDER BY name ASC';
+        const result = await this.pool.query(query);
+        return result.rows;
+    }
+
+    async getAirlineById(id: number): Promise<Airline | null> {
+        const query = 'SELECT * FROM airlines WHERE id = $1';
+        const result = await this.pool.query(query, [id]);
+        return result.rows[0] || null;
+    }
+
+    async createAirline(airline: Omit<Airline, 'id' | 'created_at' | 'updated_at'>): Promise<Airline> {
+        const query = `
+            INSERT INTO airlines (name, iata_code, icao_code, country, founded_year, website, logo_url, active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+        `;
+        const values = [
+            airline.name,
+            airline.iata_code,
+            airline.icao_code,
+            airline.country,
+            airline.founded_year,
+            airline.website,
+            airline.logo_url,
+            airline.active
+        ];
+        const result = await this.pool.query(query, values);
+        return result.rows[0];
+    }
+
+    // Aerei
+    async getAllAircrafts(): Promise<Aircraft[]> {
+        const query = `
+            SELECT a.*, al.name as airline_name
+            FROM aircrafts a
+            LEFT JOIN airlines al ON a.airline_id = al.id
+            ORDER BY a.registration ASC
+        `;
+        const result = await this.pool.query(query);
+        return result.rows;
+    }
+
+    async getAircraftById(id: number): Promise<Aircraft | null> {
+        const query = `
+            SELECT a.*, al.name as airline_name
+            FROM aircrafts a
+            LEFT JOIN airlines al ON a.airline_id = al.id
+            WHERE a.id = $1
+        `;
+        const result = await this.pool.query(query, [id]);
+        return result.rows[0] || null;
+    }
+
+    async getAircraftsByAirline(airlineId: number): Promise<Aircraft[]> {
+        const query = `
+            SELECT a.*, al.name as airline_name
+            FROM aircrafts a
+            LEFT JOIN airlines al ON a.airline_id = al.id
+            WHERE a.airline_id = $1 AND a.status = 'active'
+            ORDER BY a.registration ASC
+        `;
+        const result = await this.pool.query(query, [airlineId]);
+        return result.rows;
+    }
+
+    async createAircraft(aircraft: Omit<Aircraft, 'id' | 'created_at' | 'updated_at'>): Promise<Aircraft> {
+        const query = `
+            INSERT INTO aircrafts (airline_id, registration, aircraft_type, manufacturer, model, 
+                                 seat_capacity, business_class_seats, economy_class_seats, 
+                                 manufacturing_year, last_maintenance, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING *
+        `;
+        const values = [
+            aircraft.airline_id,
+            aircraft.registration,
+            aircraft.aircraft_type,
+            aircraft.manufacturer,
+            aircraft.model,
+            aircraft.seat_capacity,
+            aircraft.business_class_seats,
+            aircraft.economy_class_seats,
+            aircraft.manufacturing_year,
+            aircraft.last_maintenance,
+            aircraft.status
+        ];
+        const result = await this.pool.query(query, values);
+        return result.rows[0];
+    }
+
     // Voli
     async getAllFlights(): Promise<Flight[]> {
         try {
@@ -116,10 +243,16 @@ export class DatabaseService {
                 SELECT 
                     f.*,
                     da.name as departure_airport_name,
-                    aa.name as arrival_airport_name
+                    aa.name as arrival_airport_name,
+                    al.name as airline_name,
+                    al.iata_code as airline_code,
+                    ac.registration as aircraft_registration,
+                    ac.model as aircraft_model
                 FROM flights f
                 LEFT JOIN airports da ON f.departure_airport_id = da.id
                 LEFT JOIN airports aa ON f.arrival_airport_id = aa.id
+                LEFT JOIN airlines al ON f.airline_id = al.id
+                LEFT JOIN aircrafts ac ON f.aircraft_id = ac.id
                 ORDER BY f.departure_time ASC
             `;
             const result = await this.pool.query(query);
@@ -128,7 +261,10 @@ export class DatabaseService {
             return result.rows.map(row => ({
                 id: row.id,
                 flight_number: row.flight_number,
-                airline: row.flight_number ? row.flight_number.substring(0, 2) : 'N/A',
+                airline_id: row.airline_id,
+                aircraft_id: row.aircraft_id,
+                airline: row.airline_name || row.airline_code || 'N/A',
+                aircraft: row.aircraft_registration ? `${row.aircraft_model} (${row.aircraft_registration})` : 'N/A',
                 departure_airport: row.departure_airport_name || row.departure_airport || 'N/A',
                 arrival_airport: row.arrival_airport_name || row.arrival_airport || 'N/A',
                 departure_time: row.departure_time,
