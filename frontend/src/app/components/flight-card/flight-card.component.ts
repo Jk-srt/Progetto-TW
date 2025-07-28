@@ -31,7 +31,7 @@ import { Flight } from '../../models/flight.model';
       </div>
       
       <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
-        <div class="airline" style="color: #64748b; font-size: 0.9rem;">Durata: {{formatDuration(flight.duration)}}</div>
+        <div class="airline" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
         <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">€{{flight.price}}</div>
       </div>
     </div>
@@ -72,7 +72,8 @@ export class FlightCardComponent {
     if (!dateTime) return 'N/A';
     return new Date(dateTime).toLocaleDateString('it-IT', { 
       day: '2-digit', 
-      month: 'short' 
+      month: '2-digit',
+      year: 'numeric'
     });
   }
 
