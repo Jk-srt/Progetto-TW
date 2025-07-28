@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
+import { AuthService, AuthResponse } from '../services/auth.service';
 
 @Component({
   selector: 'app-user-login',
@@ -146,17 +147,20 @@ export class UserLoginComponent {
   isLoading = false;
   errorMessage: string | null = null;
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(
+    private http: HttpClient, 
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   onLogin() {
     this.isLoading = true;
     this.errorMessage = null;
 
-    this.http.post<{ token: string }>('http://localhost:3000/api/users/login', this.loginData)
+    this.authService.login(this.loginData.email, this.loginData.password)
       .subscribe({
-        next: res => {
+        next: (res: AuthResponse) => {
           console.log('Login success', res);
-          localStorage.setItem('token', res.token);
           this.isLoading = false;
           this.router.navigate(['/']);
         },

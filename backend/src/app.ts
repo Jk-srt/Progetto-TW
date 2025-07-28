@@ -179,7 +179,17 @@ app.post('/api/users/login', async (req, res) => {
         if (!match) return res.status(400).json({ error: 'Credenziali non valide' });
         console.debug('[DEBUG] Generating JWT for userId:', user.id);
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
-        res.json({ token });
+        
+        // Restituisci il token insieme ai dati dell'utente (senza password)
+        res.json({ 
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                first_name: user.first_name,
+                last_name: user.last_name
+            }
+        });
     } catch (err) {
         console.error('[ERROR] Login failed:', err);
         res.status(500).json({ error: (err as Error).message });

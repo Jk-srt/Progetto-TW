@@ -65,6 +65,180 @@ html, body {
   margin-top: auto;
 }
 
+/* ===== STILI PER IL MENU PROFILO ===== */
+
+/* Container del menu profilo */
+.profile-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Bottone del profilo */
+.profile-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.profile-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.profile-button:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* Avatar del profilo */
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.profile-avatar.large {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+
+/* Freccia dropdown */
+.dropdown-arrow {
+  transition: transform 0.2s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* Menu dropdown */
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  min-width: 280px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.profile-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Header del menu */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 14px;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-email {
+  color: #666;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Divisore */
+.profile-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 8px 0;
+}
+
+/* Menu items */
+.profile-menu-items {
+  padding: 8px 0;
+}
+
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.profile-menu-item:hover {
+  background: #f8f9fa;
+}
+
+.profile-menu-item:focus {
+  outline: none;
+  background: #f8f9fa;
+}
+
+.profile-menu-item svg {
+  color: #666;
+  flex-shrink: 0;
+}
+
+.profile-menu-item.logout {
+  color: #dc3545;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
+}
+
+.profile-menu-item.logout:hover {
+  background: #fff5f5;
+}
+
+.profile-menu-item.logout svg {
+  color: #dc3545;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .app-title {
@@ -81,5 +255,20 @@ html, body {
   
   .header-content {
     padding: 0 1rem;
+  }
+
+  .profile-dropdown {
+    min-width: 260px;
+    right: -8px;
+  }
+  
+  .profile-button {
+    padding: 8px;
+  }
+  
+  .profile-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
   }
 }
