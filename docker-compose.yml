@@ -37,6 +37,8 @@ services:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
       DATABASE_URL: postgresql://neondb_owner:npg_VATdkwzO94Wr@ep-holy-water-a2lusn2u-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-secureTemporaryPwd}
     env_file:
       - ./.env
     ports:

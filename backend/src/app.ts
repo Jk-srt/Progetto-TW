@@ -283,6 +283,14 @@ async function connectToDatabase() {
 }
 
 async function ensureAdminExists() {
+    console.log('[DEBUG] ADMIN_EMAIL:', process.env.ADMIN_EMAIL);
+    console.log('[DEBUG] ADMIN_PASSWORD:', process.env.ADMIN_PASSWORD ? '***' : 'undefined');
+    
+    if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+        console.log('[WARN] Admin credentials not configured, skipping admin creation');
+        return;
+    }
+    
     const existing = await dbService.getUserByEmail(process.env.ADMIN_EMAIL!);
     if (!existing) {
         const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10);
