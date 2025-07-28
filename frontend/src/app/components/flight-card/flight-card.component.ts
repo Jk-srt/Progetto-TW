@@ -28,7 +28,7 @@ import { Flight } from '../../models/flight.model';
           <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">{{flight.arrival_airport}}</div>
           <div class="time" style="font-size: 1rem; font-weight: 600; color: #475569;">{{formatTime(flight.arrival_time)}}</div>
         </div>
-      </div>
+      </div> 
       
       <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
         <div class="airline" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>

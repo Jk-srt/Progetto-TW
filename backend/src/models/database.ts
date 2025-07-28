@@ -198,7 +198,8 @@ export class DatabaseService {
             ORDER BY f.departure_time ASC
         `;
         const result = await this.pool.query(query, [departureAirport, arrivalAirport, departureDate]);
-        return result.rows;
+        const appo='s';
+        return result.rows; 
     }
 
     // Prenotazioni

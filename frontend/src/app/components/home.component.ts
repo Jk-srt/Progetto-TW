@@ -74,11 +74,6 @@ export class HomeComponent implements OnInit {
         icon: '⏰',
         number: this.flights.filter(f => f.status === 'scheduled').length,
         label: 'In Orario'
-      },
-      {
-        icon: '🎫',
-        number: 247,
-        label: 'Prenotazioni'
       }
     ];
   }

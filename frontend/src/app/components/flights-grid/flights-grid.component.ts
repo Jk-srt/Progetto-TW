@@ -26,7 +26,7 @@ import { FlightCardComponent } from '../flight-card/flight-card.component';
       </ng-template>
     </div>
   `,
-  styleUrl: './flights-grid.component.scss'
+  styleUrl: './flights-grid.component.scss'//
 })
 export class FlightsGridComponent implements OnInit, OnChanges {
   @Input() flights: any[] = [];
