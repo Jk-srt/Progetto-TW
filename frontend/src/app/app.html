@@ -254,17 +254,17 @@
       <div class="nav-links">
         <a routerLink="/" class="nav-link">Home</a>
         <a routerLink="/flights" class="nav-link">✈️ Voli</a>
-        
+
         <!-- Link per gestione voli (solo compagnie aeree) -->
         <a routerLink="/flight-admin" class="nav-link admin-link" *ngIf="isAirlineUser()">�️ Gestione Voli</a>
-        
+
         <!-- Links per utenti NON loggati -->
         <ng-container *ngIf="!isLoggedIn">
           <a routerLink="/login" class="nav-link">Login</a>
           <a routerLink="/airline-login" class="nav-link admin-link">🏢 Login Compagnie</a>
           <a routerLink="/register" class="nav-link">Registrati</a>
         </ng-container>
-        
+
         <!-- Menu profilo per utenti loggati -->
         <div class="profile-menu-container" *ngIf="isLoggedIn">
           <button class="profile-button" (click)="toggleProfileMenu()">
@@ -275,7 +275,7 @@
               <path d="M6 8L2 4h8z" fill="currentColor"/>
             </svg>
           </button>
-          
+
           <!-- Dropdown Menu -->
           <div class="profile-dropdown" [class.show]="isProfileMenuOpen">
             <div class="profile-header">
@@ -287,9 +287,9 @@
                 <div class="profile-email">{{ currentUser?.email }}</div>
               </div>
             </div>
-            
+
             <div class="profile-divider"></div>
-            
+
             <div class="profile-menu-items">
               <button class="profile-menu-item" (click)="navigateToProfile()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -297,7 +297,7 @@
                 </svg>
                 Il mio profilo
               </button>
-              
+
               <button class="profile-menu-item" (click)="navigateToBookings()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M4 1h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1H4z"/>
@@ -305,7 +305,7 @@
                 </svg>
                 Le mie prenotazioni
               </button>
-              
+
               <button class="profile-menu-item" (click)="navigateToSettings()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
@@ -314,9 +314,9 @@
                 Impostazioni
               </button>
             </div>
-            
+
             <div class="profile-divider"></div>
-            
+
             <button class="profile-menu-item logout" (click)="onLogout()">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
@@ -335,7 +335,7 @@
   </main>
 
   <footer class="app-footer">
-    <p>&copy; 2024 TAW Flights - Sistema di prenotazione voli</p>
+    <p>&copy; 2025 TAW Flights - Sistema di prenotazione voli</p>
   </footer>
 </div>
 
