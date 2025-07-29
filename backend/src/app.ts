@@ -5,18 +5,27 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
 import dotenv from 'dotenv';
-import { DatabaseService } from './models/database';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import {readFile} from "node:fs/promises";
-import adminRouter from './routes/admin';
+import { DatabaseService } from './models/database';
 
+// Import routers
+import adminRouter from './routes/admin';
+import flightsRouter from './routes/flights';
+import authRouter from './routes/auth';
+import usersRouter from './routes/users';
+import routesRouter from './routes/routes';
+import airportsRouter from './routes/airports';
+import airlinesRouter from './routes/airlines';
+import aircraftsRouter from './routes/aircrafts';
+import bookingsRouter from './routes/bookings';
 
 // Load environment variables from workspace root .env
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 console.debug('[DEBUG] Loaded .env from', path.resolve(__dirname, '../../.env'));
 console.debug('[DEBUG] DATABASE_URL:', process.env.DATABASE_URL);
+console.debug('[DEBUG] Routes imported successfully');
 
 // Debug global errors
 if (process.env.NODE_ENV === 'development') {
@@ -26,7 +35,46 @@ process.on('uncaughtException', err => console.error('[UNCAUGHT EXCEPTION]', err
 
 const app = express();
 
+// Constants
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+
+// Database connection
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+});
+
+// Database service instance
+const dbService = new DatabaseService(pool);
+
+async function runInitSql() {
+    try {
+        const initSqlPath = path.resolve(__dirname, '../database-init/init.sql');
+        const sqlContent = await readFile(initSqlPath, 'utf-8');
+        
+        console.debug('[DEBUG] Running SQL initialization from:', initSqlPath);
+        await pool.query(sqlContent);
+        console.debug('[DEBUG] SQL initialization completed successfully');
+    } catch (error: any) {
+        if (error.code === '23505') {
+            console.warn('[WARN] init.sql: duplicate key violation, skipping initialization');
+        } else {
+            console.error('[ERROR] Failed to run SQL initialization:', error);
+            throw error;
+        }
+    }
+}
+
+// Middleware
 app.use(express.json());
+app.use(cors({
+    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+app.use(helmet());
+app.use(morgan('combined'));
 
 // Debug request middleware
 app.use((req, res, next) => {
@@ -34,46 +82,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Converti PORT in number e assicurati sia valido
-const PORT = parseInt(process.env.PORT || '3000', 10);
-
-// Configurazione PostgreSQL
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
-
-async function runInitSql() {
-    const sqlPath = path.join(__dirname, '../database-init/init.sql');
-    console.debug('[DEBUG] Running init.sql from', sqlPath);
-    const sql = await readFile(sqlPath, 'utf-8');
-    try {
-        await pool.query(sql);
-        console.log('✅ Script init.sql eseguito');
-    } catch (err: any) {
-        if (err.code === '23505') {
-            console.warn('[WARN] init.sql: duplicate key violation, skipping initialization');
-        } else {
-            throw err;
-        }
-    }
-}
-
-// Istanza del servizio database
-const dbService = new DatabaseService(pool);
-
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
-
-// Middleware
-app.use(helmet());
-app.use(cors({
-    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-app.use(morgan('combined'));
-
-// Middleware per autenticazione JWT
+// Authentication middleware
 function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -82,11 +91,11 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
     try {
         const payload = jwt.verify(token, JWT_SECRET) as {
             userId: number;
-            role: string};
+            role: string;
+        };
         (req as any).userId = payload.userId;
         (req as any).userRole = payload.role;
         console.debug('[DEBUG] Token verified for userId:', payload.userId, 'with role:', payload.role);
-        // Aggiungi il ruolo al request object
         next();
     } catch (err) {
         return res.sendStatus(403);
@@ -113,7 +122,7 @@ app.get('/api/health', (_req: express.Request, res: express.Response) => {
     });
 });
 
-// Test connessione database endpoint
+// Test database connection endpoint
 app.get('/api/db-test', async (_req: express.Request, res: express.Response) => {
     try {
         const client = await pool.connect();
@@ -148,350 +157,56 @@ app.get('/api/test', (_req: express.Request, res: express.Response) => {
     });
 });
 
-// Endpoint per ottenere tutti i voli
-app.get('/api/flights', async (_req: express.Request, res: express.Response) => {
-    try {
-        const flights = await dbService.getAllFlights();
-        res.json(flights);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero dei voli',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
+// Mount routers
+app.use('/api/admin', adminRouter);
+app.use('/api/flights', flightsRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/routes', routesRouter);
+app.use('/api/airports', airportsRouter);
+app.use('/api/airlines', airlinesRouter);
+app.use('/api/aircrafts', aircraftsRouter);
+app.use('/api/bookings', bookingsRouter);
 
-// Endpoint per cercare voli
-app.get('/api/flights/search', async (req: express.Request, res: express.Response) => {
-    try {
-        const { departure, arrival, date } = req.query;
-        
-        if (!departure || !arrival || !date) {
-            return res.status(400).json({
-                error: 'Parametri mancanti: departure, arrival, date sono richiesti'
-            });
+// Default route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Flight Management API',
+        version: '1.0.0',
+        endpoints: {
+            health: '/api/health',
+            dbTest: '/api/db-test',
+            flights: '/api/flights',
+            auth: '/api/auth',
+            users: '/api/users',
+            routes: '/api/routes',
+            airports: '/api/airports',
+            airlines: '/api/airlines',
+            aircrafts: '/api/aircrafts',
+            bookings: '/api/bookings',
+            admin: '/api/admin'
         }
-        
-        const flights = await dbService.searchFlights(
-            departure as string,
-            arrival as string,
-            date as string
-        );
-        res.json(flights);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante la ricerca voli',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
+    });
 });
 
-// Endpoint per ottenere voli attivi
-app.get('/api/flights/active', async (_req: express.Request, res: express.Response) => {
-    try {
-        const flights = await dbService.getActiveFlights();
-        res.json(flights);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero dei voli attivi',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[ERROR]', err.stack);
+    res.status(500).json({
+        error: 'Errore interno del server',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
 });
 
-// Endpoint per ottenere voli in orario
-app.get('/api/flights/on-time', async (_req: express.Request, res: express.Response) => {
-    try {
-        const flights = await dbService.getOnTimeFlights();
-        res.json(flights);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero dei voli in orario',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
+// 404 handler
+app.use((req: express.Request, res: express.Response) => {
+    res.status(404).json({
+        error: 'Endpoint non trovato',
+        path: req.originalUrl,
+        method: req.method
+    });
 });
 
-// Endpoint per filtrare voli
-app.get('/api/flights/filter/:type', async (req: express.Request, res: express.Response) => {
-    try {
-        const { type } = req.params;
-        const flights = await dbService.filterFlights(type as 'all' | 'departures' | 'arrivals');
-        res.json(flights);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il filtraggio dei voli',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-// API Compagnie aeree
-app.get('/api/airlines', async (_req: express.Request, res: express.Response) => {
-    try {
-        const airlines = await dbService.getAllAirlines();
-        res.json(airlines);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero delle compagnie aeree',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-app.get('/api/airlines/:id', async (req: express.Request, res: express.Response) => {
-    try {
-        const { id } = req.params;
-        const airline = await dbService.getAirlineById(parseInt(id));
-        if (!airline) {
-            return res.status(404).json({ error: 'Compagnia aerea non trovata' });
-        }
-        res.json(airline);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero della compagnia aerea',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-app.post('/api/airlines', authenticateToken, verifyRole('admin'), async (req: express.Request, res: express.Response) => {
-    try {
-        const airline = await dbService.createAirline(req.body);
-        res.status(201).json(airline);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante la creazione della compagnia aerea',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-// API Aerei
-app.get('/api/aircrafts', async (_req: express.Request, res: express.Response) => {
-    try {
-        const aircrafts = await dbService.getAllAircrafts();
-        res.json(aircrafts);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero degli aerei',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-app.get('/api/aircrafts/:id', async (req: express.Request, res: express.Response) => {
-    try {
-        const { id } = req.params;
-        const aircraft = await dbService.getAircraftById(parseInt(id));
-        if (!aircraft) {
-            return res.status(404).json({ error: 'Aereo non trovato' });
-        }
-        res.json(aircraft);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero dell\'aereo',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-app.get('/api/airlines/:id/aircrafts', async (req: express.Request, res: express.Response) => {
-    try {
-        const { id } = req.params;
-        const aircrafts = await dbService.getAircraftsByAirline(parseInt(id));
-        res.json(aircrafts);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante il recupero degli aerei della compagnia',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-app.post('/api/aircrafts', authenticateToken, verifyRole('admin'), async (req: express.Request, res: express.Response) => {
-    try {
-        const aircraft = await dbService.createAircraft(req.body);
-        res.status(201).json(aircraft);
-    } catch (error) {
-        res.status(500).json({
-            error: 'Errore durante la creazione dell\'aereo',
-            message: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-// Rotte utenti: registrazione e login
-app.post('/api/users/register', async (req, res) => {
-    console.debug('[DEBUG] /api/users/register called with body:', req.body);
-    try {
-        const { email, password, first_name, last_name, phone, role } = req.body;
-        console.debug('[DEBUG] Registration details:', { email, first_name, last_name, phone, role, password });
-
-        const existing = await dbService.getUserByEmail(email);
-        console.debug('[DEBUG] Existing user check result:', existing);
-
-        if (existing) return res.status(400).json({ error: 'Utente già esistente' });
-        const password_hash = await bcrypt.hash(password, 10);
-        const user = await dbService.createUser({ email, password_hash, first_name, last_name, phone, role, temporary_password: false, created_at: new Date(), updated_at: new Date() });
-        console.debug('[DEBUG] New user created:', { id: user.id, email: user.email });
-
-        res.json({ id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name });
-    } catch (err) {
-        console.error('[ERROR] Registration failed:', err);
-        res.status(500).json({ error: (err as Error).message });
-    }
-});
-
-app.post('/api/users/login', async (req, res) => {
-    console.debug('[DEBUG] /api/users/login called with body:', req.body);
-    try {
-        const { email, password } = req.body;
-        console.debug('[DEBUG] Login attempt for email:', email);
-        const user = await dbService.getUserByEmail(email);
-        console.debug('[DEBUG] User lookup result:', user);
-        if (!user) return res.status(400).json({ error: 'Credenziali non valide' });
-        const match = await bcrypt.compare(password, user.password_hash);
-        console.debug('[DEBUG] Password match result:', match);
-        if (!match) return res.status(400).json({ error: 'Credenziali non valide' });
-        console.debug('[DEBUG] Generating JWT for userId:', user.id);
-        const token = jwt.sign({ userId: user.id, role : user.role }, JWT_SECRET, { expiresIn: '2h' });
-        
-        // Restituisci il token insieme ai dati dell'utente (senza password)
-        res.json({ 
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                role : user.role
-            }
-        });
-    } catch (err) {
-        console.error('[ERROR] Login failed:', err);
-        res.status(500).json({ error: (err as Error).message });
-    }
-});
-
-// Airline Authentication Routes
-app.post('/api/auth/airline/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        
-        // Mock airline credentials - in a real app these would be stored in database
-        const mockAirlines = [
-            {
-                id: 1,
-                email: 'admin@alitalia.com',
-                password: 'alitalia123',
-                airline_name: 'Alitalia',
-                name: 'Alitalia Admin',
-                role: 'airline'
-            },
-            {
-                id: 2,
-                email: 'admin@lufthansa.com',
-                password: 'lufthansa123',
-                airline_name: 'Lufthansa',
-                name: 'Lufthansa Admin',
-                role: 'airline'
-            },
-            {
-                id: 3,
-                email: 'admin@airfrance.com',
-                password: 'airfrance123',
-                airline_name: 'Air France',
-                name: 'Air France Admin',
-                role: 'airline'
-            },
-            {
-                id: 4,
-                email: 'admin@emirates.com',
-                password: 'emirates123',
-                airline_name: 'Emirates',
-                name: 'Emirates Admin',
-                role: 'airline'
-            }
-        ];
-
-        const airline = mockAirlines.find(a => a.email === email && a.password === password);
-        
-        if (!airline) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Credenziali non valide' 
-            });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { 
-                id: airline.id, 
-                email: airline.email, 
-                role: airline.role,
-                airline_name: airline.airline_name 
-            },
-            process.env.JWT_SECRET || 'fallback-secret',
-            { expiresIn: '24h' }
-        );
-
-        const userResponse = {
-            id: airline.id,
-            email: airline.email,
-            first_name: airline.airline_name,
-            last_name: 'Admin',
-            role: airline.role,
-            airline_name: airline.airline_name,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-
-        res.json({
-            success: true,
-            token,
-            user: userResponse,
-            message: `Benvenuto ${airline.airline_name}!`
-        });
-
-    } catch (err) {
-        console.error('[ERROR] Airline login failed:', err);
-        res.status(500).json({ 
-            success: false, 
-            error: (err as Error).message 
-        });
-    }
-});
-
-// Rotte prenotazioni
-app.post('/api/bookings', authenticateToken, async (req, res) => {
-    try {
-        const userId = (req as any).userId as number;
-        const { flight_id, passenger_count } = req.body;
-        const booking_reference = crypto.randomBytes(8).toString('hex');
-        const flight = await dbService.getFlightById(flight_id);
-        if (!flight) return res.status(404).json({ error: 'Volo non trovato' });
-        if (flight.available_seats < passenger_count) return res.status(400).json({ error: 'Posti insufficienti' });
-        const total_price = flight.price * passenger_count;
-        const booking = await dbService.createBooking({ user_id: userId, flight_id, booking_reference, passenger_count, total_price, status: 'confirmed' });
-        await dbService.updateFlightSeats(flight_id, -passenger_count);
-        res.json(booking);
-    } catch (err) {
-        res.status(500).json({ error: (err as Error).message });
-    }
-});
-
-app.get('/api/bookings', authenticateToken, async (req, res) => {
-    try {
-        const userId = (req as any).userId as number;
-        const bookings = await dbService.getBookingsByUserId(userId);
-        res.json(bookings);
-    } catch (err) {
-        res.status(500).json({ error: (err as Error).message });
-    }
-});
-
-// Connessione PostgreSQL
 async function connectToDatabase() {
     try {
         const databaseUrl = process.env.DATABASE_URL;
@@ -499,7 +214,7 @@ async function connectToDatabase() {
             throw new Error('DATABASE_URL non definita nelle variabili d\'ambiente');
         }
 
-        // Test della connessione
+        // Test database connection
         console.debug('[DEBUG] Connecting to database using', databaseUrl);
         const client = await pool.connect();
         await client.query('SELECT 1');
@@ -539,25 +254,25 @@ async function ensureAdminExists() {
     }
 }
 
-// Avvio server - CORREZIONE: usa PORT come number e '0.0.0.0' come string
+// Server startup
 async function startServer() {
-    await connectToDatabase();
-    await runInitSql();
-    await ensureAdminExists();
-
-    // Corretto: PORT è number, '0.0.0.0' è string
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Server in ascolto su http://0.0.0.0:${PORT}`);
-        console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
-    });
-
-    await ensureAdminExists();
+    try {
+        console.log('[INFO] Initializing database...');
+        await connectToDatabase();
+        await runInitSql();
+        await ensureAdminExists();
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server in ascolto su http://0.0.0.0:${PORT}`);
+            console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
+            console.log(`📋 API documentation: http://0.0.0.0:${PORT}/`);
+        });
+    } catch (error) {
+        console.error('[ERROR] Failed to start server:', error);
+        process.exit(1);
+    }
 }
 
-// Mount admin routes
-app.use('/api/admin', adminRouter);
+startServer();
 
-startServer().catch(error => {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-});
+export default app;

@@ -1,9 +1,25 @@
-const express = require('express');
+import express, { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+
 const router = express.Router();
-const jwt = require('jsonwebtoken');
+
+interface Airline {
+  id: number;
+  name: string;
+  email: string;
+  password: string;
+  iata_code: string;
+}
+
+interface JWTPayload {
+  id: number;
+  name: string;
+  email: string;
+  type: string;
+}
 
 // Mock database per le compagnie aeree (in produzione sarà nel database)
-const airlines = [
+const airlines: Airline[] = [
   {
     id: 1,
     name: 'Alitalia',
@@ -37,7 +53,7 @@ const airlines = [
 const JWT_SECRET = 'your-secret-key-here';
 
 // Login per compagnie aeree
-router.post('/airline/login', (req, res) => {
+router.post('/airline/login', (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -83,8 +99,17 @@ router.post('/airline/login', (req, res) => {
   }
 });
 
+// Estendi l'interfaccia Request per includere user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JWTPayload;
+    }
+  }
+}
+
 // Middleware per verificare il token JWT
-const authenticateToken = (req, res, next) => {
+const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -92,7 +117,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token di accesso richiesto' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) {
       return res.status(403).json({ message: 'Token non valido' });
     }
@@ -102,7 +127,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Endpoint per verificare se l'utente è autorizzato
-router.get('/verify', authenticateToken, (req, res) => {
+router.get('/verify', authenticateToken, (req: Request, res: Response) => {
   res.json({ 
     success: true, 
     user: req.user 
@@ -110,9 +135,10 @@ router.get('/verify', authenticateToken, (req, res) => {
 });
 
 // Ottieni lista delle compagnie aeree (per demo)
-router.get('/airlines', (req, res) => {
+router.get('/airlines', (req: Request, res: Response) => {
   const publicAirlines = airlines.map(({ password, ...airline }) => airline);
   res.json(publicAirlines);
 });
 
-module.exports = { router, authenticateToken };
+export default router;
+export { authenticateToken };
