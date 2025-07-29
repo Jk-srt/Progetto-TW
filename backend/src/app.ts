@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import {readFile} from "node:fs/promises";
+import adminRouter from './routes/admin';
 
 
 // Load environment variables from workspace root .env
@@ -552,6 +553,9 @@ async function startServer() {
 
     await ensureAdminExists();
 }
+
+// Mount admin routes
+app.use('/api/admin', adminRouter);
 
 startServer().catch(error => {
     console.error('❌ Failed to start server:', error);

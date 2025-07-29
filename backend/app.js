@@ -1,4 +1,5 @@
 const express = require('express');
+require('dotenv').config();
 const app = express();
 const cors = require('cors');
 // Commentati temporaneamente per testare solo i voli
@@ -13,6 +14,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Log middleware per debug
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url} - Query:`, req.query);
+  next();
+});
 
 // Connessione a Neon PostgreSQL
 const { Client } = require('pg');
