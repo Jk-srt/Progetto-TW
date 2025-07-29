@@ -130,6 +130,18 @@ export class DatabaseService {
         return result.rows[0] || null;
     }
 
+    // Add method to retrieve all users
+    async getAllUsers(): Promise<User[]> {
+        const query = 'SELECT * FROM users ORDER BY id ASC';
+        const result = await this.pool.query(query);
+        return result.rows;
+    }
+
+    // Add method to delete a user by ID
+    async deleteUserById(id: number): Promise<void> {
+        await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
+    }
+
     // Compagnie aeree
     async getAllAirlines(): Promise<Airline[]> {
         const query = 'SELECT * FROM airlines WHERE active = true ORDER BY name ASC';
