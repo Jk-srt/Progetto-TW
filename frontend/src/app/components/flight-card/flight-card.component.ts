@@ -9,7 +9,10 @@ import { Flight } from '../../models/flight.model';
   template: `
     <div class="flight-card" style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-bottom: 16px;">
       <div class="flight-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;">
-        <div class="flight-number" style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">Volo {{flight.flight_number}}</div>
+        <div class="flight-info">
+          <div class="flight-number" style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">Volo {{flight.flight_number}}</div>
+          <div class="airline-name" style="font-size: 0.9rem; color: #64748b; margin-top: 2px;">{{flight.airline || 'N/A'}}</div>
+        </div>
         <div class="status-badge" style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem;">In Orario</div>
       </div>
       
@@ -31,7 +34,7 @@ import { Flight } from '../../models/flight.model';
       </div> 
       
       <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
-        <div class="airline" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
+        <div class="flight-date" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
         <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">€{{flight.price}}</div>
       </div>
     </div>
