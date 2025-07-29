@@ -1,13 +1,24 @@
 const express = require('express');
 const app = express();
-const userRoutes = require('./routes/users');
-const flightRoutes = require('./routes/flights');
-const routeRoutes = require('./routes/routes');
+const cors = require('cors');
+// Commentati temporaneamente per testare solo i voli
+// const userRoutes = require('./routes/users');
+const flightRoutes = require('./routes/flights-mock'); // Usando dati mock per ora
+const authRoutes = require('./routes/auth'); // Aggiunta autenticazione
+// const routeRoutes = require('./routes/routes');
 
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Connessione a Neon PostgreSQL
 const { Client } = require('pg');
+
+// Per ora commentiamo la connessione DB per testare
+/*
 const client = new Client({
   connectionString: process.env.DATABASE_URL // imposta la variabile d'ambiente con la stringa di connessione Neon
 });
@@ -19,6 +30,7 @@ client.connect()
   .catch((err) => {
     console.error('Errore connessione Neon PostgreSQL:', err);
   });
+*/
 app.get('/', (req, res) => {
   res.send('Applicazione avviata!');
 });
@@ -36,9 +48,11 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-app.use('/api/users', userRoutes);
+// Routes
+// app.use('/api/users', userRoutes);
 app.use('/api/flights', flightRoutes);
-app.use('/api/routes', routeRoutes);
+app.use('/api/auth', authRoutes); // Aggiunta route autenticazione
+// app.use('/api/routes', routeRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

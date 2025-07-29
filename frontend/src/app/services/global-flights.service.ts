@@ -51,4 +51,28 @@ export class GlobalFlightsService {
         throw error;
       });
   }
+
+  // Aggiungi un nuovo volo alla lista globale
+  addFlightToGlobal(flight: any): void {
+    this._flights.push(flight);
+    this._flightsSubject.next([...this._flights]);
+    console.log('🌍 GlobalFlightsService: Flight added to global list');
+  }
+
+  // Aggiorna un volo nella lista globale
+  updateFlightInGlobal(updatedFlight: any): void {
+    const index = this._flights.findIndex(f => f.id === updatedFlight.id);
+    if (index !== -1) {
+      this._flights[index] = updatedFlight;
+      this._flightsSubject.next([...this._flights]);
+      console.log('🌍 GlobalFlightsService: Flight updated in global list');
+    }
+  }
+
+  // Rimuovi un volo dalla lista globale
+  removeFlightFromGlobal(flightId: number): void {
+    this._flights = this._flights.filter(f => f.id !== flightId);
+    this._flightsSubject.next([...this._flights]);
+    console.log('🌍 GlobalFlightsService: Flight removed from global list');
+  }
 }

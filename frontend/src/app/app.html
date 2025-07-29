@@ -103,6 +103,18 @@
     border-bottom: 2px solid #fff;
   }
 
+  .nav-link.admin-link {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+  }
+
+  .nav-link.admin-link:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+
   .app-main {
     flex: 1;
     display: flex;
@@ -241,10 +253,15 @@
       </div>
       <div class="nav-links">
         <a routerLink="/" class="nav-link">Home</a>
+        <a routerLink="/flights" class="nav-link">✈️ Voli</a>
+        
+        <!-- Link per gestione voli (solo compagnie aeree) -->
+        <a routerLink="/flight-admin" class="nav-link admin-link" *ngIf="isAirlineUser()">�️ Gestione Voli</a>
         
         <!-- Links per utenti NON loggati -->
         <ng-container *ngIf="!isLoggedIn">
           <a routerLink="/login" class="nav-link">Login</a>
+          <a routerLink="/airline-login" class="nav-link admin-link">🏢 Login Compagnie</a>
           <a routerLink="/register" class="nav-link">Registrati</a>
         </ng-container>
         

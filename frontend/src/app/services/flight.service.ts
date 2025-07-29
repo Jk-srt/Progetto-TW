@@ -12,20 +12,20 @@ export class FlightService {
     return of(this.flights);
   }
 
-  getFlightById(id: string): Observable<Flight | undefined> {
+  getFlightById(id: number): Observable<Flight | undefined> {
     const flight = this.flights.find(f => f.id === id);
     return of(flight);
   }
 
   getActiveFlights(): Observable<Flight[]> {
     const activeFlights = this.flights.filter(f =>
-      f.status === 'Boarding' || f.status === 'On Time'
+      f.status === 'scheduled' || f.status === 'delayed'
     );
     return of(activeFlights);
   }
 
   getOnTimeFlights(): Observable<Flight[]> {
-    const onTimeFlights = this.flights.filter(f => f.status === 'On Time');
+    const onTimeFlights = this.flights.filter(f => f.status === 'scheduled');
     return of(onTimeFlights);
   }
 
@@ -35,12 +35,12 @@ export class FlightService {
     switch (filterType) {
       case 'departures':
         filteredFlights = this.flights.filter(f =>
-          f.status === 'Boarding' || f.status === 'On Time'
+          f.status === 'scheduled' || f.status === 'delayed'
         );
         break;
       case 'arrivals':
         filteredFlights = this.flights.filter(f =>
-          f.status === 'Departed' || f.status === 'Delayed'
+          f.status === 'completed' || f.status === 'delayed'
         );
         break;
       default:

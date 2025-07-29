@@ -1,12 +1,13 @@
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
-import { Router } from '@angular/router';
-import { AuthService } from './services/auth.service';
+import { Router, RouterOutlet, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, RouterOutlet, RouterModule],
   styleUrls: ['./app.scss']
 })
 export class AppComponent implements OnInit, OnDestroy {
@@ -16,23 +17,27 @@ export class AppComponent implements OnInit, OnDestroy {
   private authSubscription: Subscription = new Subscription();
 
   constructor(
-    private authService: AuthService,
     private router: Router
   ) {}
 
   ngOnInit() {
-    // Sottoscrizione ai cambiamenti dello stato di autenticazione
-    this.authSubscription.add(
-      this.authService.isLoggedIn$.subscribe(isLoggedIn => {
-        this.isLoggedIn = isLoggedIn;
-      })
-    );
+    // Check authentication from localStorage
+    this.checkAuthStatus();
+  }
 
-    this.authSubscription.add(
-      this.authService.currentUser$.subscribe(user => {
-        this.currentUser = user;
-      })
-    );
+  private checkAuthStatus() {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
+      try {
+        this.currentUser = JSON.parse(user);
+        this.isLoggedIn = true;
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        this.logout();
+      }
+    }
   }
 
   ngOnDestroy() {
@@ -49,26 +54,44 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   toggleProfileMenu() {
+    console.log('Toggle profile menu clicked, current state:', this.isProfileMenuOpen);
     this.isProfileMenuOpen = !this.isProfileMenuOpen;
   }
 
   getUserInitials(): string {
-    return this.authService.getUserInitials();
+    if (!this.currentUser) return '';
+    const firstName = this.currentUser.first_name || '';
+    const lastName = this.currentUser.last_name || '';
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   }
 
   getUserFullName(): string {
-    return this.authService.getUserFullName();
+    if (!this.currentUser) return '';
+    return `${this.currentUser.first_name || ''} ${this.currentUser.last_name || ''}`.trim();
   }
 
-  onLogout() {
-    this.authService.logout();
+  isAirlineUser(): boolean {
+    return this.currentUser?.role === 'airline';
+  }
+
+  logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    this.isLoggedIn = false;
+    this.currentUser = null;
     this.isProfileMenuOpen = false;
     this.router.navigate(['/']);
   }
 
+  onLogout() {
+    console.log('Logout clicked');
+    this.logout();
+  }
+
   navigateToProfile() {
     this.isProfileMenuOpen = false;
-    this.router.navigate(['/profile']);
+    // this.router.navigate(['/profile']); // Temporarily disabled
+    console.log('Profile navigation disabled');
   }
 
   navigateToBookings() {

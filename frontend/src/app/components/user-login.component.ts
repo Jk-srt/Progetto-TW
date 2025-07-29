@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
-import { AuthService, AuthResponse } from '../services/auth.service';
 
 @Component({
   selector: 'app-user-login',
@@ -149,26 +148,36 @@ export class UserLoginComponent {
 
   constructor(
     private http: HttpClient, 
-    private router: Router,
-    private authService: AuthService
+    private router: Router
   ) {}
 
   onLogin() {
     this.isLoading = true;
     this.errorMessage = null;
 
-    this.authService.login(this.loginData.email, this.loginData.password)
-      .subscribe({
-        next: (res: AuthResponse) => {
-          console.log('Login success', res);
-          this.isLoading = false;
-          this.router.navigate(['/']);
-        },
-        error: (err: HttpErrorResponse) => {
-          console.error('Login error', err);
-          this.errorMessage = err.error?.error || 'Errore durante il login';
-          this.isLoading = false;
-        }
-      });
+    // Mock login for regular users
+    const mockUsers = [
+      { email: 'user@example.com', password: 'password', name: 'Utente Demo' }
+    ];
+
+    const user = mockUsers.find(u => u.email === this.loginData.email && u.password === this.loginData.password);
+    
+    if (user) {
+      localStorage.setItem('token', 'mock-user-token-' + Date.now());
+      localStorage.setItem('user', JSON.stringify({
+        email: user.email,
+        first_name: user.name.split(' ')[0],
+        last_name: user.name.split(' ')[1] || '',
+        role: 'user'
+      }));
+      
+      this.isLoading = false;
+      this.router.navigate(['/']);
+      // Refresh the app to update auth state
+      window.location.reload();
+    } else {
+      this.errorMessage = 'Credenziali non valide';
+      this.isLoading = false;
+    }
   }
 }

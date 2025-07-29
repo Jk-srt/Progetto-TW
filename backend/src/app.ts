@@ -373,6 +373,95 @@ app.post('/api/users/login', async (req, res) => {
     }
 });
 
+// Airline Authentication Routes
+app.post('/api/auth/airline/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        // Mock airline credentials - in a real app these would be stored in database
+        const mockAirlines = [
+            {
+                id: 1,
+                email: 'admin@alitalia.com',
+                password: 'alitalia123',
+                airline_name: 'Alitalia',
+                name: 'Alitalia Admin',
+                role: 'airline'
+            },
+            {
+                id: 2,
+                email: 'admin@lufthansa.com',
+                password: 'lufthansa123',
+                airline_name: 'Lufthansa',
+                name: 'Lufthansa Admin',
+                role: 'airline'
+            },
+            {
+                id: 3,
+                email: 'admin@airfrance.com',
+                password: 'airfrance123',
+                airline_name: 'Air France',
+                name: 'Air France Admin',
+                role: 'airline'
+            },
+            {
+                id: 4,
+                email: 'admin@emirates.com',
+                password: 'emirates123',
+                airline_name: 'Emirates',
+                name: 'Emirates Admin',
+                role: 'airline'
+            }
+        ];
+
+        const airline = mockAirlines.find(a => a.email === email && a.password === password);
+        
+        if (!airline) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Credenziali non valide' 
+            });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                id: airline.id, 
+                email: airline.email, 
+                role: airline.role,
+                airline_name: airline.airline_name 
+            },
+            process.env.JWT_SECRET || 'fallback-secret',
+            { expiresIn: '24h' }
+        );
+
+        const userResponse = {
+            id: airline.id,
+            email: airline.email,
+            first_name: airline.airline_name,
+            last_name: 'Admin',
+            role: airline.role,
+            airline_name: airline.airline_name,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        res.json({
+            success: true,
+            token,
+            user: userResponse,
+            message: `Benvenuto ${airline.airline_name}!`
+        });
+
+    } catch (err) {
+        console.error('[ERROR] Airline login failed:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: (err as Error).message 
+        });
+    }
+});
+
 // Rotte prenotazioni
 app.post('/api/bookings', authenticateToken, async (req, res) => {
     try {
