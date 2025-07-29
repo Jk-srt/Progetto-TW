@@ -19,7 +19,8 @@ import { Flight } from '../../models/flight.model';
       <div class="flight-route" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
         <div class="airport" style="flex: 1; text-align: center;">
           <div class="airport-code" style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">{{getAirportCode(flight.departure_airport)}}</div>
-          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">{{flight.departure_airport}}</div>
+          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 4px;">{{flight.departure_airport}}</div>
+          <div class="city-name" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px;">{{flight.departure_city || 'N/A'}}</div>
           <div class="time" style="font-size: 1rem; font-weight: 600; color: #475569;">{{formatTime(flight.departure_time)}}</div>
         </div>
         <div class="route-line" style="display: flex; align-items: center; justify-content: center; margin: 0 20px; position: relative;">
@@ -28,7 +29,8 @@ import { Flight } from '../../models/flight.model';
         </div>
         <div class="airport" style="flex: 1; text-align: center;">
           <div class="airport-code" style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">{{getAirportCode(flight.arrival_airport)}}</div>
-          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">{{flight.arrival_airport}}</div>
+          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 4px;">{{flight.arrival_airport}}</div>
+          <div class="city-name" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px;">{{flight.arrival_city || 'N/A'}}</div>
           <div class="time" style="font-size: 1rem; font-weight: 600; color: #475569;">{{formatTime(flight.arrival_time)}}</div>
         </div>
       </div> 

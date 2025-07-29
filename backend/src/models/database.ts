@@ -52,7 +52,9 @@ export interface Flight {
     airline?: string;
     aircraft?: string;
     departure_airport: string;
+    departure_city?: string;
     arrival_airport: string;
+    arrival_city?: string;
     departure_time: Date;
     arrival_time: Date;
     price: number;
@@ -243,7 +245,9 @@ export class DatabaseService {
                 SELECT 
                     f.*,
                     da.name as departure_airport_name,
+                    da.city as departure_city,
                     aa.name as arrival_airport_name,
+                    aa.city as arrival_city,
                     al.name as airline_name,
                     al.iata_code as airline_code,
                     ac.registration as aircraft_registration,
@@ -266,7 +270,9 @@ export class DatabaseService {
                 airline: row.airline_name || row.airline_code || 'N/A',
                 aircraft: row.aircraft_registration ? `${row.aircraft_model} (${row.aircraft_registration})` : 'N/A',
                 departure_airport: row.departure_airport_name || row.departure_airport || 'N/A',
+                departure_city: row.departure_city || 'N/A',
                 arrival_airport: row.arrival_airport_name || row.arrival_airport || 'N/A',
+                arrival_city: row.arrival_city || 'N/A',
                 departure_time: row.departure_time,
                 arrival_time: row.arrival_time,
                 price: row.price,
