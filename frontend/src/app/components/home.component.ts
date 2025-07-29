@@ -26,7 +26,7 @@ import { StatsSectionComponent, StatCard } from './stats-section/stats-section.c
       <div class="flights-section">
         <div class="section-header">
           <h2>Voli Disponibili</h2>
-          <p class="flights-count">{{flights.length}} voli trovati</p>
+          <p class="flights-count">{{getTodaysFlightsCount()}} voli oggi di {{flights.length}} totali</p>
         </div>
         <app-flights-grid [flights]="flights"></app-flights-grid>
       </div>
@@ -59,10 +59,20 @@ export class HomeComponent implements OnInit {
   }
 
   private updateStats() {
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Filtra voli di oggi (confronta solo la data, non l'ora)
+    const todaysFlights = this.flights.filter(flight => {
+      if (!flight.departure_time) return false;
+      const flightDate = new Date(flight.departure_time).toISOString().split('T')[0];
+      return flightDate === todayString;
+    });
+
     this.stats = [
       {
         icon: '🛫',
-        number: this.flights.length,
+        number: todaysFlights.length,
         label: 'Voli Oggi'
       },
       {
@@ -76,5 +86,16 @@ export class HomeComponent implements OnInit {
         label: 'In Orario'
       }
     ];
+  }
+
+  getTodaysFlightsCount(): number {
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    return this.flights.filter(flight => {
+      if (!flight.departure_time) return false;
+      const flightDate = new Date(flight.departure_time).toISOString().split('T')[0];
+      return flightDate === todayString;
+    }).length;
   }
 }
