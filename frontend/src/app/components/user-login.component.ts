@@ -47,6 +47,7 @@ import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common
           <div class="login-footer">
             <p>Non hai un account? <a routerLink="/register">Registrati qui</a></p>
           </div>
+          <div *ngIf="errorMessage" class="error-message" style="color: red; margin-top: 10px;">{{ errorMessage }}</div>
         </form>
       </div>
     </div>
@@ -135,6 +136,12 @@ import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common
     .login-footer a:hover {
       text-decoration: underline;
     }
+
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
   `]
 })
 export class UserLoginComponent {
@@ -147,7 +154,7 @@ export class UserLoginComponent {
   errorMessage: string | null = null;
 
   constructor(
-    private http: HttpClient, 
+    private http: HttpClient,
     private router: Router
   ) {}
 
@@ -155,29 +162,23 @@ export class UserLoginComponent {
     this.isLoading = true;
     this.errorMessage = null;
 
-    // Mock login for regular users
-    const mockUsers = [
-      { email: 'user@example.com', password: 'password', name: 'Utente Demo' }
-    ];
-
-    const user = mockUsers.find(u => u.email === this.loginData.email && u.password === this.loginData.password);
-    
-    if (user) {
-      localStorage.setItem('token', 'mock-user-token-' + Date.now());
-      localStorage.setItem('user', JSON.stringify({
-        email: user.email,
-        first_name: user.name.split(' ')[0],
-        last_name: user.name.split(' ')[1] || '',
-        role: 'user'
-      }));
-      
-      this.isLoading = false;
-      this.router.navigate(['/']);
-      // Refresh the app to update auth state
-      window.location.reload();
-    } else {
-      this.errorMessage = 'Credenziali non valide';
-      this.isLoading = false;
-    }
-  }
+    // Real login via backend API
+    this.http.post<{ token: string; user: any }>('http://localhost:3000/api/users/login', this.loginData)
+      .subscribe({
+        next: resp => {
+          localStorage.setItem('token', resp.token);
+          localStorage.setItem('user', JSON.stringify(resp.user));
+          this.isLoading = false;
+          // Navigate to home and update auth state without full reload
+          this.router.navigate(['/']).then(() => {
+            // Trigger manual auth state update in parent component
+            window.dispatchEvent(new Event('auth-changed'));
+          });
+        },
+        error: (err: HttpErrorResponse) => {
+          this.errorMessage = err.error?.error || 'Credenziali non valide';
+          this.isLoading = false;
+        }
+      });
+   }
 }

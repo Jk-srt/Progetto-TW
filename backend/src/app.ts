@@ -66,10 +66,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 // Middleware
 app.use(helmet());
 app.use(cors({
-    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
-    credentials: true,
+    origin: true,  // reflect request origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(morgan('combined'));
 
