@@ -1,347 +1,404 @@
 <!DOCTYPE html>
-<!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
-<!-- * * * * * * * * * * * The content below * * * * * * * * * * * -->
-<!-- * * * * * * * * * * is only a placeholder * * * * * * * * * * -->
-<!-- * * * * * * * * * * and can be replaced.  * * * * * * * * * * -->
-<!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
-<!-- * * * * * * * * * Delete the template below * * * * * * * * * -->
-<!-- * * * * * * * to get started with your project! * * * * * * * -->
-<!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TAW Flights - Sistema di Prenotazione Voli</title>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header con Navbar -->
+    <header class="app-header">
+      <nav class="navbar">
+        <div class="nav-brand">
+          <h1 routerLink="/" style="cursor: pointer;">✈️ TAW Flights</h1>
+        </div>
 
-<style>
-  :host {
-    --bright-blue: oklch(51.01% 0.274 263.83);
-    --electric-violet: oklch(53.18% 0.28 296.97);
-    --french-violet: oklch(47.66% 0.246 305.88);
-    --vivid-pink: oklch(69.02% 0.277 332.77);
-    --hot-red: oklch(61.42% 0.238 15.34);
-    --orange-red: oklch(63.32% 0.24 31.68);
+        <!-- Navigation Menu -->
+        <div class="nav-links">
+          <a routerLink="/" class="nav-link" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+            🏠 Home
+          </a>
+          <a routerLink="/flights" class="nav-link" routerLinkActive="active">
+            ✈️ Voli
+          </a>
 
-    --gray-900: oklch(19.37% 0.006 300.98);
-    --gray-700: oklch(36.98% 0.014 302.71);
-    --gray-400: oklch(70.9% 0.015 304.04);
+          <!-- Links for authenticated users -->
+          <div *ngIf="isLoggedIn" class="auth-links">
+            <a routerLink="/bookings" class="nav-link" routerLinkActive="active">
+              📋 Prenotazioni
+            </a>
 
-    --red-to-pink-to-purple-vertical-gradient: linear-gradient(
-      180deg,
-      var(--orange-red) 0%,
-      var(--vivid-pink) 50%,
-      var(--electric-violet) 100%
-    );
+            <!-- Admin-only link -->
+            <a *ngIf="currentUser?.role === 'admin'"
+               routerLink="/admin"
+               class="nav-link admin-link"
+               routerLinkActive="active">
+               👨‍💼 Admin Panel
+            </a>
 
-    --red-to-pink-to-purple-horizontal-gradient: linear-gradient(
-      90deg,
-      var(--orange-red) 0%,
-      var(--vivid-pink) 50%,
-      var(--electric-violet) 100%
-    );
+            <!-- User Profile Menu -->
+            <div class="profile-menu-container">
+              <button class="profile-btn" (click)="toggleProfileMenu()">
+                <span class="profile-avatar">{{ getUserInitials() }}</span>
+                <span class="profile-name">{{ getUserFullName() }}</span>
+                <span class="dropdown-arrow">▼</span>
+              </button>
 
-    --pill-accent: var(--bright-blue);
-
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-      "Segoe UI Symbol";
-    box-sizing: border-box;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  h1 {
-    font-size: 3.125rem;
-    color: var(--gray-900);
-    font-weight: 500;
-    line-height: 100%;
-    letter-spacing: -0.125rem;
-    margin: 0;
-    font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-      "Segoe UI Symbol";
-  }
-
-  p {
-    margin: 0;
-    color: var(--gray-700);
-  }
-
-  .app-container {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-  }
-
-  .app-header {
-    background: #1976d2;
-    padding: 15px 30px;
-  }
-
-  .navbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-  }
-
-  .nav-brand h1 {
-    color: #fff;
-    font-size: 1.5rem;
-    margin: 0;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-  }
-
-  .nav-link {
-    color: #fff;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 1.1rem;
-  }
-
-  .nav-link.active {
-    border-bottom: 2px solid #fff;
-  }
-
-  .nav-link.admin-link {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    transition: all 0.3s ease;
-  }
-
-  .nav-link.admin-link:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: translateY(-1px);
-  }
-
-  .app-main {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 1rem;
-    box-sizing: inherit;
-    position: relative;
-  }
-
-  .angular-logo {
-    max-width: 9.2rem;
-  }
-
-  .content {
-    display: flex;
-    justify-content: space-around;
-    width: 100%;
-    max-width: 700px;
-    margin-bottom: 3rem;
-  }
-
-  .content h1 {
-    margin-top: 1.75rem;
-  }
-
-  .content p {
-    margin-top: 1.5rem;
-  }
-
-  .divider {
-    width: 1px;
-    background: var(--red-to-pink-to-purple-vertical-gradient);
-    margin-inline: 0.5rem;
-  }
-
-  .pill-group {
-    display: flex;
-    flex-direction: column;
-    align-items: start;
-    flex-wrap: wrap;
-    gap: 1.25rem;
-  }
-
-  .pill {
-    display: flex;
-    align-items: center;
-    --pill-accent: var(--bright-blue);
-    background: color-mix(in srgb, var(--pill-accent) 5%, transparent);
-    color: var(--pill-accent);
-    padding-inline: 0.75rem;
-    padding-block: 0.375rem;
-    border-radius: 2.75rem;
-    border: 0;
-    transition: background 0.3s ease;
-    font-family: var(--inter-font);
-    font-size: 0.875rem;
-    font-style: normal;
-    font-weight: 500;
-    line-height: 1.4rem;
-    letter-spacing: -0.00875rem;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-
-  .pill:hover {
-    background: color-mix(in srgb, var(--pill-accent) 15%, transparent);
-  }
-
-  .pill-group .pill:nth-child(6n + 1) {
-    --pill-accent: var(--bright-blue);
-  }
-  .pill-group .pill:nth-child(6n + 2) {
-    --pill-accent: var(--electric-violet);
-  }
-  .pill-group .pill:nth-child(6n + 3) {
-    --pill-accent: var(--french-violet);
-  }
-
-  .pill-group .pill:nth-child(6n + 4),
-  .pill-group .pill:nth-child(6n + 5),
-  .pill-group .pill:nth-child(6n + 6) {
-    --pill-accent: var(--hot-red);
-  }
-
-  .pill-group svg {
-    margin-inline-start: 0.25rem;
-  }
-
-  .social-links {
-    display: flex;
-    align-items: center;
-    gap: 0.73rem;
-    margin-top: 1.5rem;
-  }
-
-  .social-links path {
-    transition: fill 0.3s ease;
-    fill: var(--gray-400);
-  }
-
-  .social-links a:hover svg path {
-    fill: var(--gray-900);
-  }
-
-  footer.app-footer {
-    background: #1976d2;
-    color: #fff;
-    text-align: center;
-    padding: 10px 0;
-    position: relative;
-    bottom: 0;
-    width: 100%;
-  }
-
-  @media screen and (max-width: 650px) {
-    .content {
-      flex-direction: column;
-      width: max-content;
-    }
-
-    .divider {
-      height: 1px;
-      width: 100%;
-      background: var(--red-to-pink-to-purple-horizontal-gradient);
-      margin-block: 1.5rem;
-    }
-  }
-</style>
-
-<div class="app-container">
-  <header class="app-header">
-    <nav class="navbar">
-      <div class="nav-brand">
-        <h1>✈️ TAW Flights</h1>
-      </div>
-      <div class="nav-links">
-        <a routerLink="/" class="nav-link">Home</a>
-        <a routerLink="/flights" class="nav-link">✈️ Voli</a>
-
-        <!-- Link per gestione voli (solo compagnie aeree) -->
-        <a routerLink="/flight-admin" class="nav-link admin-link" *ngIf="isAirlineUser()">�️ Gestione Voli</a>
-
-        <!-- Links per utenti NON loggati -->
-        <ng-container *ngIf="!isLoggedIn">
-          <a routerLink="/login" class="nav-link">Login</a>
-          <a routerLink="/airline-login" class="nav-link admin-link">🏢 Login Compagnie</a>
-          <a routerLink="/register" class="nav-link">Registrati</a>
-        </ng-container>
-
-        <!-- Menu profilo per utenti loggati -->
-        <div class="profile-menu-container" *ngIf="isLoggedIn">
-          <button class="profile-button" (click)="toggleProfileMenu()">
-            <div class="profile-avatar">
-              {{ getUserInitials() }}
-            </div>
-            <svg class="dropdown-arrow" [class.rotated]="isProfileMenuOpen" width="12" height="12" viewBox="0 0 12 12">
-              <path d="M6 8L2 4h8z" fill="currentColor"/>
-            </svg>
-          </button>
-
-          <!-- Dropdown Menu -->
-          <div class="profile-dropdown" [class.show]="isProfileMenuOpen">
-            <div class="profile-header">
-              <div class="profile-avatar large">
-                {{ getUserInitials() }}
-              </div>
-              <div class="profile-info">
-                <div class="profile-name">{{ getUserFullName() }}</div>
-                <div class="profile-email">{{ currentUser?.email }}</div>
+              <!-- Dropdown Menu -->
+              <div *ngIf="isProfileMenuOpen" class="profile-dropdown">
+                <div class="profile-info">
+                  <p class="profile-email">{{ currentUser?.email }}</p>
+                  <span class="profile-role">{{ currentUser?.role }}</span>
+                </div>
+                <div class="profile-actions">
+                  <button (click)="navigateToSettings()" class="dropdown-item">
+                    ⚙️ Impostazioni
+                  </button>
+                  <button (click)="onLogout()" class="dropdown-item logout">
+                    🚪 Logout
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="profile-divider"></div>
-
-            <div class="profile-menu-items">
-              <button class="profile-menu-item" (click)="navigateToProfile()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
-                </svg>
-                Il mio profilo
-              </button>
-
-              <button class="profile-menu-item" (click)="navigateToBookings()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M4 1h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1H4z"/>
-                  <path d="M4 5h8v1H4V5zm0 2h8v1H4V7zm0 2h6v1H4V9z"/>
-                </svg>
-                Le mie prenotazioni
-              </button>
-
-              <button class="profile-menu-item" (click)="navigateToSettings()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
-                </svg>
-                Impostazioni
-              </button>
-            </div>
-
-            <div class="profile-divider"></div>
-
-            <button class="profile-menu-item logout" (click)="onLogout()">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
-                <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
-              </svg>
-              Logout
-            </button>
+          <!-- Links for non-authenticated users -->
+          <div *ngIf="!isLoggedIn" class="guest-links">
+            <a routerLink="/login" class="nav-link login-btn">
+              🔑 Accedi
+            </a>
+            <a routerLink="/register" class="nav-link register-btn">
+              ✍️ Registrati
+            </a>
           </div>
         </div>
+      </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <router-outlet></router-outlet>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-content">
+        <p>&copy; 2025 TAW Flights. Sistema di prenotazione voli.</p>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Privacy</a>
+          <a href="#" class="footer-link">Termini</a>
+          <a href="#" class="footer-link">Supporto</a>
+        </div>
       </div>
-    </nav>
-  </header>
+    </footer>
+  </div>
 
-  <main class="app-main">
-    <router-outlet></router-outlet>
-  </main>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  <footer class="app-footer">
-    <p>&copy; 2025 TAW Flights - Sistema di prenotazione voli</p>
-  </footer>
-</div>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+    }
 
-<!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
-<!-- * * * * * * * * * * * The content above * * * * * * * * * * * * -->
-<!-- * * * * * * * * * * is only a placeholder * * * * * * * * * * * -->
-<!-- * * * * * * * * * * and can be replaced.  * * * * * * * * * * * -->
-<!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
-<!-- * * * * * * * * * * End of Placeholder  * * * * * * * * * * * * -->
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Header Styles */
+    .app-header {
+      background: linear-gradient(135deg, #1976d2, #1565c0);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .nav-brand h1 {
+      color: white;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0;
+      transition: transform 0.2s ease;
+    }
+
+    .nav-brand h1:hover {
+      transform: scale(1.05);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .nav-link {
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .nav-link.active {
+      background: rgba(255, 255, 255, 0.2);
+      font-weight: 600;
+    }
+
+    .admin-link {
+      background: rgba(255, 193, 7, 0.2) !important;
+      border: 1px solid rgba(255, 193, 7, 0.3);
+    }
+
+    .admin-link:hover {
+      background: rgba(255, 193, 7, 0.3) !important;
+    }
+
+    .auth-links, .guest-links {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .login-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .register-btn {
+      background: rgba(76, 175, 80, 0.8);
+      font-weight: 600;
+    }
+
+    .register-btn:hover {
+      background: rgba(76, 175, 80, 1);
+    }
+
+    /* Profile Menu */
+    .profile-menu-container {
+      position: relative;
+    }
+
+    .profile-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .profile-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .profile-avatar {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .profile-name {
+      font-weight: 500;
+    }
+
+    .dropdown-arrow {
+      font-size: 0.7rem;
+      transition: transform 0.2s ease;
+    }
+
+    .profile-menu-container.open .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .profile-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      min-width: 200px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+      z-index: 1000;
+    }
+
+    .profile-info {
+      padding: 1rem;
+      border-bottom: 1px solid #eee;
+      background: #f8f9fa;
+    }
+
+    .profile-email {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 0.25rem;
+    }
+
+    .profile-role {
+      background: #e3f2fd;
+      color: #1976d2;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .profile-actions {
+      padding: 0.5rem 0;
+    }
+
+    .dropdown-item {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: none;
+      background: none;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dropdown-item:hover {
+      background: #f5f5f5;
+    }
+
+    .dropdown-item.logout {
+      color: #d32f2f;
+      border-top: 1px solid #eee;
+    }
+
+    .dropdown-item.logout:hover {
+      background: #ffebee;
+    }
+
+    /* Main Content */
+    .app-main {
+      flex: 1;
+      min-height: calc(100vh - 200px);
+    }
+
+    /* Footer */
+    .app-footer {
+      background: #333;
+      color: white;
+      padding: 2rem 0;
+      margin-top: auto;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .footer-link {
+      color: #ccc;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer-link:hover {
+      color: white;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .navbar {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+      }
+
+      .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+
+      .nav-link {
+        font-size: 0.9rem;
+        padding: 0.4rem 0.8rem;
+      }
+
+      .profile-name {
+        display: none;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .navbar {
+        padding: 0.75rem;
+      }
+
+      .nav-brand h1 {
+        font-size: 1.25rem;
+      }
+
+      .nav-links {
+        gap: 0.25rem;
+      }
+
+      .nav-link {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+      }
+    }
+  </style>
+</body>
+</html>
