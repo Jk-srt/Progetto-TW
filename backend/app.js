@@ -1,10 +1,17 @@
 const express = require('express');
+require('dotenv').config();
 const app = express();
-const userRoutes = require('./routes/users');
+// const userRoutes = require('./routes/users');
 const flightRoutes = require('./routes/flights');
-const routeRoutes = require('./routes/routes');
+// const routeRoutes = require('./routes/routes');
 
 app.use(express.json());
+
+// Log middleware per debug
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url} - Query:`, req.query);
+  next();
+});
 
 // Connessione a Neon PostgreSQL
 const { Client } = require('pg');
@@ -36,9 +43,9 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-app.use('/api/users', userRoutes);
+// app.use('/api/users', userRoutes);
 app.use('/api/flights', flightRoutes);
-app.use('/api/routes', routeRoutes);
+// app.use('/api/routes', routeRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
