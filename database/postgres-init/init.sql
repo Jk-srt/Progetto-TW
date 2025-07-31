@@ -9,9 +9,15 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
+<<<<<<< HEAD
     date_of_birth DATE,
     nationality VARCHAR(100),
     passport_number VARCHAR(50),
+=======
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    airline_id INTEGER REFERENCES airlines(id),
+    temporary_password BOOLEAN NOT NULL DEFAULT FALSE,
+>>>>>>> f7361927cc97ab7bf704e63f8ccdc5bc0652132e
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

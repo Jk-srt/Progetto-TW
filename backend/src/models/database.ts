@@ -5,6 +5,7 @@ export interface User {
     first_name: string;
     last_name: string;
     phone?: string;
+<<<<<<< HEAD
     date_of_birth?: Date;
     nationality?: string;
     passport_number?: string;
@@ -19,6 +20,11 @@ export interface Accesso {
     role: 'user' | 'admin' | 'airline';
     airline_id?: number;
     user_id?: number;
+=======
+    role: 'user' | 'admin' | 'airlines';
+    airline_id?: number; // Campo aggiunto per collegamento alle compagnie aeree
+    temporary_password: boolean;
+>>>>>>> f7361927cc97ab7bf704e63f8ccdc5bc0652132e
     created_at: Date;
     updated_at: Date;
 }
@@ -108,6 +114,7 @@ export class DatabaseService {
 
     // Utenti (solo dati passeggeri)
     async createUser(user: {
+<<<<<<< HEAD
         first_name: string;
         last_name: string;
         phone?: string;
@@ -121,6 +128,36 @@ export class DatabaseService {
             RETURNING *
         `;
         const values = [user.first_name, user.last_name, user.phone, user.date_of_birth, user.nationality, user.passport_number];
+=======
+        email: any;
+        password_hash: string;
+        first_name?: any;
+        last_name?: any;
+        phone: any;
+        role: any;
+        airline_id?: number; // Campo aggiunto
+        temporary_password: boolean;
+        created_at: Date;
+        updated_at: Date
+    }): Promise<User> {
+        const query = `
+            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, airline_id, temporary_password, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING *
+        `;
+        const values = [
+            user.email,
+            user.password_hash,
+            user.first_name || null,
+            user.last_name || null,
+            user.phone,
+            user.role,
+            user.airline_id || null, // Supporta null se non è un admin di compagnia
+            user.temporary_password,
+            user.created_at,
+            user.updated_at
+        ];
+>>>>>>> f7361927cc97ab7bf704e63f8ccdc5bc0652132e
         const result = await this.pool.query(query, values);
         return result.rows[0];
     }
