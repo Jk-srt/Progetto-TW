@@ -13,8 +13,10 @@ export interface Flight {
   flight_number?: string;
   departure_airport?: string;
   departure_city?: string;
+  departure_code?: string;  // ← AGGIUNGI QUESTA RIGA
   arrival_airport?: string;
   arrival_city?: string;
+  arrival_code?: string;    // ← AGGIUNGI QUESTA RIGA
   departure_time?: string;
   arrival_time?: string;
   available_seats?: number;
@@ -22,6 +24,7 @@ export interface Flight {
   airline_id?: number;
   airline_name?: string;
 }
+
 
 // Interfaccia per gli aeroporti basata sul database backend
 export interface Airport {
