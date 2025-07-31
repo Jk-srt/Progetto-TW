@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_name VARCHAR(100),
     phone VARCHAR(20),
     role VARCHAR(20) NOT NULL DEFAULT 'user',
-    airline_id INTEGER REFERENCES airlines(id)
+    airline_id INTEGER REFERENCES airlines(id),
     temporary_password BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
