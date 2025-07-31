@@ -11,7 +11,8 @@ import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common
   template: `
     <div class="login-container">
       <div class="login-card">
-        <h2>🔐 Accedi al tuo account</h2>
+        <h2>🔐 Accedi al Sistema</h2>
+        <p class="login-subtitle">Inserisci le tue credenziali per accedere come utente, compagnia aerea o amministratore</p>
         <form (ngSubmit)="onLogin()" #loginForm="ngForm">
           <div class="form-group">
             <label for="email">Email</label>
@@ -72,9 +73,17 @@ import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common
 
     h2 {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 10px;
       color: #1976d2;
       font-size: 1.5rem;
+    }
+
+    .login-subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 0.9rem;
+      line-height: 1.4;
     }
 
     .form-group {
@@ -162,22 +171,43 @@ export class UserLoginComponent {
     this.isLoading = true;
     this.errorMessage = null;
 
-    // Real login via backend API
-    this.http.post<{ token: string; user: any }>('http://localhost:3000/api/users/login', this.loginData)
+    // Login unificato per tutti i tipi di utente
+    this.http.post<any>('http://localhost:3000/api/auth/login', this.loginData)
       .subscribe({
-        next: resp => {
-          localStorage.setItem('token', resp.token);
-          localStorage.setItem('user', JSON.stringify(resp.user));
+        next: (response) => {
           this.isLoading = false;
-          // Navigate to home and update auth state without full reload
-          this.router.navigate(['/']).then(() => {
-            // Trigger manual auth state update in parent component
+          if (response.success) {
+            // Store token and user data
+            localStorage.setItem('token', response.token);
+            localStorage.setItem('user', JSON.stringify(response.user));
+            
+            // Dispatch auth change event
             window.dispatchEvent(new Event('auth-changed'));
-          });
+            
+            console.log('Login successful:', response);
+            
+            // Redirect based on user role
+            switch (response.user.role) {
+              case 'admin':
+                this.router.navigate(['/admin']);
+                break;
+              case 'airline':
+                this.router.navigate(['/flight-admin']);
+                break;
+              case 'user':
+                this.router.navigate(['/flights']);
+                break;
+              default:
+                this.router.navigate(['/']);
+            }
+          } else {
+            this.errorMessage = response.message || 'Errore durante il login';
+          }
         },
-        error: (err: HttpErrorResponse) => {
-          this.errorMessage = err.error?.error || 'Credenziali non valide';
+        error: (error: HttpErrorResponse) => {
           this.isLoading = false;
+          this.errorMessage = error.error?.message || 'Credenziali non valide o errore di connessione';
+          console.error('Login error:', error);
         }
       });
    }

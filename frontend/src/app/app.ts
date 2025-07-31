@@ -169,6 +169,15 @@ import { CommonModule } from '@angular/common';
       border: 1px solid rgba(255, 255, 255, 0.3);
     }
 
+    .admin-btn {
+      background: rgba(231, 76, 60, 0.2);
+      border: 1px solid rgba(231, 76, 60, 0.3);
+    }
+
+    .admin-btn:hover {
+      background: rgba(231, 76, 60, 0.3);
+    }
+
     .register-btn {
       background: rgba(76, 175, 80, 0.8);
       font-weight: 600;

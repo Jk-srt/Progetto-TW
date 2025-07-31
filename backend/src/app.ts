@@ -68,7 +68,7 @@ async function runInitSql() {
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
+    origin: ['http://localhost:4200', 'http://127.0.0.1:4200', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -236,19 +236,13 @@ async function ensureAdminExists() {
         return;
     }
     
-    const existing = await dbService.getUserByEmail(process.env.ADMIN_EMAIL!);
+    const existing = await dbService.getAccessoByEmail(process.env.ADMIN_EMAIL!);
     if (!existing) {
         const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10);
-        await dbService.createUser({
+        await dbService.createAccesso({
             email: process.env.ADMIN_EMAIL!,
             password_hash: hash,
-            first_name: 'Super',
-            last_name: 'Admin',
-            phone: '',
-            role: 'admin',
-            temporary_password: false,
-            created_at: new Date(),
-            updated_at: new Date()
+            role: 'admin'
         });
         console.log('✅ Admin user created:', process.env.ADMIN_EMAIL);
     }

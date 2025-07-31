@@ -2,13 +2,23 @@ import { Pool, QueryResult } from 'pg';
 
 export interface User {
     id: number;
-    email: string;
-    password_hash: string;
     first_name: string;
     last_name: string;
     phone?: string;
-    role: 'user' | 'admin' | 'airlines';
-    temporary_password: boolean;
+    date_of_birth?: Date;
+    nationality?: string;
+    passport_number?: string;
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface Accesso {
+    id: number;
+    email: string;
+    password_hash: string;
+    role: 'user' | 'admin' | 'airline';
+    airline_id?: number;
+    user_id?: number;
     created_at: Date;
     updated_at: Date;
 }
@@ -96,32 +106,105 @@ export class DatabaseService {
         this.pool = pool;
     }
 
-    // Utenti
+    // Utenti (solo dati passeggeri)
     async createUser(user: {
-        email: any;
-        password_hash: string;
-        first_name: any;
-        last_name: any;
-        phone: any;
-        role: any;
-        temporary_password: boolean;
-        created_at: Date;
-        updated_at: Date
+        first_name: string;
+        last_name: string;
+        phone?: string;
+        date_of_birth?: Date;
+        nationality?: string;
+        passport_number?: string;
     }): Promise<User> {
         const query = `
-            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, temporary_password, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO users (first_name, last_name, phone, date_of_birth, nationality, passport_number, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
             RETURNING *
         `;
-        const values = [user.email, user.password_hash, user.first_name, user.last_name, user.phone, user.role, user.temporary_password, user.created_at, user.updated_at ];
+        const values = [user.first_name, user.last_name, user.phone, user.date_of_birth, user.nationality, user.passport_number];
         const result = await this.pool.query(query, values);
         return result.rows[0];
     }
 
-    async getUserByEmail(email: string): Promise<User | null> {
-        const query = 'SELECT * FROM users WHERE email = $1';
+    // Registrazione completa utente (passeggero)
+    async registerUser(userData: {
+        email: string;
+        password: string;
+        first_name: string;
+        last_name: string;
+        phone?: string;
+        date_of_birth?: Date;
+        nationality?: string;
+        passport_number?: string;
+    }): Promise<{ user: User; accesso: Accesso }> {
+        const client = await this.pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Verifica se l'email esiste già
+            const existingAccesso = await client.query('SELECT id FROM accesso WHERE email = $1', [userData.email]);
+            if (existingAccesso.rows.length > 0) {
+                throw new Error('Email già registrata');
+            }
+            
+            // Hash password
+            const bcrypt = require('bcryptjs');
+            const password_hash = await bcrypt.hash(userData.password, 10);
+            
+            // Crea l'utente nella tabella users
+            const userQuery = `
+                INSERT INTO users (first_name, last_name, phone, date_of_birth, nationality, passport_number, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                RETURNING *
+            `;
+            const userValues = [userData.first_name, userData.last_name, userData.phone, userData.date_of_birth, userData.nationality, userData.passport_number];
+            const userResult = await client.query(userQuery, userValues);
+            const user = userResult.rows[0];
+            
+            // Crea l'accesso nella tabella accesso
+            const accessoQuery = `
+                INSERT INTO accesso (email, password_hash, role, user_id, created_at, updated_at)
+                VALUES ($1, $2, 'user', $3, NOW(), NOW())
+                RETURNING *
+            `;
+            const accessoValues = [userData.email, password_hash, user.id];
+            const accessoResult = await client.query(accessoQuery, accessoValues);
+            const accesso = accessoResult.rows[0];
+            
+            await client.query('COMMIT');
+            
+            return { user, accesso };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    // Autenticazione - usa tabella accesso
+    async getAccessoByEmail(email: string): Promise<Accesso | null> {
+        const query = 'SELECT * FROM accesso WHERE email = $1';
         const result = await this.pool.query(query, [email]);
         return result.rows[0] || null;
+    }
+
+    async createAccesso(accesso: {
+        email: string;
+        password_hash: string;
+        role: 'admin' | 'airline' | 'user';
+        airline_id?: number;
+        user_id?: number;
+    }): Promise<Accesso> {
+        const query = `
+            INSERT INTO accesso (email, password_hash, role, airline_id, user_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING *
+        `;
+        const values = [accesso.email, accesso.password_hash, accesso.role, accesso.airline_id, accesso.user_id];
+        const result = await this.pool.query(query, values);
+        return result.rows[0];
     }
 
     async getUserById(id: number): Promise<User | null> {

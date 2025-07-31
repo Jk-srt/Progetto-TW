@@ -7,18 +7,18 @@ import { UserRegisterComponent } from './components/user-register.component';
 import { BookingsComponent } from './components/bookings.component';
 import { SettingsComponent } from './components/settings.component';
 import { FlightAdminComponent } from './components/flight-admin.component';
-import { AirlineLoginComponent } from './components/airline-login.component';
+import { AdminDashboardComponent } from './components/admin-dashboard.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'flights', component: FlightsViewComponent },
-  { path: 'login', component: UserLoginComponent },
-  { path: 'airline-login', component: AirlineLoginComponent }, // Login per compagnie aeree
+  { path: 'login', component: UserLoginComponent }, // Login unificato per tutti i tipi di utente
+  { path: 'admin', component: AdminDashboardComponent }, // Pannello amministratore
   { path: 'register', component: UserRegisterComponent },
   // { path: 'profile', component: ProfileComponent },
   { path: 'bookings', component: BookingsComponent },
   { path: 'settings', component: SettingsComponent },
-  { path: 'flight-admin', component: FlightAdminComponent },
+  { path: 'flight-admin', component: FlightAdminComponent }, // Pannello compagnie aeree
   { path: 'admin/flights', component: FlightAdminComponent },
   { path: '**', redirectTo: '' } // Redirect per tutte le altre rotte
 ];

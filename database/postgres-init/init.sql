@@ -2,15 +2,16 @@
 -- Script di inizializzazione PostgreSQL
 
 -- Creazione delle tabelle
+
+-- Tabella per le informazioni dei passeggeri (senza autenticazione)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
-    role VARCHAR(20) NOT NULL DEFAULT 'user',
-    tempporary_password BOOLEAN NOT NULL DEFAULT FALSE,
+    date_of_birth DATE,
+    nationality VARCHAR(100),
+    passport_number VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -88,6 +89,23 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabella per l'autenticazione (admin, compagnie aeree, utenti)
+CREATE TABLE IF NOT EXISTS accesso (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    airline_id INTEGER REFERENCES airlines(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_role_references CHECK (
+        (role = 'admin' AND airline_id IS NULL AND user_id IS NULL) OR
+        (role = 'airline' AND airline_id IS NOT NULL AND user_id IS NULL) OR
+        (role = 'user' AND user_id IS NOT NULL AND airline_id IS NULL)
+    )
+);
+
 -- Inserimento dati di test per aeroporti
 INSERT INTO airports (name, iata_code, city, country, latitude, longitude) VALUES
 ('Leonardo da Vinci International Airport', 'FCO', 'Roma', 'Italy', 41.8003, 12.2389),
@@ -129,9 +147,14 @@ INSERT INTO flights (flight_number, airline_id, aircraft_id, departure_airport_i
 ('AZ201', 1, 1, 1, 5, '2024-12-01 19:30:00', '2024-12-01 21:45:00', 169.99, 200, 141, 'scheduled'),
 ('BA301', 2, 4, 3, 1, '2024-12-01 09:15:00', '2024-12-01 13:45:00', 149.99, 350, 289, 'scheduled');
 
--- Creazione di un utente di test
-INSERT INTO users (email, password_hash, first_name, last_name, phone) VALUES
-('test@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Mario', 'Rossi', '+39 123 456 7890', 'user');
+-- Creazione di dati di test
+INSERT INTO users (first_name, last_name, phone, date_of_birth, nationality) VALUES
+('Mario', 'Rossi', '+39123456789', '1985-03-15', 'Italian'),
+('Anna', 'Verdi', '+39987654321', '1990-07-22', 'Italian');
+
+-- Creazione degli accessi
+INSERT INTO accesso (email, password_hash, role) VALUES
+('admin@taw-flights.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
 -- Creazione di prenotazioni di test
 INSERT INTO bookings (user_id, flight_id, booking_reference, passenger_count, total_price, status) VALUES
@@ -149,6 +172,10 @@ CREATE INDEX IF NOT EXISTS idx_bookings_flight_id ON bookings(flight_id);
 CREATE INDEX IF NOT EXISTS idx_aircrafts_airline ON aircrafts(airline_id);
 CREATE INDEX IF NOT EXISTS idx_aircrafts_status ON aircrafts(status);
 CREATE INDEX IF NOT EXISTS idx_airlines_active ON airlines(active);
+CREATE INDEX IF NOT EXISTS idx_accesso_email ON accesso(email);
+CREATE INDEX IF NOT EXISTS idx_accesso_role ON accesso(role);
+CREATE INDEX IF NOT EXISTS idx_accesso_airline_id ON accesso(airline_id);
+CREATE INDEX IF NOT EXISTS idx_accesso_user_id ON accesso(user_id);
 
 -- Output di conferma
 SELECT 'Database TAW Flights inizializzato con successo!' as status;
