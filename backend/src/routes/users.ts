@@ -16,8 +16,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 router.post('/register', async (req, res) => {
   console.debug('[DEBUG] POST /register called with body:', req.body);
   try {
-    const { nome, cognome, email, password, telefono } = req.body;
-    
+    const { first_name, last_name, email, password, phone } = req.body;
+
     // Verifica se l'utente esiste già
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
@@ -29,12 +29,12 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const query = `
-      INSERT INTO users (nome, cognome, email, password, telefono) 
-      VALUES ($1, $2, $3, $4, $5) 
-      RETURNING id, nome, cognome, email, telefono, created_at
+      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, temporary_password) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      RETURNING id, first_name, last_name, email, phone, role, created_at
     `;
     
-    const values = [nome, cognome, email, hashedPassword, telefono];
+    const values = [first_name, last_name, email, hashedPassword, phone, 'user', false];
     const result = await pool.query(query, values);
     
     console.debug('[DEBUG] User saved to DB:', result.rows[0]);
@@ -106,7 +106,7 @@ router.post('/login', async (req, res) => {
 // Visualizza tutti gli utenti (solo per admin)
 router.get('/', async (req, res) => {
   try {
-    const query = 'SELECT id, nome, cognome, email, telefono, created_at FROM users ORDER BY created_at DESC';
+    const query = 'SELECT id, first_name, last_name, email, phone, role, created_at FROM users ORDER BY created_at DESC';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (err) {
@@ -119,7 +119,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const query = 'SELECT id, nome, cognome, email, telefono, created_at FROM users WHERE id = $1';
+    const query = 'SELECT id, first_name, last_name, email, phone, role, created_at FROM users WHERE id = $1';
     const result = await pool.query(query, [id]);
     
     if (result.rows.length === 0) {
@@ -137,16 +137,16 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, cognome, email, telefono } = req.body;
-    
+    const { first_name, last_name, email, phone } = req.body;
+
     const query = `
       UPDATE users 
-      SET nome = $1, cognome = $2, email = $3, telefono = $4, updated_at = CURRENT_TIMESTAMP
+      SET first_name = $1, last_name = $2, email = $3, phone = $4, updated_at = CURRENT_TIMESTAMP
       WHERE id = $5 
-      RETURNING id, nome, cognome, email, telefono, updated_at
+      RETURNING id, first_name, last_name, email, phone, updated_at
     `;
     
-    const values = [nome, cognome, email, telefono, id];
+    const values = [first_name, last_name, email, phone, id];
     const result = await pool.query(query, values);
     
     if (result.rows.length === 0) {

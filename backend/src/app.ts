@@ -65,6 +65,51 @@ async function runInitSql() {
     }
 }
 
+// Funzione per creare l'admin automaticamente se non esiste
+async function createAdminIfNotExists() {
+    try {
+        const adminEmail = process.env.ADMIN_EMAIL;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+
+        if (!adminEmail || !adminPassword) {
+            console.warn('[WARN] ADMIN_EMAIL or ADMIN_PASSWORD not found in environment variables');
+            return;
+        }
+
+        // Controlla se esiste già un admin
+        const existingAdmin = await pool.query(
+            'SELECT id FROM users WHERE role = $1 LIMIT 1',
+            ['admin']
+        );
+
+        if (existingAdmin.rows.length > 0) {
+            console.debug('[DEBUG] Admin user already exists, skipping creation');
+            return;
+        }
+
+        // Hash della password
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
+
+        // Crea l'admin
+        const result = await pool.query(
+            `INSERT INTO users (email, password_hash, first_name, last_name, role, temporary_password) 
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, role`,
+            [adminEmail, passwordHash, 'Admin', 'User', 'admin', false]
+        );
+
+        console.log('[INFO] Admin user created successfully:', {
+            id: result.rows[0].id,
+            email: result.rows[0].email,
+            role: result.rows[0].role
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Failed to create admin user:', error);
+        throw error;
+    }
+}
+
 // Middleware
 app.use(express.json());
 app.use(cors({
@@ -260,6 +305,7 @@ async function startServer() {
         console.log('[INFO] Initializing database...');
         await connectToDatabase();
         await runInitSql();
+        await createAdminIfNotExists();
         await ensureAdminExists();
         
         app.listen(PORT, '0.0.0.0', () => {
