@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     console.debug('[DEBUG] Attempting login for email:', email);
     
-    const query = 'SELECT id, nome, cognome, email, password FROM users WHERE email = $1';
+    const query = 'SELECT id, first_name, last_name, email, password_hash, role, temporary_password FROM users WHERE email = $1';
     const result = await pool.query(query, [email]);
     
     if (result.rows.length === 0) {
@@ -66,8 +66,8 @@ router.post('/login', async (req, res) => {
     const user = result.rows[0];
     
     // Verifica password
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
     if (!passwordMatch) {
       console.warn('[WARN] Password mismatch for email:', email);
       return res.status(401).json({ error: 'Credenziali non valide' });
@@ -77,31 +77,29 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { 
         id: user.id, 
-        nome: user.nome,
-        cognome: user.cognome,
         email: user.email,
-        type: 'user'
+        role: user.role
       },
-      JWT_SECRET,
+      process.env.JWT_SECRET as string,
       { expiresIn: '24h' }
     );
 
     console.debug('[DEBUG] Login successful for user:', user.email);
     res.json({
-      success: true,
       message: 'Login effettuato',
       token,
       user: {
         id: user.id,
-        nome: user.nome,
-        cognome: user.cognome,
         email: user.email,
-        type: 'user'
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        temporary_password: user.temporary_password
       }
     });
-  } catch (err: any) {
-    console.error('[ERROR] Login failed:', err);
-    res.status(500).json({ error: 'Errore del server' });
+  } catch (error) {
+    console.error('[ERROR] Login failed:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 
