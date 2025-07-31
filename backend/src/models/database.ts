@@ -8,6 +8,7 @@ export interface User {
     last_name: string;
     phone?: string;
     role: 'user' | 'admin' | 'airlines';
+    airline_id?: number; // Campo aggiunto per collegamento alle compagnie aeree
     temporary_password: boolean;
     created_at: Date;
     updated_at: Date;
@@ -100,20 +101,32 @@ export class DatabaseService {
     async createUser(user: {
         email: any;
         password_hash: string;
-        first_name: any;
-        last_name: any;
+        first_name?: any;
+        last_name?: any;
         phone: any;
         role: any;
+        airline_id?: number; // Campo aggiunto
         temporary_password: boolean;
         created_at: Date;
         updated_at: Date
     }): Promise<User> {
         const query = `
-            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, temporary_password, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, airline_id, temporary_password, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
         `;
-        const values = [user.email, user.password_hash, user.first_name, user.last_name, user.phone, user.role, user.temporary_password, user.created_at, user.updated_at ];
+        const values = [
+            user.email,
+            user.password_hash,
+            user.first_name || null,
+            user.last_name || null,
+            user.phone,
+            user.role,
+            user.airline_id || null, // Supporta null se non è un admin di compagnia
+            user.temporary_password,
+            user.created_at,
+            user.updated_at
+        ];
         const result = await this.pool.query(query, values);
         return result.rows[0];
     }

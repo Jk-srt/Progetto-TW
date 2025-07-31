@@ -5,6 +5,15 @@ import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
+// Interfaccia per JWT payload esteso
+interface ExtendedJWTPayload {
+  userId: number;
+  email: string;
+  role: string;
+  airlineId?: number;
+  airlineName?: string;
+}
+
 // Connessione al database
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
@@ -54,8 +63,14 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     console.debug('[DEBUG] Attempting login for email:', email);
-    
-    const query = 'SELECT id, first_name, last_name, email, password_hash, role, temporary_password FROM users WHERE email = $1';
+
+    const query = `
+        SELECT u.id, u.email, u.first_name, u.last_name, u.role, 
+               u.password_hash, u.temporary_password, u.airline_id,
+               a.name as airline_name, a.iata_code
+        FROM users u 
+        LEFT JOIN airlines a ON u.airline_id = a.id
+        WHERE u.email = $1`;
     const result = await pool.query(query, [email]);
     
     if (result.rows.length === 0) {
@@ -73,16 +88,31 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenziali non valide' });
     }
 
-    // Genera JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email,
-        role: user.role
-      },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '24h' }
-    );
+    // Genera JWT token payload
+    const tokenPayload: ExtendedJWTPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    };
+
+    // Se è un admin di compagnia aerea, aggiungere info airline
+    if (user.airline_id && user.airline_name) {
+      tokenPayload.airlineId = user.airline_id;
+      tokenPayload.airlineName = user.airline_name;
+    }
+
+    // Controllare se deve cambiare password
+    if (user.temporary_password) {
+      const tempToken = jwt.sign(tokenPayload, process.env.JWT_SECRET as string, { expiresIn: '1h' });
+      return res.json({
+        message: 'Password temporanea - cambio richiesto',
+        requirePasswordChange: true,
+        token: tempToken
+      });
+    }
+
+    // Token normale per utenti con password definitiva
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET as string, { expiresIn: '24h' });
 
     console.debug('[DEBUG] Login successful for user:', user.email);
     res.json({
@@ -94,12 +124,68 @@ router.post('/login', async (req, res) => {
         first_name: user.first_name,
         last_name: user.last_name,
         role: user.role,
-        temporary_password: user.temporary_password
+        temporary_password: user.temporary_password,
+        airline: user.airline_id ? {
+          id: user.airline_id,
+          name: user.airline_name,
+          code: user.iata_code
+        } : null
       }
     });
   } catch (error) {
     console.error('[ERROR] Login failed:', error);
     res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Cambio password per primo login (compagnie aeree)
+router.post('/change-password', async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Token mancante' });
+    }
+
+    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as ExtendedJWTPayload;
+
+    // Verifica password attuale
+    const userQuery = 'SELECT password_hash FROM users WHERE id = $1 AND temporary_password = true';
+    const userResult = await pool.query(userQuery, [payload.userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Utente non trovato o password già cambiata' });
+    }
+
+    const passwordMatch = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Password attuale non corretta' });
+    }
+
+    // Aggiorna password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, temporary_password = false, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashedNewPassword, payload.userId]
+    );
+
+    // Genera nuovo token completo
+    const newToken = jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '24h' });
+
+    res.json({
+      message: 'Password cambiata con successo',
+      token: newToken
+    });
+
+  } catch (error) {
+    console.error('[ERROR] Password change failed:', error);
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(403).json({ error: 'Token non valido' });
+    } else {
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
   }
 });
 
