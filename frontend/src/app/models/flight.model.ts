@@ -1,5 +1,5 @@
 export interface Flight {
-  id: string;
+  id: number; // ← Cambiato da string a number
   flightNumber: string;
   airline?: string;
   aircraft?: string;
@@ -9,21 +9,29 @@ export interface Flight {
   arrivalTime: string;
   price: number;
   status: 'On Time' | 'Delayed' | 'Boarding' | 'Departed' | 'scheduled' | 'delayed' | 'cancelled' | 'completed';
+  
   // Campi dal database
   flight_number?: string;
   departure_airport?: string;
   departure_city?: string;
-  departure_code?: string;  // ← AGGIUNGI QUESTA RIGA
+  departure_code?: string;
   arrival_airport?: string;
   arrival_city?: string;
-  arrival_code?: string;    // ← AGGIUNGI QUESTA RIGA
+  arrival_code?: string;
   departure_time?: string;
   arrival_time?: string;
   available_seats?: number;
   total_seats?: number;
   airline_id?: number;
   airline_name?: string;
+  
+  // Aggiungi questi campi mancanti:
+  aircraft_id?: number;
+  departure_airport_id?: number;
+  arrival_airport_id?: number;
+  aircraft_model?: string; // ← Per flights-view.component.ts
 }
+
 
 
 // Interfaccia per gli aeroporti basata sul database backend

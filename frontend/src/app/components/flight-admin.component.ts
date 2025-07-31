@@ -382,11 +382,17 @@ export class FlightAdminComponent implements OnInit {
   }
 
   private loadMockFlights() {
-    // Filtra i voli mock per la compagnia corrente
     const userAirlineId = this.currentUser?.airline_id?.toString() || '1';
-    const mockFlights = [
+    const mockFlights: Flight[] = [
       {
         id: 1,
+        flightNumber: "AZ123", // ← Aggiungi questo campo
+        airline: "Alitalia",   // ← Aggiungi questo campo
+        aircraft: "Boeing 737", // ← Aggiungi questo campo
+        origin: "Roma",        // ← Aggiungi questo campo
+        destination: "Milano", // ← Aggiungi questo campo
+        departureTime: "2025-07-30T10:00:00Z", // ← Aggiungi questo campo
+        arrivalTime: "2025-07-30T11:30:00Z",   // ← Aggiungi questo campo
         flight_number: "AZ123",
         airline_id: 1,
         airline_name: "Alitalia",
@@ -401,7 +407,12 @@ export class FlightAdminComponent implements OnInit {
         price: 150.50,
         total_seats: 180,
         available_seats: 120,
-        status: "scheduled" as const
+        status: "scheduled" as const,
+        // Aggiungi i campi mancanti:
+        aircraft_id: 1,
+        departure_airport_id: 1,
+        arrival_airport_id: 2,
+        aircraft_model: "Boeing 737"
       }
     ];
 
@@ -432,10 +443,10 @@ export class FlightAdminComponent implements OnInit {
     this.filteredFlights = this.flights.filter(flight => {
       const matchesStatus = !this.statusFilter || flight.status === this.statusFilter;
       const matchesSearch = !this.searchTerm || 
-        flight.flight_number.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        flight.airline_name?.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        flight.departure_airport.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        flight.arrival_airport.toLowerCase().includes(this.searchTerm.toLowerCase());
+        (flight.flight_number?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
+        (flight.airline_name?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
+        (flight.departure_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
+        (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase()));
       
       return matchesStatus && matchesSearch;
     });
@@ -464,22 +475,24 @@ export class FlightAdminComponent implements OnInit {
     this.isEditing = true;
     this.editingFlightId = flight.id;
     
-    // Formato delle date per datetime-local
-    const departureTime = new Date(flight.departure_time).toISOString().slice(0, 16);
-    const arrivalTime = new Date(flight.arrival_time).toISOString().slice(0, 16);
+    // Formato delle date per datetime-local con controlli undefined
+    const departureTime = flight.departure_time ? 
+      new Date(flight.departure_time).toISOString().slice(0, 16) : '';
+    const arrivalTime = flight.arrival_time ? 
+      new Date(flight.arrival_time).toISOString().slice(0, 16) : '';
     
     this.flightForm.patchValue({
-      flight_number: flight.flight_number,
-      airline_id: flight.airline_id,
-      aircraft_id: flight.aircraft_id,
-      departure_airport_id: flight.departure_airport_id,
-      arrival_airport_id: flight.arrival_airport_id,
+      flight_number: flight.flight_number || '',
+      airline_id: flight.airline_id || '',
+      aircraft_id: flight.aircraft_id || '',
+      departure_airport_id: flight.departure_airport_id || '',
+      arrival_airport_id: flight.arrival_airport_id || '',
       departure_time: departureTime,
       arrival_time: arrivalTime,
-      price: flight.price,
-      total_seats: flight.total_seats,
-      available_seats: flight.available_seats,
-      status: flight.status
+      price: flight.price || 0,
+      total_seats: flight.total_seats || 0,
+      available_seats: flight.available_seats || 0,
+      status: flight.status || 'scheduled'
     });
     
     this.showModal = true;
@@ -549,14 +562,21 @@ export class FlightAdminComponent implements OnInit {
     return flight.id;
   }
 
-  formatDateTime(dateString: string): string {
-    return new Date(dateString).toLocaleString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  formatDateTime(dateString: string | undefined): string {
+    if (!dateString) {
+      return 'N/A';
+    }
+    try {
+      return new Date(dateString).toLocaleString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Data non valida';
+    }
   }
 
   getStatusLabel(status: string): string {
@@ -580,6 +600,18 @@ export class FlightAdminComponent implements OnInit {
 
   canManageFlight(flight: Flight): boolean {
     return this.flightAdminService.canManageFlight(flight);
+  }
+
+  // Metodo helper per gestire valori undefined
+  getFlightProperty(flight: Flight, property: keyof Flight): string {
+    const value = flight[property];
+    return value ? String(value) : 'N/A';
+  }
+
+  // Metodo per calcoli sicuri
+  safeCalculatePercentage(available?: number, total?: number): number {
+    if (!available || !total || total === 0) return 0;
+    return (available / total) * 100;
   }
 
   // Metodi per demo

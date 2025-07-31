@@ -183,7 +183,8 @@ import { Flight } from '../models/flight.model';
                 <div class="seats-bar">
                   <div 
                     class="seats-fill" 
-                    [style.width.%]="(flight.available_seats / flight.total_seats) * 100">
+                    [style.width.%]="flight.available_seats && flight.total_seats ? 
+                      (flight.available_seats / flight.total_seats) * 100 : 0">
                   </div>
                 </div>
               </div>
@@ -382,24 +383,30 @@ export class FlightsViewComponent implements OnInit {
     return labels[status] || status;
   }
 
-  formatTime(timeString: string): string {
-    return new Date(`1970-01-01T${timeString}`).toLocaleTimeString('it-IT', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  formatTime(timeString: string | undefined): string {
+    if (!timeString) return 'N/A';
+    try {
+      return new Date(timeString).toLocaleTimeString('it-IT', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'N/A';
+    }
   }
 
-  calculateDuration(departure: string, arrival: string): string {
-    const dep = new Date(`1970-01-01T${departure}`);
-    const arr = new Date(`1970-01-01T${arrival}`);
-    
-    let diff = arr.getTime() - dep.getTime();
-    if (diff < 0) diff += 24 * 60 * 60 * 1000; // Gestisce voli che arrivano il giorno dopo
-    
-    const hours = Math.floor(diff / (60 * 60 * 1000));
-    const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
-    
-    return `${hours}h ${minutes}m`;
+  calculateDuration(departure: string | undefined, arrival: string | undefined): string {
+    if (!departure || !arrival) return 'N/A';
+    try {
+      const dep = new Date(departure);
+      const arr = new Date(arrival);
+      const diffMs = arr.getTime() - dep.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+    } catch {
+      return 'N/A';
+    }
   }
 
   getActiveFlights(): number {
