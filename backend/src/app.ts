@@ -20,6 +20,7 @@ import airportsRouter from './routes/airports';
 import airlinesRouter from './routes/airlines';
 import aircraftsRouter from './routes/aircrafts';
 import bookingsRouter from './routes/bookings';
+import routePricingRouter from './routes/route-pricing';
 
 // Load environment variables from workspace root .env
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -54,6 +55,61 @@ async function runInitSql() {
     } catch (error: any) {
         console.error('[ERROR] Failed to run SQL initialization:', error);
         throw error;
+        if (error.code === '23505') {
+            console.warn('[WARN] init.sql: duplicate key violation, skipping initialization');
+        } else {
+            console.error('[ERROR] Failed to run SQL initialization:', error);
+            throw error;
+        }
+    }
+}
+
+// Funzione per creare l'admin automaticamente se non esiste
+async function createAdminIfNotExists() {
+    try {
+        console.log('[INFO] Skipping admin creation - using existing Neon database structure');
+        return; // Disabilita temporaneamente per Neon
+
+        /* COMENTATO PER NEON - Riabilitare quando la struttura è corretta
+        const adminEmail = process.env.ADMIN_EMAIL;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+
+        if (!adminEmail || !adminPassword) {
+            console.warn('[WARN] ADMIN_EMAIL or ADMIN_PASSWORD not found in environment variables');
+            return;
+        }
+
+        // Controlla se esiste già un admin
+        const existingAdmin = await pool.query(
+            'SELECT id FROM users WHERE role = $1 LIMIT 1',
+            ['admin']
+        );
+
+        if (existingAdmin.rows.length > 0) {
+            console.debug('[DEBUG] Admin user already exists, skipping creation');
+            return;
+        }
+
+        // Hash della password
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
+
+        // Crea l'admin
+        const result = await pool.query(
+            `INSERT INTO users (email, password_hash, first_name, last_name, role, temporary_password)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, role`,
+            [adminEmail, passwordHash, 'Admin', 'User', 'admin', false]
+        );
+
+        console.log('[INFO] Admin user created successfully:', {
+            id: result.rows[0].id,
+            email: result.rows[0].email,
+            role: result.rows[0].role
+        });
+        */
+
+    } catch (error) {
+        console.error('[ERROR] Admin creation disabled for Neon database');
     }
 }
 
@@ -159,6 +215,7 @@ app.use('/api/airports', airportsRouter);
 app.use('/api/airlines', airlinesRouter);
 app.use('/api/aircrafts', aircraftsRouter);
 app.use('/api/bookings', bookingsRouter);
+app.use('/api/route-pricing', routePricingRouter);
 
 // Default route
 app.get('/', (req, res) => {
@@ -246,6 +303,7 @@ async function startServer() {
         console.log('[INFO] Initializing database...');
         await connectToDatabase();
         await runInitSql();
+        await createAdminIfNotExists();
         await ensureAdminExists();
         
         app.listen(PORT, '0.0.0.0', () => {

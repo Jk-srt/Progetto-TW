@@ -28,6 +28,9 @@ import { CommonModule } from '@angular/common';
               <a routerLink="/bookings" class="nav-link" routerLinkActive="active">
                 📋 Prenotazioni
               </a>
+              <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/routes" class="nav-link" routerLinkActive="active">
+                🗺️ Rotte
+              </a>
 
               <!-- Admin-only link -->
               <a *ngIf="currentUser?.role === 'admin'"
