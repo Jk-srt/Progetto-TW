@@ -180,7 +180,9 @@ export class UserLoginComponent {
             // Store token and user data
             localStorage.setItem('token', response.token);
             localStorage.setItem('user', JSON.stringify(response.user));
-            
+            console.log('🛫 AirlineId:', response.user.airlineId);
+            localStorage.setItem('airlineId', response.user.airlineId);
+
             // Dispatch auth change event
             window.dispatchEvent(new Event('auth-changed'));
             
