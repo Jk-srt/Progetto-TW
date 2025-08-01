@@ -530,11 +530,13 @@ export class FlightAdminComponent implements OnInit {
         (flight.departure_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase()));
       
-      // Filtro per compagnia aerea: mostra solo i propri voli se abilitato
+      // Filtro per compagnie aeree: se la spunta "Solo i miei voli" è attiva, mostra solo i voli della propria compagnia
       let matchesAirline = true;
       if (!this.isAdmin && this.showOnlyMyFlights && this.airlineId) {
-        const airlineIdNumber = parseInt(this.airlineId);
-        matchesAirline = flight.airline_id === airlineIdNumber;
+        const myAirlineId = parseInt(this.airlineId);
+        console.log('Filtraggio voli per airline_id:', myAirlineId);
+        console.log('Volo corrente airline_id:', flight.airline_id);
+        matchesAirline = flight.airline_id === myAirlineId;
       }
       
       return matchesStatus && matchesSearch && matchesAirline;
