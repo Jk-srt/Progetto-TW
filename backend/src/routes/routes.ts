@@ -1,5 +1,6 @@
 import express from 'express';
 import { Pool } from 'pg';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.get('/', async (req, res) => {
         r.route_name,
         r.distance_km,
         r.estimated_duration,
+        r.default_price,
         r.status,
         r.created_at,
         r.updated_at,
@@ -51,6 +53,7 @@ router.get('/:id', async (req, res) => {
         r.arrival_airport_id,
         r.distance_km,
         r.estimated_duration,
+        r.default_price,
         r.status,
         r.created_at,
         r.updated_at,
@@ -78,8 +81,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Aggiungi nuova rotta
+// JWT secret for auth
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+// Aggiungi nuova rotta (autenticazione richiesta)
 router.post('/', async (req, res) => {
+  // Autenticazione e autorizzazione
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  let payload: any;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.sendStatus(403);
+  }
+  // Solo admin o airline possono creare rotte
+  if (!['admin', 'airline'].includes(payload.role)) {
+    return res.status(403).json({ error: 'Accesso negato: ruolo non autorizzato' });
+  }
   try {
     const {
       route_name,
@@ -87,6 +106,7 @@ router.post('/', async (req, res) => {
       arrival_airport_id,
       distance_km,
       estimated_duration,
+      default_price = 0,
       status = 'active'
     } = req.body;
 
@@ -107,14 +127,14 @@ router.post('/', async (req, res) => {
     const query = `
       INSERT INTO routes (
         route_name, departure_airport_id, arrival_airport_id, 
-        distance_km, estimated_duration, status
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        distance_km, estimated_duration, default_price, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
     
     const values = [
       route_name, departure_airport_id, arrival_airport_id,
-      distance_km, estimated_duration, status
+      distance_km, estimated_duration, default_price, status
     ];
     
     const result = await pool.query(query, values);
@@ -125,7 +145,14 @@ router.post('/', async (req, res) => {
   } catch (err: any) {
     console.error('Error creating route:', err);
     if (err.code === '23505') { // Violazione vincolo univoco
-      res.status(400).json({ error: 'Rotta già esistente' });
+      if (err.constraint === 'routes_departure_airport_id_arrival_airport_id_key') {
+        res.status(400).json({ 
+          error: 'Rotta già esistente tra questi aeroporti',
+          detail: 'Esiste già una rotta tra l\'aeroporto di partenza e quello di arrivo selezionati'
+        });
+      } else {
+        res.status(400).json({ error: 'Rotta già esistente' });
+      }
     } else {
       res.status(400).json({ error: 'Errore nella creazione della rotta' });
     }
@@ -135,6 +162,15 @@ router.post('/', async (req, res) => {
 // Aggiorna rotta esistente
 router.put('/:id', async (req, res) => {
   try {
+    // Autenticazione e autorizzazione
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.sendStatus(401);
+    let payload: any;
+    try { payload = jwt.verify(token, JWT_SECRET); } catch { return res.sendStatus(403); }
+    if (!['admin', 'airline'].includes(payload.role)) {
+      return res.status(403).json({ error: 'Accesso negato: ruolo non autorizzato' });
+    }
     const { id } = req.params;
     const {
       route_name,
@@ -142,6 +178,7 @@ router.put('/:id', async (req, res) => {
       arrival_airport_id,
       distance_km,
       estimated_duration,
+      default_price,
       status
     } = req.body;
 
@@ -168,15 +205,16 @@ router.put('/:id', async (req, res) => {
         arrival_airport_id = $3,
         distance_km = $4,
         estimated_duration = $5,
-        status = $6,
+        default_price = $6,
+        status = $7,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $8
       RETURNING *
     `;
     
     const values = [
       route_name, departure_airport_id, arrival_airport_id,
-      distance_km, estimated_duration, status, id
+      distance_km, estimated_duration, default_price, status, id
     ];
     
     const result = await pool.query(query, values);
@@ -198,6 +236,15 @@ router.put('/:id', async (req, res) => {
 // Elimina rotta
 router.delete('/:id', async (req, res) => {
   try {
+    // Autenticazione e autorizzazione
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.sendStatus(401);
+    let payload: any;
+    try { payload = jwt.verify(token, JWT_SECRET); } catch { return res.sendStatus(403); }
+    if (!['admin', 'airline'].includes(payload.role)) {
+      return res.status(403).json({ error: 'Accesso negato: ruolo non autorizzato' });
+    }
     const { id } = req.params;
     
     // Controlla se ci sono voli che utilizzano questa rotta

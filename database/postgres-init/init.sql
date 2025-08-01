@@ -66,11 +66,30 @@ CREATE TABLE IF NOT EXISTS aircrafts (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabella delle rotte (3NF)
+CREATE TABLE IF NOT EXISTS routes (
+    id SERIAL PRIMARY KEY,
+    route_name VARCHAR(255) NOT NULL,
+    departure_airport_id INTEGER REFERENCES airports(id) NOT NULL,
+    arrival_airport_id INTEGER REFERENCES airports(id) NOT NULL,
+    distance_km INTEGER NOT NULL,
+    estimated_duration VARCHAR(10) NOT NULL, -- formato HH:MM
+    default_price DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_different_airports CHECK (departure_airport_id != arrival_airport_id),
+    CONSTRAINT check_positive_distance CHECK (distance_km > 0),
+    CONSTRAINT check_positive_price CHECK (default_price >= 0),
+    UNIQUE(departure_airport_id, arrival_airport_id)
+);
+
 CREATE TABLE IF NOT EXISTS flights (
     id SERIAL PRIMARY KEY,
     flight_number VARCHAR(10) UNIQUE NOT NULL,
     airline_id INTEGER REFERENCES airlines(id),
     aircraft_id INTEGER REFERENCES aircrafts(id),
+    route_id INTEGER REFERENCES routes(id), -- Collegamento alla rotta
     departure_airport_id INTEGER REFERENCES airports(id),
     arrival_airport_id INTEGER REFERENCES airports(id),
     departure_time TIMESTAMP NOT NULL,
@@ -80,7 +99,11 @@ CREATE TABLE IF NOT EXISTS flights (
     available_seats INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'scheduled',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Vincoli di coerenza
+    CONSTRAINT check_positive_seats CHECK (total_seats > 0 AND available_seats >= 0 AND available_seats <= total_seats),
+    CONSTRAINT check_positive_price_flight CHECK (price > 0),
+    CONSTRAINT check_departure_before_arrival CHECK (departure_time < arrival_time)
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -142,16 +165,27 @@ INSERT INTO aircrafts (airline_id, registration, aircraft_type, manufacturer, mo
 (5, 'PH-BXA', 'Wide-body', 'Boeing', '737-800', 186, 20, 166, 2015, 'active'),
 (6, 'EI-DWF', 'Narrow-body', 'Boeing', '737-800', 189, 0, 189, 2014, 'active');
 
--- Inserimento dati di test per voli
-INSERT INTO flights (flight_number, airline_id, aircraft_id, departure_airport_id, arrival_airport_id, departure_time, arrival_time, price, total_seats, available_seats, status) VALUES
-('AZ101', 1, 1, 1, 2, '2024-12-01 08:00:00', '2024-12-01 09:30:00', 89.99, 200, 156, 'scheduled'),
-('AZ102', 1, 2, 2, 1, '2024-12-01 10:30:00', '2024-12-01 12:00:00', 94.99, 180, 143, 'scheduled'),
-('BA205', 2, 3, 1, 3, '2024-12-01 14:15:00', '2024-12-01 16:45:00', 159.99, 180, 178, 'scheduled'),
-('AF301', 3, 5, 1, 4, '2024-12-01 11:20:00', '2024-12-01 13:30:00', 139.99, 174, 145, 'scheduled'),
-('VY402', 4, 7, 2, 5, '2024-12-01 07:45:00', '2024-12-01 09:15:00', 79.99, 180, 128, 'scheduled'),
-('KL503', 5, 8, 2, 6, '2024-12-01 16:00:00', '2024-12-01 17:20:00', 119.99, 186, 162, 'scheduled'),
-('AZ201', 1, 1, 1, 5, '2024-12-01 19:30:00', '2024-12-01 21:45:00', 169.99, 200, 141, 'scheduled'),
-('BA301', 2, 4, 3, 1, '2024-12-01 09:15:00', '2024-12-01 13:45:00', 149.99, 350, 289, 'scheduled');
+-- Inserimento dati di test per rotte
+INSERT INTO routes (route_name, departure_airport_id, arrival_airport_id, distance_km, estimated_duration, default_price, status) VALUES
+('Roma-Milano', 1, 2, 580, '01:30', 89.99, 'active'),
+('Milano-Roma', 2, 1, 580, '01:30', 94.99, 'active'),
+('Roma-Londra', 1, 3, 1435, '02:30', 159.99, 'active'),
+('Roma-Parigi', 1, 4, 1105, '02:10', 139.99, 'active'),
+('Milano-Barcelona', 2, 5, 725, '01:30', 79.99, 'active'),
+('Milano-Amsterdam', 2, 6, 840, '01:20', 119.99, 'active'),
+('Roma-Barcelona', 1, 5, 860, '02:15', 169.99, 'active'),
+('Londra-Roma', 3, 1, 1435, '04:30', 149.99, 'active');
+
+-- Inserimento dati di test per voli (con route_id)
+INSERT INTO flights (flight_number, airline_id, aircraft_id, route_id, departure_airport_id, arrival_airport_id, departure_time, arrival_time, price, total_seats, available_seats, status) VALUES
+('AZ101', 1, 1, 1, 1, 2, '2024-12-01 08:00:00', '2024-12-01 09:30:00', 89.99, 200, 156, 'scheduled'),
+('AZ102', 1, 2, 2, 2, 1, '2024-12-01 10:30:00', '2024-12-01 12:00:00', 94.99, 180, 143, 'scheduled'),
+('BA205', 2, 3, 3, 1, 3, '2024-12-01 14:15:00', '2024-12-01 16:45:00', 159.99, 180, 178, 'scheduled'),
+('AF301', 3, 5, 4, 1, 4, '2024-12-01 11:20:00', '2024-12-01 13:30:00', 139.99, 174, 145, 'scheduled'),
+('VY402', 4, 7, 5, 2, 5, '2024-12-01 07:45:00', '2024-12-01 09:15:00', 79.99, 180, 128, 'scheduled'),
+('KL503', 5, 8, 6, 2, 6, '2024-12-01 16:00:00', '2024-12-01 17:20:00', 119.99, 186, 162, 'scheduled'),
+('AZ201', 1, 1, 7, 1, 5, '2024-12-01 19:30:00', '2024-12-01 21:45:00', 169.99, 200, 141, 'scheduled'),
+('BA301', 2, 4, 8, 3, 1, '2024-12-01 09:15:00', '2024-12-01 13:45:00', 149.99, 350, 289, 'scheduled');
 
 -- Creazione di dati di test
 INSERT INTO users (first_name, last_name, phone, date_of_birth, nationality) VALUES
@@ -173,6 +207,10 @@ CREATE INDEX IF NOT EXISTS idx_flights_departure_airport ON flights(departure_ai
 CREATE INDEX IF NOT EXISTS idx_flights_arrival_airport ON flights(arrival_airport_id);
 CREATE INDEX IF NOT EXISTS idx_flights_airline ON flights(airline_id);
 CREATE INDEX IF NOT EXISTS idx_flights_aircraft ON flights(aircraft_id);
+CREATE INDEX IF NOT EXISTS idx_flights_route ON flights(route_id);
+CREATE INDEX IF NOT EXISTS idx_routes_departure_airport ON routes(departure_airport_id);
+CREATE INDEX IF NOT EXISTS idx_routes_arrival_airport ON routes(arrival_airport_id);
+CREATE INDEX IF NOT EXISTS idx_routes_status ON routes(status);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_flight_id ON bookings(flight_id);
 CREATE INDEX IF NOT EXISTS idx_aircrafts_airline ON aircrafts(airline_id);
