@@ -1028,3 +1028,26 @@
   padding-top: 10px;
   margin-top: 10px;
 }
+
+/* Stile per checkbox nei filtri */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 0.5rem;
+
+  input[type="checkbox"] {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;  
+    cursor: pointer;
+    min-width: auto;
+  }
+
+  .checkmark {
+    font-size: 0.9rem;
+    color: #555;
+    font-weight: 500;
+  }
+}

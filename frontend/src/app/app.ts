@@ -29,6 +29,14 @@ import { CommonModule } from '@angular/common';
                 📋 Prenotazioni
               </a>
 
+              <!-- Airline Flight Management link -->
+              <a *ngIf="currentUser?.role === 'airline'"
+                 routerLink="/flight-admin"
+                 class="nav-link airline-link"
+                 routerLinkActive="active">
+                 ✈️ Gestisci Voli
+              </a>
+
               <!-- Admin-only link -->
               <a *ngIf="currentUser?.role === 'admin'"
                  routerLink="/admin"
@@ -156,6 +164,15 @@ import { CommonModule } from '@angular/common';
 
     .admin-link:hover {
       background: rgba(255, 193, 7, 0.3) !important;
+    }
+
+    .airline-link {
+      background: rgba(33, 150, 243, 0.2) !important;
+      border: 1px solid rgba(33, 150, 243, 0.3);
+    }
+
+    .airline-link:hover {
+      background: rgba(33, 150, 243, 0.3) !important;
     }
 
     .auth-links, .guest-links {

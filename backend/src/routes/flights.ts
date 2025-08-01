@@ -154,6 +154,10 @@ router.get('/', async (req, res) => {
       SELECT 
         f.id,
         f.flight_number,
+        f.airline_id,
+        f.aircraft_id,
+        f.departure_airport_id,
+        f.arrival_airport_id,
         f.departure_time,
         f.arrival_time,
         f.price,

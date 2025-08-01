@@ -62,6 +62,17 @@ import { User } from '../models/user.model';
             (input)="applyFilters()"
             placeholder="Numero volo, aeroporto...">
         </div>
+        <!-- Filtro per compagnie aeree: mostra solo i propri voli -->
+        <div class="filter-group" *ngIf="!isAdmin">
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              [(ngModel)]="showOnlyMyFlights" 
+              (change)="applyFilters()">
+            <span class="checkmark"></span>
+            Solo i miei voli
+          </label>
+        </div>
       </div>
 
       <!-- Tabella voli -->
@@ -332,6 +343,7 @@ export class FlightAdminComponent implements OnInit {
   // Filtri
   statusFilter = '';
   searchTerm = '';
+  showOnlyMyFlights = false; // Per le compagnie aeree: di default mostra tutti i voli, poi l'utente può filtrare
 
   // Autorizzazione
   canAccess = false;
@@ -479,9 +491,34 @@ export class FlightAdminComponent implements OnInit {
       this.airlines = airlines;
     });
 
-    this.flightAdminService.getAircrafts().subscribe(aircrafts => {
-      this.aircrafts = aircrafts;
-    });
+    // Carica gli aerei in base al ruolo dell'utente
+    if (this.isAdmin) {
+      // Admin può vedere tutti gli aerei
+      this.flightAdminService.getAircrafts().subscribe(aircrafts => {
+        this.aircrafts = aircrafts;
+        console.log('Admin - Caricati tutti gli aerei:', aircrafts);
+      });
+    } else if (this.airlineId) {
+      // Compagnia aerea vede solo i propri aerei
+      this.flightAdminService.getAircraftsByAirline(parseInt(this.airlineId)).subscribe({
+        next: (aircrafts: Aircraft[]) => {
+          this.aircrafts = aircrafts;
+          console.log(`Compagnia ${this.airlineId} - Caricati aerei specifici:`, aircrafts);
+        },
+        error: (error: any) => {
+          console.error('Errore nel caricamento degli aerei della compagnia:', error);
+          // Fallback: carica tutti gli aerei e filtra lato client
+          this.flightAdminService.getAircrafts().subscribe(allAircrafts => {
+            this.aircrafts = allAircrafts.filter(aircraft => aircraft.airline_id === parseInt(this.airlineId!));
+            console.log('Fallback - Aerei filtrati lato client:', this.aircrafts);
+          });
+        }
+      });
+    } else {
+      // Utente senza airline_id non dovrebbe essere qui, ma per sicurezza
+      this.aircrafts = [];
+      console.log('Nessun airline_id trovato - array aerei vuoto');
+    }
   }
 
   applyFilters() {
@@ -493,7 +530,14 @@ export class FlightAdminComponent implements OnInit {
         (flight.departure_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase()));
       
-      return matchesStatus && matchesSearch;
+      // Filtro per compagnia aerea: mostra solo i propri voli se abilitato
+      let matchesAirline = true;
+      if (!this.isAdmin && this.showOnlyMyFlights && this.airlineId) {
+        const airlineIdNumber = parseInt(this.airlineId);
+        matchesAirline = flight.airline_id === airlineIdNumber;
+      }
+      
+      return matchesStatus && matchesSearch && matchesAirline;
     });
   }
 
