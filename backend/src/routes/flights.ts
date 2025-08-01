@@ -1,5 +1,6 @@
 import express from 'express';
 import { Pool } from 'pg';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
@@ -7,6 +8,55 @@ const router = express.Router();
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+
+interface JWTPayload {
+  id: number;
+  email: string;
+  role: string;
+  type: string;
+  airlineId?: number;
+  airlineName?: string;
+  iataCode?: string;
+}
+
+// Estendi l'interfaccia Request per includere user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JWTPayload;
+    }
+  }
+}
+
+// Middleware per verificare il token JWT
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Token di accesso richiesto' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) {
+      return res.status(403).json({ message: 'Token non valido' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Middleware per verificare i ruoli
+const verifyRole = (roles: string[]) => {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Permessi insufficienti' });
+    }
+    next();
+  };
+};
 
 // Route per cercare voli con filtri
 router.get('/search', async (req, res) => {
@@ -104,6 +154,10 @@ router.get('/', async (req, res) => {
       SELECT 
         f.id,
         f.flight_number,
+        f.airline_id,
+        f.aircraft_id,
+        f.departure_airport_id,
+        f.arrival_airport_id,
         f.departure_time,
         f.arrival_time,
         f.price,
@@ -227,8 +281,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Aggiungi nuovo volo
-router.post('/', async (req, res) => {
+// Aggiungi nuovo volo (solo admin e compagnie aeree)
+router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req, res) => {
   try {
     const {
       flight_number,
@@ -244,6 +298,38 @@ router.post('/', async (req, res) => {
       status = 'scheduled'
     } = req.body;
 
+    // Validazione campi obbligatori
+    if (!flight_number || !airline_id || !aircraft_id || !departure_airport_id || 
+        !arrival_airport_id || !departure_time || !arrival_time || !price || 
+        !total_seats || available_seats === undefined) {
+      return res.status(400).json({ error: 'Tutti i campi sono obbligatori' });
+    }
+
+    // Per le compagnie aeree, verifica che stiano creando voli solo per la loro compagnia
+    if (req.user!.role === 'airline' && req.user!.airlineId && 
+        parseInt(airline_id) !== req.user!.airlineId) {
+      return res.status(403).json({ error: 'Non puoi creare voli per altre compagnie' });
+    }
+
+    // Verifica che l'aereo appartenga alla compagnia aerea specificata
+    const aircraftCheck = await pool.query(
+      'SELECT airline_id, seat_capacity FROM aircrafts WHERE id = $1',
+      [aircraft_id]
+    );
+
+    if (aircraftCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Aereo non trovato' });
+    }
+
+    if (aircraftCheck.rows[0].airline_id !== parseInt(airline_id)) {
+      return res.status(400).json({ error: 'L\'aereo non appartiene alla compagnia aerea selezionata' });
+    }
+
+    // Se total_seats non è specificato o è 0, usa la capacità dell'aereo
+    const aircraftCapacity = aircraftCheck.rows[0].seat_capacity;
+    const finalTotalSeats = total_seats || aircraftCapacity;
+    const finalAvailableSeats = available_seats !== undefined ? available_seats : finalTotalSeats;
+
     const query = `
       INSERT INTO flights (
         flight_number, airline_id, aircraft_id, departure_airport_id, 
@@ -256,10 +342,12 @@ router.post('/', async (req, res) => {
     const values = [
       flight_number, airline_id, aircraft_id, departure_airport_id,
       arrival_airport_id, departure_time, arrival_time, price,
-      total_seats, available_seats, status
+      finalTotalSeats, finalAvailableSeats, status
     ];
     
     const result = await pool.query(query, values);
+    console.log(`[INFO] Flight created by user ${req.user!.email} (${req.user!.role}):`, result.rows[0]);
+    
     res.status(201).json({ 
       message: 'Volo aggiunto con successo', 
       flight: result.rows[0] 
@@ -274,8 +362,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Aggiorna volo esistente
-router.put('/:id', async (req, res) => {
+// Aggiorna volo esistente (solo admin e compagnie aeree autorizzate)
+router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -291,6 +379,45 @@ router.put('/:id', async (req, res) => {
       available_seats,
       status
     } = req.body;
+
+    // Verifica che il volo esista e che l'utente possa modificarlo
+    const checkQuery = `
+      SELECT f.*, a.name as airline_name 
+      FROM flights f
+      LEFT JOIN airlines a ON f.airline_id = a.id
+      WHERE f.id = $1
+    `;
+    
+    const checkResult = await pool.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+
+    const existingFlight = checkResult.rows[0];
+
+    // Per le compagnie aeree, verifica che possano modificare solo i loro voli
+    if (req.user!.role === 'airline' && req.user!.airlineId && 
+        existingFlight.airline_id !== req.user!.airlineId) {
+      return res.status(403).json({ error: 'Non puoi modificare voli di altre compagnie' });
+    }
+
+    // Se viene cambiato l'aereo, verifica che appartenga alla compagnia
+    if (aircraft_id && aircraft_id !== existingFlight.aircraft_id) {
+      const aircraftCheck = await pool.query(
+        'SELECT airline_id, seat_capacity FROM aircrafts WHERE id = $1',
+        [aircraft_id]
+      );
+
+      if (aircraftCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Aereo non trovato' });
+      }
+
+      const targetAirlineId = airline_id || existingFlight.airline_id;
+      if (aircraftCheck.rows[0].airline_id !== parseInt(targetAirlineId)) {
+        return res.status(400).json({ error: 'L\'aereo non appartiene alla compagnia aerea' });
+      }
+    }
 
     const query = `
       UPDATE flights SET 
@@ -311,16 +438,23 @@ router.put('/:id', async (req, res) => {
     `;
     
     const values = [
-      flight_number, airline_id, aircraft_id, departure_airport_id,
-      arrival_airport_id, departure_time, arrival_time, price,
-      total_seats, available_seats, status, id
+      flight_number || existingFlight.flight_number,
+      airline_id || existingFlight.airline_id,
+      aircraft_id || existingFlight.aircraft_id,
+      departure_airport_id || existingFlight.departure_airport_id,
+      arrival_airport_id || existingFlight.arrival_airport_id,
+      departure_time || existingFlight.departure_time,
+      arrival_time || existingFlight.arrival_time,
+      price !== undefined ? price : existingFlight.price,
+      total_seats !== undefined ? total_seats : existingFlight.total_seats,
+      available_seats !== undefined ? available_seats : existingFlight.available_seats,
+      status || existingFlight.status,
+      id
     ];
     
     const result = await pool.query(query, values);
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Volo non trovato' });
-    }
+    console.log(`[INFO] Flight updated by user ${req.user!.email} (${req.user!.role}):`, result.rows[0]);
     
     res.json({ 
       message: 'Volo aggiornato con successo', 
@@ -332,10 +466,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Elimina volo
-router.delete('/:id', async (req, res) => {
+// Elimina volo (solo admin e compagnie aeree autorizzate)
+router.delete('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Verifica che il volo esista e che l'utente possa eliminarlo
+    const checkQuery = 'SELECT * FROM flights WHERE id = $1';
+    const checkResult = await pool.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+
+    const flight = checkResult.rows[0];
+
+    // Per le compagnie aeree, verifica che possano eliminare solo i loro voli
+    if (req.user!.role === 'airline' && req.user!.airlineId && 
+        flight.airline_id !== req.user!.airlineId) {
+      return res.status(403).json({ error: 'Non puoi eliminare voli di altre compagnie' });
+    }
     
     // Controlla se ci sono prenotazioni associate
     const bookingsCheck = await pool.query(
@@ -351,9 +501,7 @@ router.delete('/:id', async (req, res) => {
     
     const result = await pool.query('DELETE FROM flights WHERE id = $1 RETURNING *', [id]);
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Volo non trovato' });
-    }
+    console.log(`[INFO] Flight deleted by user ${req.user!.email} (${req.user!.role}):`, result.rows[0]);
     
     res.json({ 
       message: 'Volo eliminato con successo', 

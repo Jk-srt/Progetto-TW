@@ -35,6 +35,18 @@
     }
   }
 }
+.readonly-field {
+  background-color: #f8f9fa !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.info-text {
+  color: #6c757d;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  display: block;
+}
 
 .flight-admin-container {
   padding: 2rem;
@@ -974,5 +986,68 @@
   .modal-content {
     width: 95vw;
     margin: 1rem;
+  }
+}
+
+/* Info box per i posti dell'aereo */
+.info-box {
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 15px;
+  grid-column: 1 / -1; /* Occupa tutta la larghezza della riga */
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  
+  &:last-of-type {
+    margin-bottom: 12px;
+  }
+  
+  strong {
+    color: #1976d2;
+  }
+  
+  span {
+    color: #333;
+    font-weight: 500;
+  }
+}
+
+.info-note {
+  color: #666;
+  font-style: italic;
+  font-size: 0.9rem;
+  display: block;
+  text-align: center;
+  border-top: 1px solid #bbdefb;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+/* Stile per checkbox nei filtri */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 0.5rem;
+
+  input[type="checkbox"] {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;  
+    cursor: pointer;
+    min-width: auto;
+  }
+
+  .checkmark {
+    font-size: 0.9rem;
+    color: #555;
+    font-weight: 500;
   }
 }

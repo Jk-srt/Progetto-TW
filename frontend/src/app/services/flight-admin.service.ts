@@ -103,6 +103,12 @@ export class FlightAdminService {
     return this.http.get<Aircraft[]>(`${this.API_URL}/data/aircrafts`, { headers });
   }
 
+  // Ottieni gli aerei di una compagnia specifica
+  getAircraftsByAirline(airlineId: number): Observable<Aircraft[]> {
+    const headers = this.getAuthHeaders();
+    return this.http.get<Aircraft[]>(`http://localhost:3000/api/airlines/${airlineId}/aircrafts`, { headers });
+  }
+
   // Aggiorna la lista locale
   refreshFlights(): void {
     this.getFlights().subscribe(flights => {

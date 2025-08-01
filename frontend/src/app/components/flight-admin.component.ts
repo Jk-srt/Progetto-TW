@@ -62,6 +62,17 @@ import { User } from '../models/user.model';
             (input)="applyFilters()"
             placeholder="Numero volo, aeroporto...">
         </div>
+        <!-- Filtro per compagnie aeree: mostra solo i propri voli -->
+        <div class="filter-group" *ngIf="!isAdmin">
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              [(ngModel)]="showOnlyMyFlights" 
+              (change)="applyFilters()">
+            <span class="checkmark"></span>
+            Solo i miei voli
+          </label>
+        </div>
       </div>
 
       <!-- Tabella voli -->
@@ -169,6 +180,20 @@ import { User } from '../models/user.model';
                 <label>Compagnia Aerea</label>
                 <input type="text" [value]="currentUser?.airline_name || ''" readonly class="readonly-field">
               </div>
+
+              <!-- Campo aereo sempre visibile per tutti gli utenti -->
+              <div class="form-group">
+                <label for="aircraft_id">Aereo *</label>
+                <select id="aircraft_id" formControlName="aircraft_id" (change)="onAircraftChange()">
+                  <option value="">Seleziona aereo</option>
+                  <option *ngFor="let aircraft of aircrafts" [value]="aircraft.id">
+                    {{aircraft.registration}} - {{aircraft.aircraft_type}} {{aircraft.model}} 
+                    ({{aircraft.seat_capacity}} posti)
+                  </option>
+                </select>
+                <div *ngIf="flightForm.get('aircraft_id')?.invalid && flightForm.get('aircraft_id')?.touched" 
+                     class="error">Campo obbligatorio</div>
+              </div>
             </div>
 
             <div class="form-row">
@@ -221,16 +246,6 @@ import { User } from '../models/user.model';
 
             <div class="form-row">
               <div class="form-group">
-                <label for="aircraft_id">Aereo</label>
-                <select id="aircraft_id" formControlName="aircraft_id">
-                  <option value="">Seleziona aereo</option>
-                  <option *ngFor="let aircraft of aircrafts" [value]="aircraft.id">
-                    {{aircraft.registration}} - {{aircraft.aircraft_type}} {{aircraft.model}}
-                  </option>
-                </select>
-              </div>
-
-              <div class="form-group">
                 <label for="price">Prezzo (€) *</label>
                 <input 
                   id="price"
@@ -243,28 +258,20 @@ import { User } from '../models/user.model';
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="total_seats">Posti Totali *</label>
-                <input 
-                  id="total_seats"
-                  type="number" 
-                  formControlName="total_seats"
-                  min="1"
-                  (input)="onTotalSeatsChange()">
-                <div *ngIf="flightForm.get('total_seats')?.invalid && flightForm.get('total_seats')?.touched" 
-                     class="error">Campo obbligatorio</div>
-              </div>
-
-              <div class="form-group">
-                <label for="available_seats">Posti Disponibili *</label>
-                <input 
-                  id="available_seats"
-                  type="number" 
-                  formControlName="available_seats"
-                  min="0">
-                <div *ngIf="flightForm.get('available_seats')?.invalid && flightForm.get('available_seats')?.touched" 
-                     class="error">Campo obbligatorio</div>
+            <!-- Info sui posti (solo visualizzazione) -->
+            <div class="form-row" *ngIf="flightForm.get('aircraft_id')?.value">
+              <div class="info-box">
+                <div class="info-item">
+                  <strong>🪑 Posti Totali:</strong> 
+                  <span>{{getSelectedAircraftCapacity()}} posti</span>
+                </div>
+                <div class="info-item">
+                  <strong>✅ Posti Disponibili:</strong> 
+                  <span>{{getSelectedAircraftCapacity()}} posti (tutti disponibili per nuovo volo)</span>
+                </div>
+                <small class="info-note">
+                  ℹ️ I posti vengono impostati automaticamente in base all'aereo selezionato
+                </small>
               </div>
             </div>
 
@@ -284,9 +291,28 @@ import { User } from '../models/user.model';
               <button type="button" class="btn btn-cancel" (click)="closeModal()">
                 Annulla
               </button>
+              
+              <!-- Debug button - Remove in production -->
+              <button type="button" class="btn btn-debug" (click)="debugForm()" 
+                      style="background: orange; color: white; margin-right: 10px;">
+                🐛 Debug Form
+              </button>
+              
               <button type="submit" class="btn btn-save" [disabled]="flightForm.invalid || isLoading">
                 {{isLoading ? 'Salvando...' : 'Salva'}}
               </button>
+            </div>
+            
+            <!-- Form status debug -->
+            <div class="debug-info" style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+              <strong>Form Status:</strong> 
+              <span [style.color]="flightForm.valid ? 'green' : 'red'">
+                {{flightForm.valid ? '✅ VALID' : '❌ INVALID'}}
+              </span>
+              <br>
+              <strong>Loading:</strong> {{isLoading ? 'YES' : 'NO'}}
+              <br>
+              <strong>Button Disabled:</strong> {{(flightForm.invalid || isLoading) ? 'YES' : 'NO'}}
             </div>
           </form>
         </div>
@@ -308,7 +334,7 @@ export class FlightAdminComponent implements OnInit {
   aircrafts: Aircraft[] = [];
 
   // Form e modal
-  flightForm: FormGroup;
+  flightForm!: FormGroup; // Inizializzato in ngOnInit
   showModal = false;
   isEditing = false;
   editingFlightId: number | null = null;
@@ -317,23 +343,31 @@ export class FlightAdminComponent implements OnInit {
   // Filtri
   statusFilter = '';
   searchTerm = '';
+  showOnlyMyFlights = false; // Per le compagnie aeree: di default mostra tutti i voli, poi l'utente può filtrare
 
   // Autorizzazione
   canAccess = false;
   currentUser: User | null = null;
   isAdmin = false;
+  
+  // Variabile globale per airline_id
+  
+  airlineId: string | null = null;
 
   constructor(
     private flightAdminService: FlightAdminService,
     private router: Router,
     private fb: FormBuilder
   ) {
-    this.flightForm = this.createFlightForm();
+    // Non creare il form qui - lo creiamo dopo aver verificato l'accesso
   }
 
   ngOnInit() {
     // Controlla autorizzazione
     this.checkAccess();
+    
+    // Crea il form dopo aver verificato l'accesso
+    this.flightForm = this.createFlightForm();
     
     if (this.canAccess) {
       this.loadFlights();
@@ -346,20 +380,43 @@ export class FlightAdminComponent implements OnInit {
     this.currentUser = userStr ? JSON.parse(userStr) : null;
     this.isAdmin = this.currentUser?.role === 'admin';
     this.canAccess = this.flightAdminService.canAccessFlightManagement();
+    this.airlineId = localStorage.getItem('airlineId');
+    console.log('AirlineId from localStorage:', this.airlineId);
+    // Imposta la variabile globale airline_id se l'utente è una compagnia aerea
+    if (this.currentUser?.role === 'airline') {
+      console.log('Impostato airlineId globale (stringa):', this.airlineId);
+      console.log('Valore numerico corrispondente:', this.airlineId);
+    } else {
+      this.airlineId = null;
+    }
+    
+    // Stampa informazioni dell'utente loggato
+    console.log('=== USER ACCESS INFO ===');
+    console.log('Current User:', this.currentUser);
+    console.log('User Role:', this.currentUser?.role);
+    console.log('Is Admin:', this.isAdmin);
+    console.log('Airline ID (dal currentUser):', this.currentUser?.airline_id);
+    console.log('Global Airline ID (stringa):', this.airlineId);
+    console.log('Global Airline ID (numero):', this.airlineId ? parseInt(this.airlineId) : null);
+    console.log('Airline Name:', this.currentUser?.airline_name);
+    console.log('Can Access:', this.canAccess);
+    console.log('========================');
   }
 
   private createFlightForm(): FormGroup {
+    // Per le compagnie aeree, airline_id non è required perché viene impostato automaticamente
+    const airlineIdValidators = this.isAdmin ? [Validators.required] : [];
+    
     return this.fb.group({
       flight_number: ['', [Validators.required]],
-      airline_id: ['', [Validators.required]],
-      aircraft_id: [''],
+      airline_id: ['', airlineIdValidators],
+      aircraft_id: ['', [Validators.required]], // Ora obbligatorio per avere i posti
       departure_airport_id: ['', [Validators.required]],
       arrival_airport_id: ['', [Validators.required]],
       departure_time: ['', [Validators.required]],
       arrival_time: ['', [Validators.required]],
       price: ['', [Validators.required, Validators.min(0)]],
-      total_seats: ['', [Validators.required, Validators.min(1)]],
-      available_seats: ['', [Validators.required, Validators.min(0)]],
+      // Rimuovi total_seats e available_seats dal form - saranno calcolati automaticamente
       status: ['scheduled', [Validators.required]]
     });
   }
@@ -434,9 +491,34 @@ export class FlightAdminComponent implements OnInit {
       this.airlines = airlines;
     });
 
-    this.flightAdminService.getAircrafts().subscribe(aircrafts => {
-      this.aircrafts = aircrafts;
-    });
+    // Carica gli aerei in base al ruolo dell'utente
+    if (this.isAdmin) {
+      // Admin può vedere tutti gli aerei
+      this.flightAdminService.getAircrafts().subscribe(aircrafts => {
+        this.aircrafts = aircrafts;
+        console.log('Admin - Caricati tutti gli aerei:', aircrafts);
+      });
+    } else if (this.airlineId) {
+      // Compagnia aerea vede solo i propri aerei
+      this.flightAdminService.getAircraftsByAirline(parseInt(this.airlineId)).subscribe({
+        next: (aircrafts: Aircraft[]) => {
+          this.aircrafts = aircrafts;
+          console.log(`Compagnia ${this.airlineId} - Caricati aerei specifici:`, aircrafts);
+        },
+        error: (error: any) => {
+          console.error('Errore nel caricamento degli aerei della compagnia:', error);
+          // Fallback: carica tutti gli aerei e filtra lato client
+          this.flightAdminService.getAircrafts().subscribe(allAircrafts => {
+            this.aircrafts = allAircrafts.filter(aircraft => aircraft.airline_id === parseInt(this.airlineId!));
+            console.log('Fallback - Aerei filtrati lato client:', this.aircrafts);
+          });
+        }
+      });
+    } else {
+      // Utente senza airline_id non dovrebbe essere qui, ma per sicurezza
+      this.aircrafts = [];
+      console.log('Nessun airline_id trovato - array aerei vuoto');
+    }
   }
 
   applyFilters() {
@@ -448,7 +530,14 @@ export class FlightAdminComponent implements OnInit {
         (flight.departure_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase()));
       
-      return matchesStatus && matchesSearch;
+      // Filtro per compagnia aerea: mostra solo i propri voli se abilitato
+      let matchesAirline = true;
+      if (!this.isAdmin && this.showOnlyMyFlights && this.airlineId) {
+        const airlineIdNumber = parseInt(this.airlineId);
+        matchesAirline = flight.airline_id === airlineIdNumber;
+      }
+      
+      return matchesStatus && matchesSearch && matchesAirline;
     });
   }
 
@@ -459,8 +548,13 @@ export class FlightAdminComponent implements OnInit {
     this.flightForm.patchValue({ status: 'scheduled' });
     
     // Se non è admin, imposta automaticamente la compagnia aerea
-    if (!this.isAdmin && this.currentUser?.airline_id) {
-      this.flightForm.patchValue({ airline_id: this.currentUser.airline_id });
+    if (!this.isAdmin && this.airlineId) {
+      const airlineIdNumber = parseInt(this.airlineId);
+      this.flightForm.patchValue({ airline_id: airlineIdNumber });
+      console.log('Impostato airline_id nel form:', airlineIdNumber);
+      
+      // Verifica che il valore sia stato impostato correttamente
+      console.log('Valore airline_id nel form dopo patchValue:', this.flightForm.get('airline_id')?.value);
     }
     
     this.showModal = true;
@@ -475,7 +569,6 @@ export class FlightAdminComponent implements OnInit {
     this.isEditing = true;
     this.editingFlightId = flight.id;
     
-    // Formato delle date per datetime-local con controlli undefined
     const departureTime = flight.departure_time ? 
       new Date(flight.departure_time).toISOString().slice(0, 16) : '';
     const arrivalTime = flight.arrival_time ? 
@@ -490,9 +583,8 @@ export class FlightAdminComponent implements OnInit {
       departure_time: departureTime,
       arrival_time: arrivalTime,
       price: flight.price || 0,
-      total_seats: flight.total_seats || 0,
-      available_seats: flight.available_seats || 0,
       status: flight.status || 'scheduled'
+      // Non impostare total_seats e available_seats - saranno calcolati automaticamente
     });
     
     this.showModal = true;
@@ -523,7 +615,33 @@ export class FlightAdminComponent implements OnInit {
   saveFlight() {
     if (this.flightForm.valid) {
       this.isLoading = true;
-      const flightData: FlightFormData = this.flightForm.value;
+      const formData = this.flightForm.value;
+      
+      // Per le compagnie aeree, assicurati che airline_id sia impostato come numero
+      if (!this.isAdmin && this.airlineId) {
+        const airlineIdNumber = parseInt(this.airlineId);
+        if (!formData.airline_id || formData.airline_id !== airlineIdNumber) {
+          formData.airline_id = airlineIdNumber;
+          console.log('Forzato airline_id nel saveFlight:', airlineIdNumber);
+        }
+      }
+      
+      // Calcola automaticamente i posti dall'aereo selezionato
+      const aircraftCapacity = this.getSelectedAircraftCapacity();
+      if (aircraftCapacity === 0) {
+        alert('Errore: Impossibile determinare la capacità dell\'aereo selezionato');
+        this.isLoading = false;
+        return;
+      }
+
+      // Prepara i dati del volo con posti automatici
+      const flightData: FlightFormData = {
+        ...formData,
+        total_seats: aircraftCapacity,
+        available_seats: aircraftCapacity // Per un nuovo volo, tutti i posti sono disponibili
+      };
+
+      console.log('Saving flight with data:', flightData);
 
       const operation = this.isEditing 
         ? this.flightAdminService.updateFlight(this.editingFlightId!, flightData)
@@ -541,6 +659,16 @@ export class FlightAdminComponent implements OnInit {
           this.isLoading = false;
         }
       });
+    } else {
+      console.log('Form non valido, controlla i campi obbligatori');
+      // Debug aggiuntivo per airline_id
+      console.log('airline_id nel form:', this.flightForm.get('airline_id')?.value);
+      console.log('airline_id errors:', this.flightForm.get('airline_id')?.errors);
+      
+      // Marca tutti i campi come touched per mostrare gli errori
+      Object.keys(this.flightForm.controls).forEach(key => {
+        this.flightForm.get(key)?.markAsTouched();
+      });
     }
   }
 
@@ -551,11 +679,19 @@ export class FlightAdminComponent implements OnInit {
     this.flightForm.reset();
   }
 
-  onTotalSeatsChange() {
-    const totalSeats = this.flightForm.get('total_seats')?.value;
-    if (totalSeats && !this.isEditing) {
-      this.flightForm.patchValue({ available_seats: totalSeats });
+  onAircraftChange() {
+    // Non fare nulla - i posti saranno calcolati automaticamente quando si salva
+    // Questo metodo può essere rimosso o usato per aggiornamenti UI
+  }
+
+  // Nuovo metodo per ottenere la capacità dell'aereo selezionato
+  getSelectedAircraftCapacity(): number {
+    const aircraftId = this.flightForm.get('aircraft_id')?.value;
+    if (aircraftId) {
+      const selectedAircraft = this.aircrafts.find(aircraft => aircraft.id == aircraftId);
+      return selectedAircraft?.seat_capacity || 0;
     }
+    return 0;
   }
 
   trackByFlightId(index: number, flight: Flight): number {
@@ -596,6 +732,39 @@ export class FlightAdminComponent implements OnInit {
       'user': 'Utente'
     };
     return labels[role] || role;
+  }
+
+  // Debug method to check form status
+  debugForm() {
+    console.log('=== FORM DEBUG ===');
+    console.log('Form valid:', this.flightForm.valid);
+    console.log('Form invalid:', this.flightForm.invalid);
+    console.log('Loading:', this.isLoading);
+    console.log('Form values:', this.flightForm.value);
+    console.log('Form errors:', this.flightForm.errors);
+    
+    // Debug specifico per airline_id
+    console.log('=== AIRLINE_ID DEBUG ===');
+    console.log('Global airlineId (stringa):', this.airlineId);
+    console.log('airlineId come numero:', this.airlineId ? parseInt(this.airlineId) : null);
+    console.log('airline_id nel form:', this.flightForm.get('airline_id')?.value);
+    console.log('airline_id type:', typeof this.flightForm.get('airline_id')?.value);
+    console.log('Is Admin:', this.isAdmin);
+    console.log('========================');
+    
+    // Check each control
+    Object.keys(this.flightForm.controls).forEach(key => {
+      const control = this.flightForm.get(key);
+      console.log(`${key}:`, {
+        value: control?.value,
+        valid: control?.valid,
+        invalid: control?.invalid,
+        errors: control?.errors,
+        touched: control?.touched,
+        dirty: control?.dirty
+      });
+    });
+    console.log('=================');
   }
 
   canManageFlight(flight: Flight): boolean {
