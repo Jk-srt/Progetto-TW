@@ -146,8 +146,8 @@ interface Airline {
                 </div>
 
                 <div class="airline-actions">
-                  <button (click)="editAirline(airline)" class="edit-btn">✏️ Modifica</button>
-                  <button (click)="deleteAirline(airline)" class="delete-btn">🗑️ Elimina</button>
+                  <button (click)="editAirline(airline)" class="edit-btn">✏️</button>
+                  <button (click)="deleteAirline(airline)" class="delete-btn">🗑️</button>
                 </div>
               </div>
             </div>

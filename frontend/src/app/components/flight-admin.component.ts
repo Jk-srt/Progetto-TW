@@ -65,15 +65,26 @@ import { User } from '../models/user.model';
             placeholder="Numero volo, aeroporto...">
         </div>
         <!-- Filtro per compagnie aeree: mostra solo i propri voli -->
-        <div class="filter-group" *ngIf="!isAdmin">
+        <div class="filter-group" *ngIf="!isAdmin && currentUser?.airline_name">
           <label class="checkbox-label">
             <input 
               type="checkbox" 
               [(ngModel)]="showOnlyMyFlights" 
               (change)="applyFilters()">
             <span class="checkmark"></span>
-            Solo i miei voli
+            Solo voli {{currentUser?.airline_name}}
           </label>
+          <small class="filter-info">
+            {{showOnlyMyFlights ? 'Mostrando solo i tuoi voli' : 'Mostrando tutti i voli'}}
+            ({{filteredFlights.length}} voli visualizzati)
+          </small>
+        </div>
+        <!-- Info per admin -->
+        <div class="filter-group admin-info" *ngIf="isAdmin">
+          <small class="filter-info">
+            👑 Modalità Amministratore - Visualizzando tutti i voli di tutte le compagnie
+            ({{filteredFlights.length}} voli totali)
+          </small>
         </div>
       </div>
 
@@ -118,21 +129,30 @@ import { User } from '../models/user.model';
                 </span>
               </td>
               <td class="actions">
-                <button 
-                  *ngIf="canManageFlight(flight)"
-                  class="btn btn-sm btn-edit" 
-                  (click)="editFlight(flight)">
-                  ✏️
-                </button>
-                <button 
-                  *ngIf="canManageFlight(flight)"
-                  class="btn btn-sm btn-delete" 
-                  (click)="deleteFlight(flight)">
-                  🗑️
-                </button>
-                <span *ngIf="!canManageFlight(flight)" class="no-permission">
-                  🔒
-                </span>
+                <!-- Pulsanti di gestione solo per voli della propria compagnia -->
+                <div *ngIf="canManageFlight(flight)" class="action-buttons">
+                  <button 
+                    class="btn btn-sm btn-edit" 
+                    (click)="editFlight(flight)"
+                    title="Modifica volo">
+                    ✏️
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-delete" 
+                    (click)="deleteFlight(flight)"
+                    title="Elimina volo">
+                    🗑️
+                  </button>
+                </div>
+                <!-- Messaggio per voli non gestibili -->
+                <div *ngIf="!canManageFlight(flight)" class="no-permission">
+                  <span class="lock-icon" [title]="getNoPermissionMessage(flight)">
+                    🔒
+                  </span>
+                  <small class="permission-text">
+                    {{getNoPermissionMessage(flight)}}
+                  </small>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -790,7 +810,67 @@ export class FlightAdminComponent implements OnInit {
   }
 
   canManageFlight(flight: Flight): boolean {
-    return this.flightAdminService.canManageFlight(flight);
+    // Debug: log dei dati per troubleshooting
+    console.log('=== canManageFlight DEBUG ===');
+    console.log('Flight:', flight);
+    console.log('Flight airline_id:', flight.airline_id);
+    console.log('Current user:', this.currentUser);
+    console.log('Current user role:', this.currentUser?.role);
+    console.log('Current user airline_id:', this.currentUser?.airline_id);
+    console.log('Global airlineId (string):', this.airlineId);
+    console.log('Is Admin:', this.isAdmin);
+    
+    // Se è admin, può gestire tutti i voli
+    if (this.isAdmin) {
+      console.log('User is admin - CAN MANAGE');
+      console.log('============================');
+      return true;
+    }
+    
+    // Se non è una compagnia aerea, non può gestire nulla
+    if (this.currentUser?.role !== 'airline') {
+      console.log('User is not airline - CANNOT MANAGE');
+      console.log('============================');
+      return false;
+    }
+    
+    // Verifica che abbia un airline_id
+    const userAirlineId = this.currentUser?.airline_id || (this.airlineId ? parseInt(this.airlineId) : null);
+    if (!userAirlineId) {
+      console.log('No airline_id found - CANNOT MANAGE');
+      console.log('============================');
+      return false;
+    }
+    
+    // Verifica che il volo appartenga alla sua compagnia
+    const canManage = flight.airline_id === userAirlineId;
+    console.log('User airline_id:', userAirlineId);
+    console.log('Flight airline_id:', flight.airline_id);
+    console.log('Match:', canManage ? 'YES - CAN MANAGE' : 'NO - CANNOT MANAGE');
+    console.log('============================');
+    
+    return canManage;
+  }
+
+  getNoPermissionMessage(flight: Flight): string {
+    if (this.isAdmin) {
+      return 'Errore: Admin dovrebbe poter gestire tutti i voli';
+    }
+    
+    if (this.currentUser?.role !== 'airline') {
+      return 'Solo le compagnie aeree possono gestire i voli';
+    }
+    
+    const userAirlineId = this.currentUser?.airline_id || (this.airlineId ? parseInt(this.airlineId) : null);
+    if (!userAirlineId) {
+      return 'Nessuna compagnia aerea associata';
+    }
+    
+    if (flight.airline_id !== userAirlineId) {
+      return "";
+    }
+    
+    return 'Permessi insufficienti';
   }
 
   // Metodo helper per gestire valori undefined
