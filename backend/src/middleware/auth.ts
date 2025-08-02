@@ -6,14 +6,27 @@ export interface AuthRequest extends Request {
   userRole?: string;
   airlineId?: number; // Aggiunto per supportare le compagnie aeree
   airlineName?: string; // Aggiunto per supportare le compagnie aeree
+  user?: {
+    id: number;
+    email: string;
+    role: string;
+    type: string;
+    airlineId?: number;
+    airlineName?: string;
+    iataCode?: string;
+  };
 }
 
 // Interfaccia estesa per JWT payload delle compagnie aeree
 interface ExtendedJWTPayload extends JwtPayload {
-  userId: number;
+  id?: number; // Aggiunto per compatibilità con il nuovo sistema auth
+  userId?: number;
+  email?: string;
   role: string;
+  type?: string; // Aggiunto per distinguere il tipo di utente
   airlineId?: number;
   airlineName?: string;
+  iataCode?: string;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
@@ -26,16 +39,31 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     }
     try {
         const payload = jwt.verify(token, JWT_SECRET) as ExtendedJWTPayload;
-        req.userId = payload.userId;
+        
+        // Supporto per il vecchio formato (compatibilità)
+        req.userId = payload.userId || payload.id;
         req.userRole = payload.role;
-        req.airlineId = payload.airlineId; // Aggiunto supporto airline
-        req.airlineName = payload.airlineName; // Aggiunto supporto airline
-        console.debug('[DEBUG] Token verified for userId:', payload.userId, 'with role:', payload.role);
+        req.airlineId = payload.airlineId;
+        req.airlineName = payload.airlineName;
+        
+        // Nuovo formato per le API del profilo
+        req.user = {
+            id: payload.id || payload.userId || 0,
+            email: payload.email || '',
+            role: payload.role,
+            type: payload.type || 'user',
+            airlineId: payload.airlineId,
+            airlineName: payload.airlineName,
+            iataCode: payload.iataCode
+        };
+        
+        console.debug('[DEBUG] Token verified for userId:', req.user.id, 'with role:', req.user.role, 'type:', req.user.type);
         if (payload.airlineId) {
             console.debug('[DEBUG] Airline context:', payload.airlineId, payload.airlineName);
         }
         next();
     } catch (err) {
+        console.error('[DEBUG] Token verification failed:', err);
         return res.sendStatus(403);
     }
 }

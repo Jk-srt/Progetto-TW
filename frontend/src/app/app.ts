@@ -63,6 +63,9 @@ import { CommonModule } from '@angular/common';
                     <span class="profile-role">{{ currentUser?.role }}</span>
                   </div>
                   <div class="profile-actions">
+                    <button (click)="navigateToProfile()" class="dropdown-item">
+                      👤 Profilo
+                    </button>
                     <button (click)="navigateToSettings()" class="dropdown-item">
                       ⚙️ Impostazioni
                     </button>
@@ -428,8 +431,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   navigateToProfile() {
     this.isProfileMenuOpen = false;
-    // this.router.navigate(['/profile']); // Temporarily disabled
-    console.log('Profile navigation disabled');
+    this.router.navigate(['/profile']);
   }
 
   navigateToBookings() {
