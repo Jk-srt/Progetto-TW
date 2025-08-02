@@ -2,6 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+// import multer from 'multer';
+// import path from 'path';
+// import fs from 'fs';
 import { DatabaseService } from '../models/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
@@ -14,6 +17,8 @@ const pool = new Pool({
 
 const dbService = new DatabaseService(pool);
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+
+// TODO: Aggiungere configurazione multer per upload immagini profilo quando multer sarà installato
 
 // Registrazione utente (passeggero)
 router.post('/register', async (req: Request, res: Response) => {
@@ -109,6 +114,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
           au.email,
           au.role,
           au.created_at,
+          au.profile_image_url,
           u.first_name,
           u.last_name,
           u.phone,
@@ -125,9 +131,12 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
           au.email,
           au.role,
           au.created_at,
+          au.profile_image_url,
           a.name as airline_name,
           a.iata_code,
-          a.country
+          a.country,
+          a.website,
+          a.founded_year
         FROM accesso au
         JOIN airlines a ON au.airline_id = a.id
         WHERE au.id = $1
@@ -140,6 +149,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
           au.email,
           au.role,
           au.created_at,
+          au.profile_image_url,
           'Admin' as first_name,
           'User' as last_name
         FROM accesso au
@@ -241,6 +251,30 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
           phone,
           date_of_birth || null,
           nationality,
+          userId
+        ]);
+      } else if (req.user?.type === 'airline') {
+        // Aggiorna tabella airlines per compagnie aeree
+        const { name, country, website, founded_year } = req.body;
+        
+        const updateAirlineQuery = `
+          UPDATE airlines 
+          SET 
+            name = COALESCE($1, name),
+            country = COALESCE($2, country),
+            website = COALESCE($3, website),
+            founded_year = COALESCE($4, founded_year),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = (
+            SELECT airline_id FROM accesso WHERE id = $5
+          )
+        `;
+        
+        await client.query(updateAirlineQuery, [
+          name,
+          country,
+          website,
+          founded_year ? parseInt(founded_year) : null,
           userId
         ]);
       }
@@ -349,6 +383,62 @@ router.put('/change-password', authenticateToken, async (req: AuthRequest, res: 
     res.status(500).json({
       success: false,
       message: 'Errore durante il cambio password'
+    });
+  }
+});
+
+// PUT /api/users/profile-image - Aggiorna foto profilo
+router.put('/profile-image', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { profile_image_url } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utente non autenticato'
+      });
+    }
+
+    if (!profile_image_url) {
+      return res.status(400).json({
+        success: false,
+        message: 'URL immagine profilo richiesto'
+      });
+    }
+
+    // Validazione URL (basic)
+    const urlRegex = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
+    if (!urlRegex.test(profile_image_url)) {
+      // Controlla anche se è un servizio di placeholder comune
+      const isPlaceholder = /^https?:\/\/(via\.placeholder\.com|picsum\.photos|placeholder\.com|dummyimage\.com)/i.test(profile_image_url);
+      if (!isPlaceholder) {
+        return res.status(400).json({
+          success: false,
+          message: 'URL immagine non valido. Deve essere un link diretto a un\'immagine (jpg, jpeg, png, gif, webp) o un servizio di placeholder'
+        });
+      }
+    }
+
+    // Aggiorna l'URL dell'immagine profilo
+    const updateImageQuery = `
+      UPDATE accesso 
+      SET profile_image_url = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $2
+    `;
+    
+    await pool.query(updateImageQuery, [profile_image_url, userId]);
+
+    res.json({
+      success: true,
+      message: 'Foto profilo aggiornata con successo'
+    });
+
+  } catch (error) {
+    console.error('Error updating profile image:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore durante l\'aggiornamento della foto profilo'
     });
   }
 });

@@ -7,13 +7,20 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 interface User {
   id: number;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
+  airline_name?: string;
   role: string;
   created_at?: string;
   phone?: string;
   date_of_birth?: string;
   nationality?: string;
+  profile_image_url?: string;
+  // Campi per compagnie aeree
+  iata_code?: string;
+  country?: string;
+  website?: string;
+  founded_year?: number;
 }
 
 interface PasswordChangeRequest {
@@ -30,8 +37,23 @@ interface PasswordChangeRequest {
     <div class="profile-container">
       <div class="profile-header">
         <div class="header-content">
-          <div class="user-avatar">
-            <span class="avatar-text">{{ getUserInitials() }}</span>
+          <div class="user-avatar" 
+               (dblclick)="toggleAvatarMode()" 
+               (mouseenter)="onAvatarHover()"
+               title="Doppio click per gestire foto profilo">
+            <img 
+              *ngIf="currentUser?.profile_image_url" 
+              [src]="currentUser?.profile_image_url" 
+              [alt]="getUserFullName()"
+              class="avatar-img"
+              (error)="onImageError($event)"
+            />
+            <span 
+              *ngIf="!currentUser?.profile_image_url" 
+              class="avatar-text">{{ getUserInitials() }}</span>
+            <div class="avatar-overlay" *ngIf="showAvatarHint">
+              <span>� Doppio click</span>
+            </div>
           </div>
           <div class="user-info">
             <h1>{{ getUserFullName() }}</h1>
@@ -47,9 +69,16 @@ interface PasswordChangeRequest {
           <div class="tabs-nav">
             <button 
               class="tab-btn" 
+              [class.active]="activeTab === 'avatar'"
+              (click)="switchTab('avatar')"
+              *ngIf="avatarModeEnabled">
+              📷 Foto Profilo
+            </button>
+            <button 
+              class="tab-btn" 
               [class.active]="activeTab === 'personal'"
               (click)="switchTab('personal')">
-              👤 Informazioni Personali
+              👤 Informazioni {{ getUserType() }}
             </button>
             <button 
               class="tab-btn" 
@@ -65,10 +94,61 @@ interface PasswordChangeRequest {
             </button>
           </div>
 
+          <!-- Avatar Tab -->
+          <div *ngIf="activeTab === 'avatar' && avatarModeEnabled" class="tab-content">
+            <div class="section-card">
+              <h2>Gestione Foto Profilo</h2>
+              <div class="avatar-section">
+                <div class="current-avatar">
+                  <img 
+                    *ngIf="currentUser?.profile_image_url" 
+                    [src]="currentUser?.profile_image_url" 
+                    [alt]="getUserFullName()"
+                    class="large-avatar"
+                    (error)="onImageError($event)"
+                  />
+                  <div 
+                    *ngIf="!currentUser?.profile_image_url" 
+                    class="large-avatar avatar-placeholder">
+                    <span class="large-avatar-text">{{ getUserInitials() }}</span>
+                  </div>
+                </div>
+                
+                <form [formGroup]="avatarForm" (ngSubmit)="updateAvatar()">
+                  <div class="form-group">
+                    <label for="imageUrl">URL Immagine Profilo</label>
+                    <input 
+                      type="url" 
+                      id="imageUrl"
+                      formControlName="imageUrl"
+                      placeholder="https://esempio.com/immagine.jpg"
+                      [class.error]="avatarForm.get('imageUrl')?.invalid && avatarForm.get('imageUrl')?.touched">
+                    <div class="form-help">
+                      Inserisci l'URL di un'immagine (jpg, jpeg, png, gif, webp)
+                    </div>
+                    <div *ngIf="avatarForm.get('imageUrl')?.invalid && avatarForm.get('imageUrl')?.touched" class="error-message">
+                      Inserisci un URL valido per l'immagine
+                    </div>
+                  </div>
+                  
+                  <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" [disabled]="avatarForm.invalid || isLoading">
+                      <span *ngIf="isLoading">Caricamento...</span>
+                      <span *ngIf="!isLoading">💾 Aggiorna Foto</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" (click)="removeAvatar()" *ngIf="currentUser?.profile_image_url">
+                      🗑️ Rimuovi Foto
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
           <!-- Personal Information Tab -->
           <div *ngIf="activeTab === 'personal'" class="tab-content">
             <div class="section-card">
-              <h2>Informazioni Personali</h2>
+              <h2>Informazioni {{ getUserType() }}</h2>
               <form [formGroup]="profileForm" (ngSubmit)="updateProfile()">
                 <div class="form-grid">
                   <div class="form-group">
@@ -318,6 +398,7 @@ interface PasswordChangeRequest {
     }
 
     .user-avatar {
+      position: relative;
       width: 80px;
       height: 80px;
       border-radius: 50%;
@@ -329,6 +410,44 @@ interface PasswordChangeRequest {
       font-weight: bold;
       color: white;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .user-avatar:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      border: 2px solid rgba(78, 205, 196, 0.6);
+    }
+
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
+    .avatar-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      border-radius: 50%;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .user-avatar:hover .avatar-overlay {
+      opacity: 1;
     }
 
     .user-info h1 {
@@ -406,6 +525,62 @@ interface PasswordChangeRequest {
       margin: 0 0 1.5rem 0;
       font-size: 1.5rem;
       font-weight: 600;
+    }
+
+    .large-avatar {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      margin: 0 auto 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 4px solid rgba(78, 205, 196, 0.2);
+    }
+
+    .avatar-placeholder {
+      background: linear-gradient(45deg, #4ecdc4, #44a08d);
+      color: white;
+    }
+
+    .large-avatar-text {
+      font-size: 3rem;
+      font-weight: bold;
+    }
+
+    .avatar-section {
+      text-align: center;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .current-avatar {
+      margin-bottom: 2rem;
+    }
+
+    .form-help {
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-top: 0.25rem;
+    }
+
+    .help-message {
+      background: linear-gradient(135deg, rgba(78, 205, 196, 0.1), rgba(68, 160, 141, 0.1));
+      border: 1px solid rgba(78, 205, 196, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .help-message p {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 0.9rem;
+    }
+
+    .help-message strong {
+      color: #4ecdc4;
     }
 
     .form-grid {
@@ -636,15 +811,24 @@ interface PasswordChangeRequest {
   `]
 })
 export class ProfileComponent implements OnInit {
-  activeTab: 'personal' | 'security' | 'preferences' = 'personal';
+  activeTab: 'avatar' | 'personal' | 'security' | 'preferences' = 'personal';
   currentUser: User | null = null;
   profileForm!: FormGroup;
   passwordForm!: FormGroup;
   preferencesForm!: FormGroup;
+  avatarForm!: FormGroup;
   
   isLoading = false;
   isPasswordLoading = false;
   isPreferencesLoading = false;
+  
+  // Variabili per la funzionalità nascosta
+  avatarModeEnabled = false;
+  showAvatarHint = false;
+  private clickCount = 0;
+  private clickTimer: any;
+  private secretSequence: string[] = [];
+  private targetSequence = ['p', 'h', 'o', 't', 'o']; // Sequenza segreta: "photo"
   
   message = '';
   messageType: 'success' | 'error' = 'success';
@@ -662,6 +846,7 @@ export class ProfileComponent implements OnInit {
   ngOnInit() {
     this.loadCurrentUser();
     this.loadUserProfile();
+    this.setupSecretKeyListener();
   }
 
   private initializeForms() {
@@ -685,6 +870,10 @@ export class ProfileComponent implements OnInit {
       promotionalEmails: [false],
       language: ['it'],
       currency: ['EUR']
+    });
+
+    this.avatarForm = this.fb.group({
+      imageUrl: ['', [Validators.required, Validators.pattern(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)]]
     });
   }
 
@@ -736,7 +925,7 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  switchTab(tab: 'personal' | 'security' | 'preferences') {
+  switchTab(tab: 'avatar' | 'personal' | 'security' | 'preferences') {
     this.activeTab = tab;
   }
 
@@ -750,6 +939,80 @@ export class ProfileComponent implements OnInit {
   getUserFullName(): string {
     if (!this.currentUser) return '';
     return `${this.currentUser.first_name || ''} ${this.currentUser.last_name || ''}`.trim();
+  }
+
+  // Metodi per la funzionalità nascosta
+  setupSecretKeyListener(): void {
+    document.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      this.secretSequence.push(key);
+      
+      // Mantieni solo gli ultimi 5 caratteri
+      if (this.secretSequence.length > this.targetSequence.length) {
+        this.secretSequence.shift();
+      }
+      
+      // Controlla se la sequenza corrisponde
+      if (this.secretSequence.join('') === this.targetSequence.join('')) {
+        this.activateSecretPhotoMode();
+        this.secretSequence = []; // Reset
+      }
+      
+      // Reset dopo 3 secondi di inattività
+      setTimeout(() => {
+        if (this.secretSequence.length > 0) {
+          this.secretSequence = [];
+        }
+      }, 3000);
+    });
+  }
+
+  activateSecretPhotoMode(): void {
+    this.avatarModeEnabled = true;
+    this.activeTab = 'avatar';
+    this.showMessage('🎯 Modalità foto profilo segreta attivata! (Digitando "photo")', 'success');
+    
+    // Disattiva automaticamente dopo 10 minuti
+    setTimeout(() => {
+      if (this.avatarModeEnabled) {
+        this.avatarModeEnabled = false;
+        this.activeTab = 'personal';
+        this.showMessage('🔒 Modalità segreta disattivata automaticamente', 'error');
+      }
+    }, 600000); // 10 minuti
+  }
+
+  toggleAvatarMode(): void {
+    this.avatarModeEnabled = !this.avatarModeEnabled;
+    
+    if (this.avatarModeEnabled) {
+      this.activeTab = 'avatar';
+      this.showMessage('🔓 Modalità modifica foto profilo attivata', 'success');
+      
+      // Disattiva automaticamente dopo 5 minuti per sicurezza
+      setTimeout(() => {
+        if (this.avatarModeEnabled) {
+          this.avatarModeEnabled = false;
+          this.activeTab = 'personal';
+          this.showMessage('🔒 Modalità modifica foto profilo disattivata automaticamente', 'error');
+        }
+      }, 300000); // 5 minuti
+    } else {
+      this.activeTab = 'personal';
+      this.showMessage('🔒 Modalità modifica foto profilo disattivata', 'error');
+    }
+    
+    this.showAvatarHint = false;
+  }
+
+  // Mostra hint quando si passa il mouse sopra l'avatar
+  onAvatarHover(): void {
+    if (!this.avatarModeEnabled) {
+      this.showAvatarHint = true;
+      setTimeout(() => {
+        this.showAvatarHint = false;
+      }, 2000);
+    }
   }
 
   getRoleDisplayName(): string {
@@ -901,4 +1164,80 @@ export class ProfileComponent implements OnInit {
       this.message = '';
     }, 5000);
   }
+
+  // Nuovi metodi per gestione avatar e tipi utente
+  updateAvatar() {
+    if (this.avatarForm.invalid) return;
+
+    this.isLoading = true;
+    const imageUrl = this.avatarForm.get('imageUrl')?.value;
+
+    this.http.put(`${this.apiUrl}/users/profile-image`, 
+      { profile_image_url: imageUrl },
+      { headers: this.getAuthHeaders() }
+    ).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        // Aggiorna i dati locali dell'utente
+        const updatedUser = { 
+          ...this.currentUser!, 
+          profile_image_url: imageUrl
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        this.currentUser = updatedUser;
+        
+        this.avatarForm.reset();
+        this.showMessage('Foto profilo aggiornata con successo!', 'success');
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error updating avatar:', error);
+        this.showMessage('Errore durante l\'aggiornamento della foto', 'error');
+      }
+    });
+  }
+
+  removeAvatar() {
+    this.isLoading = true;
+
+    this.http.put(`${this.apiUrl}/users/profile-image`, 
+      { profile_image_url: null },
+      { headers: this.getAuthHeaders() }
+    ).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        // Aggiorna i dati locali dell'utente
+        const updatedUser = { 
+          ...this.currentUser!
+        };
+        delete updatedUser.profile_image_url;
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        this.currentUser = updatedUser;
+        
+        this.showMessage('Foto profilo rimossa con successo!', 'success');
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error removing avatar:', error);
+        this.showMessage('Errore durante la rimozione della foto', 'error');
+      }
+    });
+  }
+
+  onImageError(event: any) {
+    event.target.style.display = 'none';
+    // Mostra l'avatar con iniziali come fallback
+  }
+
+  getUserType(): string {
+    if (this.currentUser?.role === 'airline') {
+      return 'Compagnia Aerea';
+    } else if (this.currentUser?.role === 'admin') {
+      return 'Amministratore';
+    }
+    return 'Personali';
+  }
+
 }
