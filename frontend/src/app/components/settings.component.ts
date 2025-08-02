@@ -55,9 +55,6 @@ import { CommonModule } from '@angular/common';
           <h2>Privacy e sicurezza</h2>
           <div class="settings-section">
             <button class="action-button secondary">
-              Cambia password
-            </button>
-            <button class="action-button secondary">
               Scarica i miei dati
             </button>
             <button class="action-button danger">

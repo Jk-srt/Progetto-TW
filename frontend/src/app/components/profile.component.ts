@@ -9,18 +9,21 @@ interface User {
   email: string;
   first_name?: string;
   last_name?: string;
-  airline_name?: string;
   role: string;
   created_at?: string;
   phone?: string;
   date_of_birth?: string;
   nationality?: string;
   profile_image_url?: string;
-  // Campi per compagnie aeree
-  iata_code?: string;
-  country?: string;
-  website?: string;
-  founded_year?: number;
+  // Campi per compagnie aeree (dalla tabella airlines)
+  name?: string;        // Nome della compagnia (airline.name)
+  iata_code?: string;   // Codice IATA (2 caratteri)
+  icao_code?: string;   // Codice ICAO (3 caratteri)
+  country?: string;     // Paese della compagnia
+  founded_year?: number; // Anno di fondazione
+  website?: string;     // Sito web
+  logo_url?: string;    // URL del logo
+  active?: boolean;     // Stato attivo/inattivo
 }
 
 interface PasswordChangeRequest {
@@ -85,12 +88,6 @@ interface PasswordChangeRequest {
               [class.active]="activeTab === 'security'"
               (click)="switchTab('security')">
               🔒 Sicurezza
-            </button>
-            <button 
-              class="tab-btn" 
-              [class.active]="activeTab === 'preferences'"
-              (click)="switchTab('preferences')">
-              ⚙️ Preferenze
             </button>
           </div>
 
@@ -219,6 +216,120 @@ interface PasswordChangeRequest {
                   </div>
                 </div>
 
+                <!-- Campi specifici per compagnie aeree -->
+                <div *ngIf="currentUser?.role === 'airline'" class="form-grid">
+                  <div class="form-group">
+                    <label for="companyName">Nome Compagnia *</label>
+                    <input 
+                      type="text" 
+                      id="companyName"
+                      formControlName="name"
+                      placeholder="Es: Alitalia"
+                      [class.error]="profileForm.get('name')?.invalid && profileForm.get('name')?.touched">
+                    <div *ngIf="profileForm.get('name')?.invalid && profileForm.get('name')?.touched" class="error-message">
+                      Il nome della compagnia è obbligatorio
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="iataCode">Codice IATA *</label>
+                    <input 
+                      type="text" 
+                      id="iataCode"
+                      formControlName="iataCode"
+                      placeholder="Es: AZ"
+                      maxlength="2"
+                      style="text-transform: uppercase;"
+                      [class.error]="profileForm.get('iataCode')?.invalid && profileForm.get('iataCode')?.touched">
+                    <div class="form-help">Codice di 2 lettere maiuscole</div>
+                    <div *ngIf="profileForm.get('iataCode')?.invalid && profileForm.get('iataCode')?.touched" class="error-message">
+                      Il codice IATA deve essere di 2 lettere maiuscole
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="icaoCode">Codice ICAO *</label>
+                    <input 
+                      type="text" 
+                      id="icaoCode"
+                      formControlName="icaoCode"
+                      placeholder="Es: AZA"
+                      maxlength="3"
+                      style="text-transform: uppercase;"
+                      [class.error]="profileForm.get('icaoCode')?.invalid && profileForm.get('icaoCode')?.touched">
+                    <div class="form-help">Codice di 3 lettere maiuscole</div>
+                    <div *ngIf="profileForm.get('icaoCode')?.invalid && profileForm.get('icaoCode')?.touched" class="error-message">
+                      Il codice ICAO deve essere di 3 lettere maiuscole
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="country">Paese *</label>
+                    <select formControlName="country" [class.error]="profileForm.get('country')?.invalid && profileForm.get('country')?.touched">
+                      <option value="">Seleziona paese</option>
+                      <option value="Italy">Italia</option>
+                      <option value="United States">Stati Uniti</option>
+                      <option value="United Kingdom">Regno Unito</option>
+                      <option value="France">Francia</option>
+                      <option value="Germany">Germania</option>
+                      <option value="Spain">Spagna</option>
+                      <option value="Other">Altro</option>
+                    </select>
+                    <div *ngIf="profileForm.get('country')?.invalid && profileForm.get('country')?.touched" class="error-message">
+                      Il paese è obbligatorio
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="foundedYear">Anno di Fondazione</label>
+                    <input 
+                      type="number" 
+                      id="foundedYear"
+                      formControlName="foundedYear"
+                      placeholder="Es: 1946"
+                      min="1900"
+                      [max]="getCurrentYear()"
+                      [class.error]="profileForm.get('foundedYear')?.invalid && profileForm.get('foundedYear')?.touched">
+                    <div *ngIf="profileForm.get('foundedYear')?.invalid && profileForm.get('foundedYear')?.touched" class="error-message">
+                      Inserisci un anno valido
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="website">Sito Web</label>
+                    <input 
+                      type="url" 
+                      id="website"
+                      formControlName="website"
+                      placeholder="https://www.esempio.com"
+                      [class.error]="profileForm.get('website')?.invalid && profileForm.get('website')?.touched">
+                    <div *ngIf="profileForm.get('website')?.invalid && profileForm.get('website')?.touched" class="error-message">
+                      Inserisci un URL valido (deve iniziare con http:// o https://)
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="logoUrl">URL Logo</label>
+                    <input 
+                      type="url" 
+                      id="logoUrl"
+                      formControlName="logoUrl"
+                      placeholder="https://www.esempio.com/logo.png"
+                      [class.error]="profileForm.get('logoUrl')?.invalid && profileForm.get('logoUrl')?.touched">
+                    <div *ngIf="profileForm.get('logoUrl')?.invalid && profileForm.get('logoUrl')?.touched" class="error-message">
+                      Inserisci un URL valido per il logo
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" formControlName="active">
+                      <span class="checkmark"></span>
+                      Compagnia attiva
+                    </label>
+                  </div>
+                </div>
+
                 <div class="form-actions">
                   <button type="submit" 
                           class="btn btn-primary" 
@@ -298,68 +409,6 @@ interface PasswordChangeRequest {
                   <label>Ruolo Account</label>
                   <span class="role-badge">{{ getRoleDisplayName() }}</span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Preferences Tab -->
-          <div *ngIf="activeTab === 'preferences'" class="tab-content">
-            <div class="section-card">
-              <h2>Preferenze Generali</h2>
-              <form [formGroup]="preferencesForm" (ngSubmit)="updatePreferences()">
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" formControlName="emailNotifications">
-                    <span class="checkmark"></span>
-                    Ricevi notifiche email
-                  </label>
-                </div>
-
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" formControlName="promotionalEmails">
-                    <span class="checkmark"></span>
-                    Ricevi email promozionali
-                  </label>
-                </div>
-
-                <div class="form-group">
-                  <label for="language">Lingua Preferita</label>
-                  <select formControlName="language">
-                    <option value="it">Italiano</option>
-                    <option value="en">English</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label for="currency">Valuta Preferita</label>
-                  <select formControlName="currency">
-                    <option value="EUR">Euro (€)</option>
-                    <option value="USD">US Dollar ($)</option>
-                    <option value="GBP">British Pound (£)</option>
-                  </select>
-                </div>
-
-                <div class="form-actions">
-                  <button type="submit" 
-                          class="btn btn-primary" 
-                          [disabled]="preferencesForm.invalid || isPreferencesLoading">
-                    <span *ngIf="isPreferencesLoading">🔄 Salvando...</span>
-                    <span *ngIf="!isPreferencesLoading">💾 Salva Preferenze</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div class="section-card danger-zone">
-              <h2>Zona Pericolosa</h2>
-              <p>Le azioni seguenti sono irreversibili. Procedi con cautela.</p>
-              <div class="danger-actions">
-                <button class="btn btn-danger" (click)="confirmDeleteAccount()">
-                  🗑️ Elimina Account
-                </button>
               </div>
             </div>
           </div>
@@ -811,16 +860,14 @@ interface PasswordChangeRequest {
   `]
 })
 export class ProfileComponent implements OnInit {
-  activeTab: 'avatar' | 'personal' | 'security' | 'preferences' = 'personal';
+  activeTab: 'avatar' | 'personal' | 'security' = 'personal';
   currentUser: User | null = null;
   profileForm!: FormGroup;
   passwordForm!: FormGroup;
-  preferencesForm!: FormGroup;
   avatarForm!: FormGroup;
   
   isLoading = false;
   isPasswordLoading = false;
-  isPreferencesLoading = false;
   
   // Variabili per la funzionalità nascosta
   avatarModeEnabled = false;
@@ -856,7 +903,16 @@ export class ProfileComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       phone: [''],
       dateOfBirth: [''],
-      nationality: ['']
+      nationality: [''],
+      // Campi per compagnie aeree
+      name: [''], // Nome compagnia
+      iataCode: ['', [Validators.pattern(/^[A-Z]{2}$/)]],  // Codice IATA (2 lettere)
+      icaoCode: ['', [Validators.pattern(/^[A-Z]{3}$/)]],  // Codice ICAO (3 lettere)
+      country: [''],
+      foundedYear: ['', [Validators.min(1900), Validators.max(new Date().getFullYear())]],
+      website: ['', [Validators.pattern(/^https?:\/\/.+/)]],
+      logoUrl: ['', [Validators.pattern(/^https?:\/\/.+/)]],
+      active: [true]
     });
 
     this.passwordForm = this.fb.group({
@@ -864,13 +920,6 @@ export class ProfileComponent implements OnInit {
       newPassword: ['', [Validators.required, Validators.minLength(6)]],
       confirmPassword: ['', Validators.required]
     }, { validators: this.passwordMatchValidator });
-
-    this.preferencesForm = this.fb.group({
-      emailNotifications: [true],
-      promotionalEmails: [false],
-      language: ['it'],
-      currency: ['EUR']
-    });
 
     this.avatarForm = this.fb.group({
       imageUrl: ['', [Validators.required, Validators.pattern(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)]]
@@ -906,15 +955,116 @@ export class ProfileComponent implements OnInit {
   private loadUserProfile() {
     if (!this.currentUser) return;
 
-    // Popola il form con i dati correnti dell'utente
-    this.profileForm.patchValue({
+    // Mostra indicatore di caricamento
+    this.isLoading = true;
+
+    // Carica i dati del profilo dal backend per avere i dati più aggiornati
+    this.http.get(`${this.apiUrl}/users/profile`, {
+      headers: this.getAuthHeaders()
+    }).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        if (response.success && response.user) {
+          const userData = response.user;
+          
+          // Aggiorna currentUser con i dati dal database
+          this.currentUser = {
+            ...this.currentUser,
+            ...userData
+          };
+
+          // Aggiorna anche il localStorage con i dati più recenti
+          localStorage.setItem('user', JSON.stringify(this.currentUser));
+
+          // Popola il form con i dati dal database
+          const formData: any = {
+            firstName: userData.first_name || '',
+            lastName: userData.last_name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            dateOfBirth: userData.date_of_birth || '',
+            nationality: userData.nationality || ''
+          };
+
+          // Se è una compagnia aerea, aggiungi i campi specifici
+          if (userData.role === 'airline') {
+            formData.name = userData.name || '';
+            formData.iataCode = userData.iata_code || '';
+            formData.icaoCode = userData.icao_code || '';
+            formData.country = userData.country || '';
+            formData.foundedYear = userData.founded_year || '';
+            formData.website = userData.website || '';
+            formData.logoUrl = userData.logo_url || '';
+            formData.active = userData.active !== false;
+          }
+
+          this.profileForm.patchValue(formData);
+          
+          // Aggiorna le validazioni in base al ruolo
+          this.updateFormValidations();
+        }
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error loading profile data:', error);
+        // Fallback ai dati locali se l'API fallisce
+        this.loadUserProfileFromLocal();
+      }
+    });
+  }
+
+  private loadUserProfileFromLocal() {
+    if (!this.currentUser) return;
+
+    // Popola il form con i dati correnti dell'utente (fallback)
+    const formData: any = {
       firstName: this.currentUser.first_name || '',
       lastName: this.currentUser.last_name || '',
       email: this.currentUser.email || '',
       phone: this.currentUser.phone || '',
       dateOfBirth: this.currentUser.date_of_birth || '',
       nationality: this.currentUser.nationality || ''
-    });
+    };
+
+    // Se è una compagnia aerea, aggiungi i campi specifici
+    if (this.currentUser.role === 'airline') {
+      formData.name = this.currentUser.name || '';
+      formData.iataCode = this.currentUser.iata_code || '';
+      formData.icaoCode = this.currentUser.icao_code || '';
+      formData.country = this.currentUser.country || '';
+      formData.foundedYear = this.currentUser.founded_year || '';
+      formData.website = this.currentUser.website || '';
+      formData.logoUrl = this.currentUser.logo_url || '';
+      formData.active = this.currentUser.active !== false;
+    }
+
+    this.profileForm.patchValue(formData);
+    
+    // Aggiorna le validazioni in base al ruolo
+    this.updateFormValidations();
+  }
+
+  private updateFormValidations() {
+    if (this.currentUser?.role === 'airline') {
+      // Rendi obbligatori alcuni campi per le compagnie aeree
+      this.profileForm.get('name')?.setValidators([Validators.required, Validators.minLength(2)]);
+      this.profileForm.get('iataCode')?.setValidators([Validators.required, Validators.pattern(/^[A-Z]{2}$/)]);
+      this.profileForm.get('icaoCode')?.setValidators([Validators.required, Validators.pattern(/^[A-Z]{3}$/)]);
+      this.profileForm.get('country')?.setValidators([Validators.required]);
+    } else {
+      // Rimuovi validazioni per utenti normali
+      this.profileForm.get('name')?.clearValidators();
+      this.profileForm.get('iataCode')?.clearValidators();
+      this.profileForm.get('icaoCode')?.clearValidators();
+      this.profileForm.get('country')?.clearValidators();
+    }
+    
+    // Aggiorna la validazione
+    this.profileForm.get('name')?.updateValueAndValidity();
+    this.profileForm.get('iataCode')?.updateValueAndValidity();
+    this.profileForm.get('icaoCode')?.updateValueAndValidity();
+    this.profileForm.get('country')?.updateValueAndValidity();
   }
 
   private getAuthHeaders(): HttpHeaders {
@@ -925,7 +1075,7 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  switchTab(tab: 'avatar' | 'personal' | 'security' | 'preferences') {
+  switchTab(tab: 'avatar' | 'personal' | 'security') {
     this.activeTab = tab;
   }
 
@@ -939,6 +1089,10 @@ export class ProfileComponent implements OnInit {
   getUserFullName(): string {
     if (!this.currentUser) return '';
     return `${this.currentUser.first_name || ''} ${this.currentUser.last_name || ''}`.trim();
+  }
+
+  getCurrentYear(): number {
+    return new Date().getFullYear();
   }
 
   // Metodi per la funzionalità nascosta
@@ -1044,7 +1198,7 @@ export class ProfileComponent implements OnInit {
     this.isLoading = true;
     const formData = this.profileForm.value;
 
-    const updateData = {
+    let updateData: any = {
       first_name: formData.firstName,
       last_name: formData.lastName,
       email: formData.email,
@@ -1052,6 +1206,21 @@ export class ProfileComponent implements OnInit {
       date_of_birth: formData.dateOfBirth,
       nationality: formData.nationality
     };
+
+    // Se è una compagnia aerea, aggiungi i campi specifici
+    if (this.currentUser.role === 'airline') {
+      updateData = {
+        ...updateData,
+        name: formData.name,
+        iata_code: formData.iataCode?.toUpperCase(),
+        icao_code: formData.icaoCode?.toUpperCase(),
+        country: formData.country,
+        founded_year: formData.foundedYear ? parseInt(formData.foundedYear) : null,
+        website: formData.website,
+        logo_url: formData.logoUrl,
+        active: formData.active
+      };
+    }
 
     this.http.put(`${this.apiUrl}/users/profile`, updateData, { 
       headers: this.getAuthHeaders() 
@@ -1062,12 +1231,7 @@ export class ProfileComponent implements OnInit {
         // Aggiorna i dati locali dell'utente
         const updatedUser = { 
           ...this.currentUser!, 
-          first_name: updateData.first_name,
-          last_name: updateData.last_name,
-          email: updateData.email,
-          phone: updateData.phone,
-          date_of_birth: updateData.date_of_birth,
-          nationality: updateData.nationality
+          ...updateData
         };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         this.currentUser = updatedUser;
@@ -1110,48 +1274,6 @@ export class ProfileComponent implements OnInit {
         console.error('Error changing password:', error);
         const errorMessage = error.error?.message || 'Errore durante il cambio password';
         this.showMessage(errorMessage, 'error');
-      }
-    });
-  }
-
-  updatePreferences() {
-    this.isPreferencesLoading = true;
-    const formData = this.preferencesForm.value;
-
-    // Per ora salva in localStorage, in futuro si può implementare API dedicata
-    localStorage.setItem('userPreferences', JSON.stringify(formData));
-    
-    setTimeout(() => {
-      this.isPreferencesLoading = false;
-      this.showMessage('Preferenze salvate con successo!', 'success');
-    }, 1000);
-  }
-
-  confirmDeleteAccount() {
-    const confirmed = confirm(
-      'Sei sicuro di voler eliminare il tuo account? ' +
-      'Questa azione è irreversibile e tutti i tuoi dati saranno persi.'
-    );
-
-    if (confirmed) {
-      this.deleteAccount();
-    }
-  }
-
-  private deleteAccount() {
-    this.http.delete(`${this.apiUrl}/users/account`, { 
-      headers: this.getAuthHeaders() 
-    }).subscribe({
-      next: (response) => {
-        this.showMessage('Account eliminato con successo', 'success');
-        setTimeout(() => {
-          localStorage.clear();
-          this.router.navigate(['/']);
-        }, 2000);
-      },
-      error: (error) => {
-        console.error('Error deleting account:', error);
-        this.showMessage('Errore durante l\'eliminazione dell\'account', 'error');
       }
     });
   }
