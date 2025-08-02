@@ -138,9 +138,24 @@ import { User } from '../models/user.model';
                     ✏️
                   </button>
                   <button 
+                    class="btn btn-sm btn-delay" 
+                    (click)="addDelay(flight)"
+                    title="Aggiungi ritardo"
+                    *ngIf="flight.status === 'scheduled'">
+                    ⏰
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-complete" 
+                    (click)="completeFlight(flight)"
+                    title="Completa volo"
+                    *ngIf="flight.status === 'scheduled' || flight.status === 'delayed'">
+                    ✅
+                  </button>
+                  <button 
                     class="btn btn-sm btn-delete" 
-                    (click)="deleteFlight(flight)"
-                    title="Elimina volo">
+                    (click)="cancelFlight(flight)"
+                    title="Cancella volo"
+                    *ngIf="flight.status !== 'cancelled'">
                     🗑️
                   </button>
                 </div>
@@ -328,6 +343,72 @@ import { User } from '../models/user.model';
         </div>
       </div>
 
+      <!-- Modal per ritardo volo -->
+      <div *ngIf="showDelayModal" class="modal-overlay" (click)="closeDelayModal()">
+        <div class="modal-content delay-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>⏰ Aggiungi Ritardo al Volo</h2>
+            <button class="close-btn" (click)="closeDelayModal()">✕</button>
+          </div>
+
+          <div class="delay-content" *ngIf="selectedFlightForDelay">
+            <div class="flight-info">
+              <h3>{{selectedFlightForDelay.flight_number}} - {{selectedFlightForDelay.airline_name}}</h3>
+              <p class="route">{{selectedFlightForDelay.departure_code}} → {{selectedFlightForDelay.arrival_code}}</p>
+              
+              <div class="current-times">
+                <div class="time-info">
+                  <strong>⏰ Orario Attuale Partenza:</strong>
+                  <span class="time">{{formatDateTime(selectedFlightForDelay.departure_time)}}</span>
+                </div>
+                <div class="time-info">
+                  <strong>🛬 Orario Attuale Arrivo:</strong>
+                  <span class="time">{{formatDateTime(selectedFlightForDelay.arrival_time)}}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="delay-form">
+              <div class="form-group">
+                <label for="delayMinutes">Ritardo (minuti)</label>
+                <select id="delayMinutes" [(ngModel)]="delayMinutes" class="form-control">
+                  <option value="15">15 minuti</option>
+                  <option value="30">30 minuti</option>
+                  <option value="45">45 minuti</option>
+                  <option value="60">1 ora</option>
+                  <option value="90">1 ora e 30 minuti</option>
+                  <option value="120">2 ore</option>
+                  <option value="180">3 ore</option>
+                  <option value="240">4 ore</option>
+                </select>
+              </div>
+
+              <div class="new-times" *ngIf="delayMinutes > 0">
+                <h4>🕐 Nuovi Orari (con ritardo di {{delayMinutes}} minuti):</h4>
+                <div class="time-info predicted">
+                  <strong>✈️ Nuova Partenza:</strong>
+                  <span class="time">{{selectedFlightForDelay ? calculateNewTime(selectedFlightForDelay.departure_time || '', delayMinutes) : 'N/A'}}</span>
+                </div>
+                <div class="time-info predicted">
+                  <strong>🛬 Nuovo Arrivo:</strong>
+                  <span class="time">{{selectedFlightForDelay ? calculateNewTime(selectedFlightForDelay.arrival_time || '', delayMinutes) : 'N/A'}}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="delay-actions">
+              <button class="btn btn-cancel" (click)="closeDelayModal()">
+                ❌ Annulla
+              </button>
+              <button class="btn btn-delay-confirm" (click)="confirmDelay()" [disabled]="isLoading">
+                <span *ngIf="isLoading" class="loading-spinner"></span>
+                ⏰ Conferma Ritardo
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Loading overlay -->
       <div *ngIf="isLoading" class="loading-overlay">
         <div class="spinner"></div>
@@ -350,6 +431,11 @@ export class FlightAdminComponent implements OnInit {
   isEditing = false;
   editingFlightId: number | null = null;
   isLoading = false;
+
+  // Modal per ritardo
+  showDelayModal = false;
+  selectedFlightForDelay: Flight | null = null;
+  delayMinutes = 30; // Default delay in minutes
 
   // Filtri
   statusFilter = '';
@@ -632,26 +718,186 @@ export class FlightAdminComponent implements OnInit {
     this.showModal = true;
   }
 
-  deleteFlight(flight: Flight) {
+  completeFlight(flight: Flight) {
     if (!this.canManageFlight(flight)) {
-      alert('Non hai i permessi per eliminare questo volo');
+      alert('Non hai i permessi per completare questo volo');
       return;
     }
 
-    if (confirm(`Sei sicuro di voler eliminare il volo ${flight.flight_number}?`)) {
+    if (flight.status === 'completed') {
+      alert('Il volo è già stato completato');
+      return;
+    }
+
+    if (flight.status === 'cancelled') {
+      alert('Non è possibile completare un volo cancellato');
+      return;
+    }
+
+    if (confirm(`Sei sicuro di voler segnare come completato il volo ${flight.flight_number}? Questa azione cambierà lo stato del volo in "Completato".`)) {
       this.isLoading = true;
-      this.flightAdminService.deleteFlight(flight.id).subscribe({
+
+      // Prepara i dati aggiornati mantenendo tutti i campi originali ma cambiando solo lo status
+      const updatedFlightData: FlightFormData = {
+        flight_number: flight.flight_number || '',
+        airline_id: flight.airline_id || 0,
+        aircraft_id: flight.aircraft_id || 0,
+        route_id: flight.route_id || 0,
+        departure_time: flight.departure_time ? new Date(flight.departure_time).toISOString().slice(0, 16) : '',
+        arrival_time: flight.arrival_time ? new Date(flight.arrival_time).toISOString().slice(0, 16) : '',
+        price: flight.price || 0,
+        total_seats: flight.total_seats || 0,
+        available_seats: 0, // Quando un volo è completato, tutti i posti sono occupati
+        status: 'completed' // Cambia lo stato in "completed"
+      };
+
+      console.log('Completing flight (changing status to completed):', updatedFlightData);
+
+      this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
         next: () => {
           this.loadFlights();
-          alert('Volo eliminato con successo');
+          alert(`Volo ${flight.flight_number} completato con successo. Lo stato è stato cambiato in "Completato".`);
         },
         error: (error) => {
-          console.error('Errore nell\'eliminazione:', error);
-          alert('Errore nell\'eliminazione del volo: ' + (error.error?.error || 'Errore sconosciuto'));
+          console.error('Errore nel completamento del volo:', error);
+          alert('Errore nel completamento del volo: ' + (error.error?.error || 'Errore sconosciuto'));
           this.isLoading = false;
         }
       });
     }
+  }
+
+  cancelFlight(flight: Flight) {
+    if (!this.canManageFlight(flight)) {
+      alert('Non hai i permessi per cancellare questo volo');
+      return;
+    }
+
+    if (flight.status === 'cancelled') {
+      alert('Il volo è già stato cancellato');
+      return;
+    }
+
+    if (confirm(`Sei sicuro di voler cancellare il volo ${flight.flight_number}? Questa azione cambierà lo stato del volo in "Cancellato".`)) {
+      this.isLoading = true;
+
+      // Prepara i dati aggiornati mantenendo tutti i campi originali ma cambiando solo lo status
+      const updatedFlightData: FlightFormData = {
+        flight_number: flight.flight_number || '',
+        airline_id: flight.airline_id || 0,
+        aircraft_id: flight.aircraft_id || 0,
+        route_id: flight.route_id || 0,
+        departure_time: flight.departure_time ? new Date(flight.departure_time).toISOString().slice(0, 16) : '',
+        arrival_time: flight.arrival_time ? new Date(flight.arrival_time).toISOString().slice(0, 16) : '',
+        price: flight.price || 0,
+        total_seats: flight.total_seats || 0,
+        available_seats: flight.available_seats || 0,
+        status: 'cancelled' // Cambia solo lo stato in "cancelled"
+      };
+
+      console.log('Cancelling flight (changing status to cancelled):', updatedFlightData);
+
+      this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
+        next: () => {
+          this.loadFlights();
+          alert(`Volo ${flight.flight_number} cancellato con successo. Lo stato è stato cambiato in "Cancellato".`);
+        },
+        error: (error) => {
+          console.error('Errore nella cancellazione del volo:', error);
+          alert('Errore nella cancellazione del volo: ' + (error.error?.error || 'Errore sconosciuto'));
+          this.isLoading = false;
+        }
+      });
+    }
+  }
+
+  addDelay(flight: Flight) {
+    if (!this.canManageFlight(flight)) {
+      alert('Non hai i permessi per modificare questo volo');
+      return;
+    }
+
+    if (flight.status !== 'scheduled') {
+      alert('Puoi aggiungere ritardi solo ai voli programmati');
+      return;
+    }
+
+    this.selectedFlightForDelay = flight;
+    this.delayMinutes = 30; // Reset to default
+    this.showDelayModal = true;
+  }
+
+  calculateNewTime(originalTime: string, delayMinutes: number): string {
+    if (!originalTime) return 'N/A';
+    
+    try {
+      const originalDate = new Date(originalTime);
+      const newDate = new Date(originalDate.getTime() + (delayMinutes * 60 * 1000));
+      
+      return newDate.toLocaleString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Errore calcolo';
+    }
+  }
+
+  confirmDelay() {
+    if (!this.selectedFlightForDelay || this.isLoading) return;
+
+    // Controlli di sicurezza per i campi required
+    if (!this.selectedFlightForDelay.departure_time || !this.selectedFlightForDelay.arrival_time) {
+      alert('Errore: Orari del volo non validi');
+      return;
+    }
+
+    this.isLoading = true;
+
+    // Calcola i nuovi orari
+    const originalDeparture = new Date(this.selectedFlightForDelay.departure_time);
+    const originalArrival = new Date(this.selectedFlightForDelay.arrival_time);
+    
+    const newDeparture = new Date(originalDeparture.getTime() + (this.delayMinutes * 60 * 1000));
+    const newArrival = new Date(originalArrival.getTime() + (this.delayMinutes * 60 * 1000));
+
+    // Prepara i dati aggiornati con controlli di sicurezza
+    const updatedFlightData: FlightFormData = {
+      flight_number: this.selectedFlightForDelay.flight_number || '',
+      airline_id: this.selectedFlightForDelay.airline_id || 0,
+      aircraft_id: this.selectedFlightForDelay.aircraft_id || 0,
+      route_id: this.selectedFlightForDelay.route_id || 0,
+      departure_time: newDeparture.toISOString().slice(0, 16),
+      arrival_time: newArrival.toISOString().slice(0, 16),
+      price: this.selectedFlightForDelay.price || 0,
+      total_seats: this.selectedFlightForDelay.total_seats || 0,
+      available_seats: this.selectedFlightForDelay.available_seats || 0,
+      status: 'delayed' // Cambia lo stato a "delayed"
+    };
+
+    console.log('Updating flight with delay:', updatedFlightData);
+
+    this.flightAdminService.updateFlight(this.selectedFlightForDelay.id, updatedFlightData).subscribe({
+      next: () => {
+        this.closeDelayModal();
+        this.loadFlights();
+        alert(`Ritardo di ${this.delayMinutes} minuti aggiunto al volo ${this.selectedFlightForDelay?.flight_number}`);
+      },
+      error: (error) => {
+        console.error('Errore nell\'aggiornamento del ritardo:', error);
+        alert('Errore nell\'aggiunta del ritardo: ' + (error.error?.error || 'Errore sconosciuto'));
+        this.isLoading = false;
+      }
+    });
+  }
+
+  closeDelayModal() {
+    this.showDelayModal = false;
+    this.selectedFlightForDelay = null;
+    this.delayMinutes = 30;
   }
 
   saveFlight() {
