@@ -54,13 +54,28 @@ export interface Aircraft {
     updated_at: Date;
 }
 
+export interface Route {
+    id: number;
+    route_name: string;
+    departure_airport_id: number;
+    arrival_airport_id: number;
+    distance_km: number;
+    estimated_duration: string;
+    default_price: number;
+    status: 'active' | 'inactive';
+    created_at: Date;
+    updated_at: Date;
+}
+
 export interface Flight {
     id: number;
     flight_number: string;
     airline_id?: number;
     aircraft_id?: number;
+    route_id: number;
     airline?: string;
     aircraft?: string;
+    route_name?: string;
     departure_airport: string;
     departure_city?: string;
     arrival_airport: string;
@@ -339,26 +354,65 @@ export class DatabaseService {
         return result.rows[0];
     }
 
+    // Rotte
+    async getAllRoutes(): Promise<Route[]> {
+        const query = `
+            SELECT 
+                r.*,
+                dep.name as departure_airport_name,
+                dep.iata_code as departure_code,
+                dep.city as departure_city,
+                arr.name as arrival_airport_name,
+                arr.iata_code as arrival_code,
+                arr.city as arrival_city
+            FROM routes r
+            JOIN airports dep ON r.departure_airport_id = dep.id
+            JOIN airports arr ON r.arrival_airport_id = arr.id
+            ORDER BY r.route_name
+        `;
+        const result = await this.pool.query(query);
+        return result.rows;
+    }
+
+    async getRouteById(id: number): Promise<Route | null> {
+        const query = 'SELECT * FROM routes WHERE id = $1';
+        const result = await this.pool.query(query, [id]);
+        return result.rows[0] || null;
+    }
+
+    async createRoute(route: Omit<Route, 'id' | 'created_at' | 'updated_at'>): Promise<Route> {
+        const query = `
+            INSERT INTO routes (route_name, departure_airport_id, arrival_airport_id, distance_km, estimated_duration, default_price, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+        `;
+        const values = [
+            route.route_name,
+            route.departure_airport_id,
+            route.arrival_airport_id,
+            route.distance_km,
+            route.estimated_duration,
+            route.default_price,
+            route.status
+        ];
+        const result = await this.pool.query(query, values);
+        return result.rows[0];
+    }
+
     // Voli
     async getAllFlights(): Promise<Flight[]> {
         try {
             const query = `
                 SELECT 
-                    f.*,
-                    da.name as departure_airport_name,
-                    da.city as departure_city,
-                    aa.name as arrival_airport_name,
-                    aa.city as arrival_city,
+                    fwa.*,
                     al.name as airline_name,
                     al.iata_code as airline_code,
                     ac.registration as aircraft_registration,
                     ac.model as aircraft_model
-                FROM flights f
-                LEFT JOIN airports da ON f.departure_airport_id = da.id
-                LEFT JOIN airports aa ON f.arrival_airport_id = aa.id
-                LEFT JOIN airlines al ON f.airline_id = al.id
-                LEFT JOIN aircrafts ac ON f.aircraft_id = ac.id
-                ORDER BY f.departure_time ASC
+                FROM flights_with_airports fwa
+                LEFT JOIN airlines al ON fwa.airline_id = al.id
+                LEFT JOIN aircrafts ac ON fwa.aircraft_id = ac.id
+                ORDER BY fwa.departure_time ASC
             `;
             const result = await this.pool.query(query);
             
@@ -368,11 +422,13 @@ export class DatabaseService {
                 flight_number: row.flight_number,
                 airline_id: row.airline_id,
                 aircraft_id: row.aircraft_id,
+                route_id: row.route_id,
                 airline: row.airline_name || row.airline_code || 'N/A',
                 aircraft: row.aircraft_registration ? `${row.aircraft_model} (${row.aircraft_registration})` : 'N/A',
-                departure_airport: row.departure_airport_name || row.departure_airport || 'N/A',
+                route_name: row.route_name || 'N/A',
+                departure_airport: row.departure_airport_name || 'N/A',
                 departure_city: row.departure_city || 'N/A',
-                arrival_airport: row.arrival_airport_name || row.arrival_airport || 'N/A',
+                arrival_airport: row.arrival_airport_name || 'N/A',
                 arrival_city: row.arrival_city || 'N/A',
                 departure_time: row.departure_time,
                 arrival_time: row.arrival_time,
@@ -392,26 +448,60 @@ export class DatabaseService {
     async getFlightById(id: number): Promise<Flight | null> {
         const query = `
             SELECT 
-                f.id,
-                f.flight_number,
-                SUBSTRING(f.flight_number, 1, 2) as airline,
-                da.name as departure_airport,
-                aa.name as arrival_airport,
-                f.departure_time,
-                f.arrival_time,
-                f.price,
-                f.available_seats,
-                f.total_seats,
-                f.status,
-                f.created_at,
-                f.updated_at
-            FROM flights f
-            JOIN airports da ON f.departure_airport_id = da.id
-            JOIN airports aa ON f.arrival_airport_id = aa.id
-            WHERE f.id = $1
+                fwa.id,
+                fwa.flight_number,
+                fwa.airline_id,
+                fwa.aircraft_id,
+                fwa.route_id,
+                fwa.departure_airport_name as departure_airport,
+                fwa.departure_city,
+                fwa.arrival_airport_name as arrival_airport,
+                fwa.arrival_city,
+                fwa.route_name,
+                fwa.departure_time,
+                fwa.arrival_time,
+                fwa.price,
+                fwa.available_seats,
+                fwa.total_seats,
+                fwa.status,
+                fwa.created_at,
+                fwa.updated_at,
+                al.name as airline_name,
+                ac.registration as aircraft_registration
+            FROM flights_with_airports fwa
+            LEFT JOIN airlines al ON fwa.airline_id = al.id
+            LEFT JOIN aircrafts ac ON fwa.aircraft_id = ac.id
+            WHERE fwa.id = $1
         `;
         const result = await this.pool.query(query, [id]);
-        return result.rows[0] || null;
+        
+        if (result.rows.length === 0) {
+            return null;
+        }
+        
+        const row = result.rows[0];
+        return {
+            id: row.id,
+            flight_number: row.flight_number,
+            airline_id: row.airline_id,
+            aircraft_id: row.aircraft_id,
+            route_id: row.route_id,
+            airline: row.airline_name || 'N/A',
+            aircraft: row.aircraft_registration || 'N/A',
+            route_name: row.route_name,
+            departure_airport: row.departure_airport,
+            departure_city: row.departure_city,
+            arrival_airport: row.arrival_airport,
+            arrival_city: row.arrival_city,
+            departure_time: row.departure_time,
+            arrival_time: row.arrival_time,
+            price: row.price,
+            available_seats: row.available_seats,
+            total_seats: row.total_seats,
+            status: row.status,
+            created_at: row.created_at,
+            updated_at: row.updated_at
+        };
     }
 
     async searchFlights(departureAirport: string, arrivalAirport: string, departureDate: string): Promise<Flight[]> {

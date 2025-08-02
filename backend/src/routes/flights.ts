@@ -65,57 +65,56 @@ router.get('/search', async (req, res) => {
     
     let query = `
       SELECT 
-        f.id,
-        f.flight_number,
-        f.departure_time,
-        f.arrival_time,
-        f.price,
-        f.total_seats,
-        f.available_seats,
-        f.status,
-        dep_airport.name as departure_airport,
-        dep_airport.iata_code as departure_code,
-        dep_airport.city as departure_city,
-        arr_airport.name as arrival_airport,
-        arr_airport.iata_code as arrival_code,
-        arr_airport.city as arrival_city,
+        fwa.id,
+        fwa.flight_number,
+        fwa.departure_time,
+        fwa.arrival_time,
+        fwa.price,
+        fwa.total_seats,
+        fwa.available_seats,
+        fwa.status,
+        fwa.departure_airport_name as departure_airport,
+        fwa.departure_code,
+        fwa.departure_city,
+        fwa.arrival_airport_name as arrival_airport,
+        fwa.arrival_code,
+        fwa.arrival_city,
         airlines.name as airline_name,
-        airlines.iata_code as airline_code
-      FROM flights f
-      LEFT JOIN airports dep_airport ON f.departure_airport_id = dep_airport.id
-      LEFT JOIN airports arr_airport ON f.arrival_airport_id = arr_airport.id
-      LEFT JOIN airlines ON f.airline_id = airlines.id
-      WHERE f.status = 'active'
+        airlines.iata_code as airline_code,
+        fwa.route_name
+      FROM flights_with_airports fwa
+      LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      WHERE fwa.status = 'scheduled'
     `;
     
     const params: any[] = [];
     let paramIndex = 1;
     
     if (departure_city) {
-      query += ` AND dep_airport.city ILIKE $${paramIndex}`;
+      query += ` AND fwa.departure_city ILIKE $${paramIndex}`;
       params.push(`%${departure_city}%`);
       paramIndex++;
     }
     
     if (arrival_city) {
-      query += ` AND arr_airport.city ILIKE $${paramIndex}`;
+      query += ` AND fwa.arrival_city ILIKE $${paramIndex}`;
       params.push(`%${arrival_city}%`);
       paramIndex++;
     }
     
     if (departure_date) {
-      query += ` AND DATE(f.departure_time) = $${paramIndex}`;
+      query += ` AND DATE(fwa.departure_time) = $${paramIndex}`;
       params.push(departure_date);
       paramIndex++;
     }
     
     if (passengers) {
-      query += ` AND f.available_seats >= $${paramIndex}`;
+      query += ` AND fwa.available_seats >= $${paramIndex}`;
       params.push(parseInt(passengers as string));
       paramIndex++;
     }
     
-    query += ` ORDER BY f.departure_time ASC`;
+    query += ` ORDER BY fwa.departure_time ASC`;
     
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -152,43 +151,74 @@ router.get('/', async (req, res) => {
   try {
     const query = `
       SELECT 
-        f.id,
-        f.flight_number,
-        f.airline_id,
-        f.aircraft_id,
-        f.departure_airport_id,
-        f.arrival_airport_id,
-        f.departure_time,
-        f.arrival_time,
-        f.price,
-        f.total_seats,
-        f.available_seats,
-        f.status,
-        f.created_at,
-        f.updated_at,
-        dep_airport.name as departure_airport,
-        dep_airport.iata_code as departure_code,
-        dep_airport.city as departure_city,
-        arr_airport.name as arrival_airport,
-        arr_airport.iata_code as arrival_code,
-        arr_airport.city as arrival_city,
+        fwa.id,
+        fwa.flight_number,
+        fwa.airline_id,
+        fwa.aircraft_id,
+        fwa.route_id,
+        fwa.departure_time,
+        fwa.arrival_time,
+        fwa.price,
+        fwa.total_seats,
+        fwa.available_seats,
+        fwa.status,
+        fwa.created_at,
+        fwa.updated_at,
+        fwa.departure_airport_name as departure_airport,
+        fwa.departure_code,
+        fwa.departure_city,
+        fwa.arrival_airport_name as arrival_airport,
+        fwa.arrival_code,
+        fwa.arrival_city,
+        fwa.route_name,
+        fwa.distance_km,
+        fwa.route_duration,
         airlines.name as airline_name,
         airlines.iata_code as airline_code,
         aircrafts.registration as aircraft_registration,
         aircrafts.aircraft_type,
         aircrafts.model as aircraft_model
-      FROM flights f
-      LEFT JOIN airports dep_airport ON f.departure_airport_id = dep_airport.id
-      LEFT JOIN airports arr_airport ON f.arrival_airport_id = arr_airport.id
-      LEFT JOIN airlines ON f.airline_id = airlines.id
-      LEFT JOIN aircrafts ON f.aircraft_id = aircrafts.id
-      ORDER BY f.departure_time ASC
+      FROM flights_with_airports fwa
+      LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN aircrafts ON fwa.aircraft_id = aircrafts.id
+      ORDER BY fwa.departure_time ASC
     `;
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching flights:', err);
     res.status(500).json({ error: 'Errore nel recupero dei voli' });
+  }
+});
+
+// Ottieni elenco rotte per i dropdown
+router.get('/data/routes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        r.id, 
+        r.route_name,
+        r.departure_airport_id,
+        r.arrival_airport_id,
+        r.distance_km,
+        r.estimated_duration,
+        r.default_price,
+        dep.name as departure_airport_name,
+        dep.iata_code as departure_code,
+        dep.city as departure_city,
+        arr.name as arrival_airport_name,
+        arr.iata_code as arrival_code,
+        arr.city as arrival_city
+      FROM routes r
+      JOIN airports dep ON r.departure_airport_id = dep.id
+      JOIN airports arr ON r.arrival_airport_id = arr.id
+      WHERE r.status = 'active'
+      ORDER BY r.route_name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching routes:', err);
+    res.status(500).json({ error: 'Errore nel recupero delle rotte' });
   }
 });
 
@@ -237,50 +267,6 @@ router.get('/data/aircrafts', async (req, res) => {
   }
 });
 
-// Visualizza singolo volo per ID
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const query = `
-      SELECT 
-        f.id,
-        f.flight_number,
-        f.airline_id,
-        f.aircraft_id,
-        f.departure_airport_id,
-        f.arrival_airport_id,
-        f.departure_time,
-        f.arrival_time,
-        f.price,
-        f.total_seats,
-        f.available_seats,
-        f.status,
-        dep_airport.name as departure_airport,
-        dep_airport.iata_code as departure_code,
-        arr_airport.name as arrival_airport,
-        arr_airport.iata_code as arrival_code,
-        airlines.name as airline_name,
-        aircrafts.registration as aircraft_registration
-      FROM flights f
-      LEFT JOIN airports dep_airport ON f.departure_airport_id = dep_airport.id
-      LEFT JOIN airports arr_airport ON f.arrival_airport_id = arr_airport.id
-      LEFT JOIN airlines ON f.airline_id = airlines.id
-      LEFT JOIN aircrafts ON f.aircraft_id = aircrafts.id
-      WHERE f.id = $1
-    `;
-    const result = await pool.query(query, [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Volo non trovato' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error fetching flight:', err);
-    res.status(500).json({ error: 'Errore nel recupero del volo' });
-  }
-});
-
 // Aggiungi nuovo volo (solo admin e compagnie aeree)
 router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req, res) => {
   try {
@@ -288,8 +274,7 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
       flight_number,
       airline_id,
       aircraft_id,
-      departure_airport_id,
-      arrival_airport_id,
+      route_id,
       departure_time,
       arrival_time,
       price,
@@ -299,8 +284,8 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
     } = req.body;
 
     // Validazione campi obbligatori
-    if (!flight_number || !airline_id || !aircraft_id || !departure_airport_id || 
-        !arrival_airport_id || !departure_time || !arrival_time || !price || 
+    if (!flight_number || !airline_id || !aircraft_id || !route_id || 
+        !departure_time || !arrival_time || !price || 
         !total_seats || available_seats === undefined) {
       return res.status(400).json({ error: 'Tutti i campi sono obbligatori' });
     }
@@ -309,6 +294,12 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
     if (req.user!.role === 'airline' && req.user!.airlineId && 
         parseInt(airline_id) !== req.user!.airlineId) {
       return res.status(403).json({ error: 'Non puoi creare voli per altre compagnie' });
+    }
+
+    // Verifica che la rotta esista
+    const routeCheck = await pool.query('SELECT id FROM routes WHERE id = $1 AND status = $2', [route_id, 'active']);
+    if (routeCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Rotta non trovata o non attiva' });
     }
 
     // Verifica che l'aereo appartenga alla compagnia aerea specificata
@@ -332,16 +323,16 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
 
     const query = `
       INSERT INTO flights (
-        flight_number, airline_id, aircraft_id, departure_airport_id, 
-        arrival_airport_id, departure_time, arrival_time, price, 
+        flight_number, airline_id, aircraft_id, route_id, 
+        departure_time, arrival_time, price, 
         total_seats, available_seats, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `;
     
     const values = [
-      flight_number, airline_id, aircraft_id, departure_airport_id,
-      arrival_airport_id, departure_time, arrival_time, price,
+      flight_number, airline_id, aircraft_id, route_id,
+      departure_time, arrival_time, price,
       finalTotalSeats, finalAvailableSeats, status
     ];
     
@@ -370,8 +361,7 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       flight_number,
       airline_id,
       aircraft_id,
-      departure_airport_id,
-      arrival_airport_id,
+      route_id,
       departure_time,
       arrival_time,
       price,
@@ -402,6 +392,14 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       return res.status(403).json({ error: 'Non puoi modificare voli di altre compagnie' });
     }
 
+    // Se viene cambiata la rotta, verifica che esista
+    if (route_id && route_id !== existingFlight.route_id) {
+      const routeCheck = await pool.query('SELECT id FROM routes WHERE id = $1 AND status = $2', [route_id, 'active']);
+      if (routeCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Rotta non trovata o non attiva' });
+      }
+    }
+
     // Se viene cambiato l'aereo, verifica che appartenga alla compagnia
     if (aircraft_id && aircraft_id !== existingFlight.aircraft_id) {
       const aircraftCheck = await pool.query(
@@ -424,16 +422,15 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
         flight_number = $1,
         airline_id = $2,
         aircraft_id = $3,
-        departure_airport_id = $4,
-        arrival_airport_id = $5,
-        departure_time = $6,
-        arrival_time = $7,
-        price = $8,
-        total_seats = $9,
-        available_seats = $10,
-        status = $11,
+        route_id = $4,
+        departure_time = $5,
+        arrival_time = $6,
+        price = $7,
+        total_seats = $8,
+        available_seats = $9,
+        status = $10,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+      WHERE id = $11
       RETURNING *
     `;
     
@@ -441,8 +438,7 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       flight_number || existingFlight.flight_number,
       airline_id || existingFlight.airline_id,
       aircraft_id || existingFlight.aircraft_id,
-      departure_airport_id || existingFlight.departure_airport_id,
-      arrival_airport_id || existingFlight.arrival_airport_id,
+      route_id || existingFlight.route_id,
       departure_time || existingFlight.departure_time,
       arrival_time || existingFlight.arrival_time,
       price !== undefined ? price : existingFlight.price,
@@ -513,6 +509,51 @@ router.delete('/:id', authenticateToken, verifyRole(['admin', 'airline']), async
   }
 });
 
+// Visualizza singolo volo per ID (deve essere alla fine per non interferire con altre route)
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT 
+        fwa.id,
+        fwa.flight_number,
+        fwa.airline_id,
+        fwa.aircraft_id,
+        fwa.route_id,
+        fwa.departure_time,
+        fwa.arrival_time,
+        fwa.price,
+        fwa.total_seats,
+        fwa.available_seats,
+        fwa.status,
+        fwa.departure_airport_name as departure_airport,
+        fwa.departure_code,
+        fwa.departure_city,
+        fwa.arrival_airport_name as arrival_airport,
+        fwa.arrival_code,
+        fwa.arrival_city,
+        fwa.route_name,
+        fwa.distance_km,
+        fwa.route_duration,
+        airlines.name as airline_name,
+        aircrafts.registration as aircraft_registration
+      FROM flights_with_airports fwa
+      LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN aircrafts ON fwa.aircraft_id = aircrafts.id
+      WHERE fwa.id = $1
+    `;
+    const result = await pool.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching flight:', err);
+    res.status(500).json({ error: 'Errore nel recupero del volo' });
+  }
+});
 
 
 export default router;
