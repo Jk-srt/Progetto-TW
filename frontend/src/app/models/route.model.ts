@@ -3,6 +3,7 @@ export interface Route {
   route_name: string;
   departure_airport_id: number;
   arrival_airport_id: number;
+  airline_id: number;
   distance_km: number;
   estimated_duration: string;
   default_price: number; // Prezzo economy
@@ -15,6 +16,8 @@ export interface Route {
   arrival_airport: string;
   arrival_code: string;
   arrival_city: string;
+  airline_name?: string;
+  airline_code?: string;
 }
 
 export interface RouteFormData {

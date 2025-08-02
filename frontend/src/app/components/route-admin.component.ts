@@ -29,6 +29,7 @@ import { Airport } from '../models/flight.model';
             <tr>
               <th>Nome Rotta</th>
               <th>Rotta</th>
+              <th>Compagnia</th>
               <th>Distanza</th>
               <th>Durata</th>
               <th>Prezzo per Classe</th>
@@ -45,6 +46,9 @@ import { Airport } from '../models/flight.model';
                   <span class="arrow">→</span>
                   <span class="airport">{{ route.arrival_code }} {{ route.arrival_city }}</span>
                 </div>
+              </td>
+              <td class="airline">
+                <span class="airline-info">{{ route.airline_name }} ({{ route.airline_code }})</span>
               </td>
               <td class="distance">{{ route.distance_km }} km</td>
               <td class="duration">{{ route.estimated_duration }}</td>
@@ -309,6 +313,12 @@ import { Airport } from '../models/flight.model';
     .arrow {
       color: #1976d2;
       font-weight: bold;
+    }
+
+    .airline-info {
+      color: #1976d2;
+      font-weight: 600;
+      font-size: 0.9rem;
     }
 
     .distance, .duration {
@@ -650,7 +660,22 @@ export class RouteAdminComponent implements OnInit {
   }
 
   loadRoutes() {
-    this.routeService.getRoutes().subscribe(data => this.routes = data);
+    // Ottieni l'utente corrente dal localStorage
+    const userStr = localStorage.getItem('user');
+    const airlineId=localStorage.getItem('airlineId');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user.role === 'airline') {
+        // Se è una compagnia aerea, usa l'endpoint specifico
+        this.routeService.getRoutesByAirline(Number(airlineId)).subscribe(data => this.routes = data);
+      } else {
+        // Se è admin o altro ruolo, usa l'endpoint generale
+        this.routeService.getRoutes().subscribe(data => this.routes = data);
+      }
+    } else {
+      // Fallback se non c'è utente loggato
+      this.routeService.getRoutes().subscribe(data => this.routes = data);
+    }
   }
 
   openCreateModal() {
@@ -683,6 +708,16 @@ export class RouteAdminComponent implements OnInit {
     }
     
     const formValue = this.routeForm.value;
+    
+    // Se l'utente è una compagnia aerea, aggiungi l'airline_id dalla localStorage
+    const userStr = localStorage.getItem('user');
+    const airlineId = localStorage.getItem('airlineId');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user.role === 'airline' && airlineId) {
+        formValue.airline_id = Number(airlineId);
+      }
+    }
     
     // Verifica che aeroporto di partenza e arrivo siano diversi
     if (formValue.departure_airport_id === formValue.arrival_airport_id) {
