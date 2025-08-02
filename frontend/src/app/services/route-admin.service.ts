@@ -43,6 +43,11 @@ export class RouteAdminService {
     return this.http.get<Route[]>(this.API_URL, { headers });
   }
 
+  getRoutesByAirline(airlineId: number): Observable<Route[]> {
+    const headers = this.getAuthHeaders();
+    return this.http.get<Route[]>(`${this.API_URL}/airline/${airlineId}`, { headers });
+  }
+
   getRoute(id: number): Observable<Route> {
     const headers = this.getAuthHeaders();
     return this.http.get<Route>(`${this.API_URL}/${id}`, { headers });
