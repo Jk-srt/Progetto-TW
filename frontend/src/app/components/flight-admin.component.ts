@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FlightAdminService } from '../services/flight-admin.service';
+import { RouteAdminService } from '../services/route-admin.service';
 import { Flight, Airport, Airline, Aircraft, FlightFormData } from '../models/flight.model';
+import { Route } from '../models/route.model';
 import { User } from '../models/user.model';
 
 @Component({
@@ -198,26 +200,14 @@ import { User } from '../models/user.model';
 
             <div class="form-row">
               <div class="form-group">
-                <label for="departure_airport_id">Aeroporto Partenza *</label>
-                <select id="departure_airport_id" formControlName="departure_airport_id">
-                  <option value="">Seleziona aeroporto</option>
-                  <option *ngFor="let airport of airports" [value]="airport.id">
-                    {{airport.name}} ({{airport.iata_code}}) - {{airport.city}}
+                <label for="route_id">Rotta *</label>
+                <select id="route_id" formControlName="route_id">
+                  <option value="">Seleziona rotta</option>
+                  <option *ngFor="let route of routes" [value]="route.id">
+                    {{route.route_name}} - {{route.departure_code}} → {{route.arrival_code}} ({{route.airline_name}})
                   </option>
                 </select>
-                <div *ngIf="flightForm.get('departure_airport_id')?.invalid && flightForm.get('departure_airport_id')?.touched" 
-                     class="error">Campo obbligatorio</div>
-              </div>
-
-              <div class="form-group">
-                <label for="arrival_airport_id">Aeroporto Arrivo *</label>
-                <select id="arrival_airport_id" formControlName="arrival_airport_id">
-                  <option value="">Seleziona aeroporto</option>
-                  <option *ngFor="let airport of airports" [value]="airport.id">
-                    {{airport.name}} ({{airport.iata_code}}) - {{airport.city}}
-                  </option>
-                </select>
-                <div *ngIf="flightForm.get('arrival_airport_id')?.invalid && flightForm.get('arrival_airport_id')?.touched" 
+                <div *ngIf="flightForm.get('route_id')?.invalid && flightForm.get('route_id')?.touched" 
                      class="error">Campo obbligatorio</div>
               </div>
             </div>
@@ -332,6 +322,7 @@ export class FlightAdminComponent implements OnInit {
   airports: Airport[] = [];
   airlines: Airline[] = [];
   aircrafts: Aircraft[] = [];
+  routes: Route[] = []; // ← NUOVO: Array delle rotte
 
   // Form e modal
   flightForm!: FormGroup; // Inizializzato in ngOnInit
@@ -356,6 +347,7 @@ export class FlightAdminComponent implements OnInit {
 
   constructor(
     private flightAdminService: FlightAdminService,
+    private routeAdminService: RouteAdminService, // ← NUOVO: Servizio per le rotte
     private router: Router,
     private fb: FormBuilder
   ) {
@@ -411,8 +403,7 @@ export class FlightAdminComponent implements OnInit {
       flight_number: ['', [Validators.required]],
       airline_id: ['', airlineIdValidators],
       aircraft_id: ['', [Validators.required]], // Ora obbligatorio per avere i posti
-      departure_airport_id: ['', [Validators.required]],
-      arrival_airport_id: ['', [Validators.required]],
+      route_id: ['', [Validators.required]], // ← NUOVO: Route ID invece di aeroporti separati
       departure_time: ['', [Validators.required]],
       arrival_time: ['', [Validators.required]],
       price: ['', [Validators.required, Validators.min(0)]],
@@ -465,10 +456,9 @@ export class FlightAdminComponent implements OnInit {
         total_seats: 180,
         available_seats: 120,
         status: "scheduled" as const,
-        // Aggiungi i campi mancanti:
+        // Campi aggiornati per nuova struttura:
         aircraft_id: 1,
-        departure_airport_id: 1,
-        arrival_airport_id: 2,
+        route_id: 1, // ← NUOVO: ID della rotta invece di aeroporti separati
         aircraft_model: "Boeing 737"
       }
     ];
@@ -490,6 +480,36 @@ export class FlightAdminComponent implements OnInit {
     this.flightAdminService.getAirlines().subscribe(airlines => {
       this.airlines = airlines;
     });
+
+    // ← NUOVO: Carica le rotte in base al ruolo dell'utente
+    if (this.isAdmin) {
+      // Admin può vedere tutte le rotte
+      this.routeAdminService.getRoutes().subscribe(routes => {
+        this.routes = routes;
+        console.log('Admin - Caricate tutte le rotte:', routes);
+      });
+    } else if (this.airlineId) {
+      // Compagnia aerea vede solo le proprie rotte
+      this.routeAdminService.getRoutesByAirline(parseInt(this.airlineId)).subscribe({
+        next: (routes: Route[]) => {
+          this.routes = routes;
+          console.log(`Compagnia ${this.airlineId} - Caricate rotte specifiche:`, routes);
+        },
+        error: (error: any) => {
+          console.error('Errore nel caricamento delle rotte della compagnia:', error);
+          // Fallback: carica tutte le rotte e filtra lato client
+          this.routeAdminService.getRoutes().subscribe(allRoutes => {
+            this.routes = allRoutes.filter(route => route.airline_id === parseInt(this.airlineId!));
+            console.log('Fallback - Rotte filtrate lato client:', this.routes);
+          });
+        }
+      });
+    } else {
+      // Caso fallback: carica tutte le rotte
+      this.routeAdminService.getRoutes().subscribe(routes => {
+        this.routes = routes;
+      });
+    }
 
     // Carica gli aerei in base al ruolo dell'utente
     if (this.isAdmin) {
@@ -528,7 +548,8 @@ export class FlightAdminComponent implements OnInit {
         (flight.flight_number?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.airline_name?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.departure_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
-        (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
+        (flight.route_name?.toLowerCase().includes(this.searchTerm.toLowerCase())); // ← NUOVO: Ricerca anche nel nome della rotta
       
       // Filtro per compagnie aeree: se la spunta "Solo i miei voli" è attiva, mostra solo i voli della propria compagnia
       let matchesAirline = true;
@@ -580,8 +601,7 @@ export class FlightAdminComponent implements OnInit {
       flight_number: flight.flight_number || '',
       airline_id: flight.airline_id || '',
       aircraft_id: flight.aircraft_id || '',
-      departure_airport_id: flight.departure_airport_id || '',
-      arrival_airport_id: flight.arrival_airport_id || '',
+      route_id: flight.route_id || '', // ← NUOVO: Route ID invece di aeroporti separati
       departure_time: departureTime,
       arrival_time: arrivalTime,
       price: flight.price || 0,

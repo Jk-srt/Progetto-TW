@@ -10,8 +10,10 @@ export interface Flight {
   price: number;
   status: 'On Time' | 'Delayed' | 'Boarding' | 'Departed' | 'scheduled' | 'delayed' | 'cancelled' | 'completed';
   
-  // Campi dal database
+  // Campi dal database - NUOVA STRUTTURA CON ROUTE
   flight_number?: string;
+  route_id?: number; // ← NUOVO: ID della rotta
+  route_name?: string; // ← NUOVO: Nome della rotta
   departure_airport?: string;
   departure_city?: string;
   departure_code?: string;
@@ -25,10 +27,8 @@ export interface Flight {
   airline_id?: number;
   airline_name?: string;
   
-  // Aggiungi questi campi mancanti:
+  // Campi rimanenti per compatibilità
   aircraft_id?: number;
-  departure_airport_id?: number;
-  arrival_airport_id?: number;
   aircraft_model?: string; // ← Per flights-view.component.ts
 }
 
@@ -85,8 +85,7 @@ export interface FlightFormData {
   flight_number: string;
   airline_id: number;
   aircraft_id: number;
-  departure_airport_id: number;
-  arrival_airport_id: number;
+  route_id: number; // ← NUOVO: Route ID invece di aeroporti separati
   departure_time: string;
   arrival_time: string;
   price: number;
