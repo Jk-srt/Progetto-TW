@@ -98,7 +98,7 @@ import { User } from '../models/user.model';
               <th>Rotta</th>
               <th>Partenza</th>
               <th>Arrivo</th>
-              <th>Prezzo</th>
+              <th>Sovrapprezzo</th>
               <th>Posti</th>
               <th>Stato</th>
               <th>Azioni</th>
@@ -117,7 +117,9 @@ import { User } from '../models/user.model';
               </td>
               <td>{{formatDateTime(flight.departure_time)}}</td>
               <td>{{formatDateTime(flight.arrival_time)}}</td>
-              <td class="price">€{{flight.price}}</td>
+              <td class="price">
+                €{{flight.price}}
+              </td>
               <td class="seats">
                 <span class="available">{{flight.available_seats}}</span>
                 /
@@ -242,7 +244,7 @@ import { User } from '../models/user.model';
             <div class="form-row">
               <div class="form-group">
                 <label for="route_id">Rotta *</label>
-                <select id="route_id" formControlName="route_id">
+                <select id="route_id" formControlName="route_id" (change)="onRouteChange()">
                   <option value="">Seleziona rotta</option>
                   <option *ngFor="let route of routes" [value]="route.id">
                     {{route.route_name}} - {{route.departure_code}} → {{route.arrival_code}} ({{route.airline_name}})
@@ -250,6 +252,17 @@ import { User } from '../models/user.model';
                 </select>
                 <div *ngIf="flightForm.get('route_id')?.invalid && flightForm.get('route_id')?.touched" 
                      class="error">Campo obbligatorio</div>
+                <!-- Info rotta selezionata -->
+                <div *ngIf="getSelectedRoute()" class="route-info-display">
+                  <small class="info-text">
+                    ⏱️ Durata stimata: {{getSelectedRoute()?.estimated_duration || 'N/A'}} | 
+                    📏 Distanza: {{getSelectedRoute()?.distance_km || 'N/A'}} km |
+                    💰 Prezzo base: €{{getSelectedRoute()?.default_price || 'N/A'}}
+                  </small>
+                  <small class="info-note">
+                    Il prezzo finale sarà: Prezzo base (€{{getSelectedRoute()?.default_price || '0'}}) + Sovrapprezzo inserito
+                  </small>
+                </div>
               </div>
             </div>
 
@@ -259,7 +272,8 @@ import { User } from '../models/user.model';
                 <input 
                   id="departure_time"
                   type="datetime-local" 
-                  formControlName="departure_time">
+                  formControlName="departure_time"
+                  (change)="onDepartureTimeChange()">
                 <div *ngIf="flightForm.get('departure_time')?.invalid && flightForm.get('departure_time')?.touched" 
                      class="error">Campo obbligatorio</div>
               </div>
@@ -269,23 +283,32 @@ import { User } from '../models/user.model';
                 <input 
                   id="arrival_time"
                   type="datetime-local" 
-                  formControlName="arrival_time">
+                  formControlName="arrival_time"
+                  readonly
+                  class="readonly-field">
                 <div *ngIf="flightForm.get('arrival_time')?.invalid && flightForm.get('arrival_time')?.touched" 
                      class="error">Campo obbligatorio</div>
+                <small class="info-text">
+                  ℹ️ Calcolato automaticamente dalla rotta e orario di partenza
+                </small>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label for="price">Prezzo (€) *</label>
+                <label for="price">Sovrapprezzo (€) *</label>
                 <input 
                   id="price"
                   type="number" 
                   formControlName="price"
                   min="0"
-                  step="0.01">
+                  step="0.01"
+                  placeholder="Inserisci sovrapprezzo al prezzo base">
                 <div *ngIf="flightForm.get('price')?.invalid && flightForm.get('price')?.touched" 
                      class="error">Campo obbligatorio</div>
+                <small class="info-text">
+                  ℹ️ Questo è il sovrapprezzo che verrà aggiunto al prezzo base della rotta
+                </small>
               </div>
             </div>
 
@@ -321,6 +344,16 @@ import { User } from '../models/user.model';
             <div class="form-actions">
               <button type="button" class="btn btn-cancel" (click)="closeModal()">
                 Annulla
+              </button>
+              
+              <!-- Bottone per eliminare definitivamente il volo (solo in modifica) -->
+              <button 
+                type="button" 
+                class="btn btn-delete-permanent" 
+                (click)="deleteFlight()"
+                *ngIf="isEditing"
+                style="background: #dc3545; color: white; margin-right: 10px;">
+                🗑️ Elimina Definitivamente
               </button>
               
               <!-- Debug button - Remove in production -->
@@ -716,7 +749,7 @@ export class FlightAdminComponent implements OnInit {
       route_id: flight.route_id || '', // ← NUOVO: Route ID invece di aeroporti separati
       departure_time: departureTime,
       arrival_time: arrivalTime,
-      price: flight.price || 0,
+      price: flight.price || 0, // Questo è già il sovrapprezzo salvato nel database
       status: flight.status || 'scheduled'
       // Non impostare total_seats e available_seats - saranno calcolati automaticamente
     });
@@ -928,9 +961,14 @@ export class FlightAdminComponent implements OnInit {
         return;
       }
 
-      // Prepara i dati del volo con posti automatici
+      // Salva solo il sovrapprezzo inserito dall'utente (non sommato al prezzo base)
+      const surcharge = formData.price || 0;
+      console.log(`Salvando solo il sovrapprezzo: €${surcharge}`);
+
+      // Prepara i dati del volo con posti automatici e solo il sovrapprezzo
       const flightData: FlightFormData = {
         ...formData,
+        price: surcharge, // Salva solo il sovrapprezzo inserito
         total_seats: aircraftCapacity,
         available_seats: aircraftCapacity // Per un nuovo volo, tutti i posti sono disponibili
       };
@@ -973,9 +1011,128 @@ export class FlightAdminComponent implements OnInit {
     this.flightForm.reset();
   }
 
+  deleteFlight() {
+    if (!this.editingFlightId) {
+      alert('Errore: Nessun volo selezionato per l\'eliminazione');
+      return;
+    }
+
+    // Trova il volo corrente per mostrare informazioni nel messaggio di conferma
+    const currentFlight = this.flights.find(f => f.id === this.editingFlightId);
+    const flightInfo = currentFlight ? 
+      `${currentFlight.flight_number} (${currentFlight.departure_code} → ${currentFlight.arrival_code})` : 
+      'questo volo';
+
+    if (confirm(`⚠️ ATTENZIONE: Sei sicuro di voler eliminare DEFINITIVAMENTE il volo ${flightInfo}?\n\nQuesta azione è IRREVERSIBILE e rimuoverà completamente il volo dal database.\n\nPer annullare temporaneamente un volo, usa invece il bottone "Cancella" nella tabella.`)) {
+      this.isLoading = true;
+
+      this.flightAdminService.deleteFlight(this.editingFlightId).subscribe({
+        next: () => {
+          this.closeModal();
+          this.loadFlights();
+          alert(`✅ Volo ${flightInfo} eliminato definitivamente dal sistema.`);
+        },
+        error: (error) => {
+          console.error('Errore nell\'eliminazione del volo:', error);
+          alert('❌ Errore nell\'eliminazione del volo: ' + (error.error?.error || 'Errore sconosciuto'));
+          this.isLoading = false;
+        }
+      });
+    }
+  }
+
   onAircraftChange() {
     // Non fare nulla - i posti saranno calcolati automaticamente quando si salva
     // Questo metodo può essere rimosso o usato per aggiornamenti UI
+  }
+
+  onRouteChange() {
+    // Calcola automaticamente l'orario di arrivo quando cambia la rotta
+    this.calculateArrivalTime();
+    // Imposta automaticamente il prezzo dalla rotta
+    this.setDefaultPriceFromRoute();
+  }
+
+  onDepartureTimeChange() {
+    // Calcola automaticamente l'orario di arrivo quando cambia l'orario di partenza
+    this.calculateArrivalTime();
+  }
+
+  private calculateArrivalTime() {
+    const routeId = this.flightForm.get('route_id')?.value;
+    const departureTime = this.flightForm.get('departure_time')?.value;
+
+    if (!routeId || !departureTime) {
+      // Se manca la rotta o l'orario di partenza, pulisci l'orario di arrivo
+      this.flightForm.patchValue({ arrival_time: '' });
+      return;
+    }
+
+    // Trova la rotta selezionata
+    const selectedRoute = this.routes.find(route => route.id == routeId);
+    if (!selectedRoute || !selectedRoute.estimated_duration) {
+      console.log('Rotta non trovata o durata mancante');
+      return;
+    }
+
+    try {
+      // Calcola l'orario di arrivo
+      const arrivalTime = this.addDurationToDateTime(departureTime, selectedRoute.estimated_duration);
+      this.flightForm.patchValue({ arrival_time: arrivalTime });
+      console.log(`Orario arrivo calcolato: ${arrivalTime} (durata rotta: ${selectedRoute.estimated_duration})`);
+    } catch (error) {
+      console.error('Errore nel calcolo dell\'orario di arrivo:', error);
+    }
+  }
+
+  private setDefaultPriceFromRoute() {
+    const routeId = this.flightForm.get('route_id')?.value;
+    
+    if (!routeId) {
+      return;
+    }
+
+    // Trova la rotta selezionata
+    const selectedRoute = this.routes.find(route => route.id == routeId);
+    if (!selectedRoute || !selectedRoute.default_price) {
+      console.log('Rotta non trovata o prezzo mancante');
+      return;
+    }
+
+    // Imposta il sovrapprezzo a 0 di default quando si seleziona una rotta
+    // L'utente può poi modificare questo valore per aggiungere un sovrapprezzo
+    const currentPrice = this.flightForm.get('price')?.value;
+    if (!currentPrice || currentPrice === 0) {
+      this.flightForm.patchValue({ price: 0 });
+      console.log(`Sovrapprezzo impostato a €0 (prezzo base rotta: €${selectedRoute.default_price})`);
+    }
+  }
+
+  private addDurationToDateTime(dateTimeString: string, duration: string): string {
+    if (!dateTimeString || !duration) return '';
+
+    try {
+      const departureDate = new Date(dateTimeString);
+      
+      // Parse della durata nel formato "HH:MM:SS" o "HH:MM"
+      const durationParts = duration.split(':');
+      const hours = parseInt(durationParts[0] || '0', 10);
+      const minutes = parseInt(durationParts[1] || '0', 10);
+      const seconds = parseInt(durationParts[2] || '0', 10);
+
+      // Aggiungi la durata alla data di partenza
+      const arrivalDate = new Date(departureDate.getTime() + 
+        (hours * 60 * 60 * 1000) + 
+        (minutes * 60 * 1000) + 
+        (seconds * 1000)
+      );
+
+      // Converti nel formato datetime-local
+      return arrivalDate.toISOString().slice(0, 16);
+    } catch (error) {
+      console.error('Errore nel parsing della durata:', error);
+      return '';
+    }
   }
 
   // Nuovo metodo per ottenere la capacità dell'aereo selezionato
@@ -986,6 +1143,15 @@ export class FlightAdminComponent implements OnInit {
       return selectedAircraft?.seat_capacity || 0;
     }
     return 0;
+  }
+
+  // Nuovo metodo per ottenere la rotta selezionata
+  getSelectedRoute(): Route | null {
+    const routeId = this.flightForm.get('route_id')?.value;
+    if (routeId) {
+      return this.routes.find(route => route.id == routeId) || null;
+    }
+    return null;
   }
 
   trackByFlightId(index: number, flight: Flight): number {

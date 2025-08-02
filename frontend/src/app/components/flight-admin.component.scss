@@ -48,6 +48,20 @@
   display: block;
 }
 
+.route-info-display {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+  
+  .info-text {
+    margin-top: 0;
+    color: #495057;
+    font-weight: 500;
+  }
+}
+
 .flight-admin-container {
   padding: 2rem;
   max-width: 1400px;
