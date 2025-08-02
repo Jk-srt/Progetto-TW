@@ -131,33 +131,39 @@ import { User } from '../models/user.model';
               <td class="actions">
                 <!-- Pulsanti di gestione solo per voli della propria compagnia -->
                 <div *ngIf="canManageFlight(flight)" class="action-buttons">
-                  <button 
-                    class="btn btn-sm btn-edit" 
-                    (click)="editFlight(flight)"
-                    title="Modifica volo">
-                    ✏️
-                  </button>
-                  <button 
-                    class="btn btn-sm btn-delay" 
-                    (click)="addDelay(flight)"
-                    title="Aggiungi ritardo"
-                    *ngIf="flight.status === 'scheduled'">
-                    ⏰
-                  </button>
-                  <button 
-                    class="btn btn-sm btn-complete" 
-                    (click)="completeFlight(flight)"
-                    title="Completa volo"
-                    *ngIf="flight.status === 'scheduled' || flight.status === 'delayed'">
-                    ✅
-                  </button>
-                  <button 
-                    class="btn btn-sm btn-delete" 
-                    (click)="cancelFlight(flight)"
-                    title="Cancella volo"
-                    *ngIf="flight.status !== 'cancelled'">
-                    🗑️
-                  </button>
+                  <!-- Prima riga: Modifica e Ritardo -->
+                  <div class="button-row">
+                    <button 
+                      class="btn btn-sm btn-edit" 
+                      (click)="editFlight(flight)"
+                      title="Modifica volo">
+                      ✏️
+                    </button>
+                    <button 
+                      class="btn btn-sm btn-delay" 
+                      (click)="addDelay(flight)"
+                      title="Aggiungi ritardo"
+                      *ngIf="flight.status === 'scheduled' || flight.status === 'delayed'">
+                      ⏰
+                    </button>
+                  </div>
+                  <!-- Seconda riga: Completa e Cancella -->
+                  <div class="button-row">
+                    <button 
+                      class="btn btn-sm btn-complete" 
+                      (click)="completeFlight(flight)"
+                      title="Completa volo"
+                      *ngIf="flight.status === 'scheduled' || flight.status === 'delayed'">
+                      ✅
+                    </button>
+                    <button 
+                      class="btn btn-sm btn-delete" 
+                      (click)="cancelFlight(flight)"
+                      title="Cancella volo"
+                      *ngIf="flight.status !== 'cancelled' && flight.status !== 'completed'">
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <!-- Messaggio per voli non gestibili -->
                 <div *ngIf="!canManageFlight(flight)" class="no-permission">
@@ -817,8 +823,8 @@ export class FlightAdminComponent implements OnInit {
       return;
     }
 
-    if (flight.status !== 'scheduled') {
-      alert('Puoi aggiungere ritardi solo ai voli programmati');
+    if (flight.status !== 'scheduled' && flight.status !== 'delayed') {
+      alert('Puoi aggiungere ritardi solo ai voli programmati o già ritardati');
       return;
     }
 
