@@ -2,7 +2,7 @@
 
 Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnologie moderne. Il progetto include un frontend Angular, un backend Node.js/TypeScript e un database PostgreSQL con integrazione cloud Neon.
 
-![TAW Flights](https://img.shields.io/badge/Version-2.0.0-blue.svg)
+![TAW Flights](https://img.shields.io/badge/Version-3.0.0-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3.0-blue.svg)
 ![Angular](https://img.shields.io/badge/Angular-17+-red.svg)
@@ -21,15 +21,14 @@ Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnol
 - **Database Cloud**: Integrazione con Neon PostgreSQL per performance ottimali
 - **API RESTful Completa**: Endpoints per tutte le operazioni CRUD
 
-### 🆕 Nuove Funzionalità (v2.0)
-- **🛫 Flight Admin Panel**: Pannello completo per la gestione voli delle compagnie aeree
-- **🔍 Ricerca Avanzata**: Filtri multipli per stato, compagnia, aeroporti
-- **📊 Statistiche Real-time**: Voli attivi, puntualità, e metriche delle compagnie
-- **🎨 UI/UX Migliorata**: Interfaccia moderna con componenti responsive
-- **🔒 Sicurezza Avanzata**: Controlli di accesso basati sui ruoli
-- **🌐 Database Cloud**: Migrazione completa a Neon PostgreSQL
-- **🐳 Docker Ottimizzato**: Configurazione container migliorata per sviluppo
-- **📱 Design Responsive**: Interfaccia completamente responsive per tutti i dispositivi
+### 🆕 Nuove Funzionalità (v3.0) - Sistema Rotte
+- **�️ Gestione Rotte**: Sistema normalizzato con rotte predefinite per le compagnie aeree
+- **� Architettura Normalizzata**: I voli ora utilizzano route_id invece di aeroporti separati
+- **🏢 Rotte per Compagnia**: Ogni compagnia aerea gestisce solo le proprie rotte autorizzate
+- **🎯 Selezione Intelligente**: Il form di creazione voli mostra solo le rotte della propria compagnia
+- **📊 Compatibilità Retroattiva**: Vista database flights_with_airports per mantenere compatibilità
+- **� Ricerca Estesa**: Filtri di ricerca includono anche i nomi delle rotte
+- **⚡ Performance Ottimizzate**: Join ottimizzati per query veloci con informazioni complete
 
 ### 🔧 Tecnologie Utilizzate
 
@@ -101,6 +100,7 @@ Progetto-TW/
 │   │       └── 📁 services/     # Servizi Angular
 │   │           ├── flight.service.ts             # Servizi voli base
 │   │           ├── flight-admin.service.ts       # 🆕 Servizi admin voli
+│   │           ├── route-admin.service.ts        # 🆕 Servizi gestione rotte
 │   │           └── global-flights.service.ts     # 🆕 Servizi globali
 │   ├── angular.json            # Configurazione Angular
 │   ├── package.json           # Dipendenze frontend
@@ -125,17 +125,19 @@ Progetto-TW/
 │   │   │   ├── airports.ts     # 🆕 API aeroporti
 │   │   │   ├── bookings.ts     # API prenotazioni
 │   │   │   ├── admin.ts        # 🆕 API amministrazione
-│   │   │   └── routes.ts       # Route index
+│   │   │   ├── routes.ts       # 🆕 API gestione rotte
+│   │   │   └── route-pricing.ts # 🆕 API pricing rotte
 │   │   └── 📁 types/           # Type definitions
 │   │       └── morgan.d.ts     # Morgan types
 │   ├── 📁 database-init/       # Script inizializzazione DB
-│   │   └── init.sql           # 🆕 Schema completo Neon
+│   │   └── init.sql           # 🆕 Schema completo Neon con rotte
 │   ├── package.json           # Dipendenze backend
 │   ├── tsconfig.json          # Configurazione TypeScript
 │   └── Dockerfile             # Container backend
 ├── 📁 database/                 # 🆕 Database PostgreSQL
 │   └── 📁 postgres-init/
-│       └── init.sql            # Schema database locale
+│       ├── init.sql            # Schema database locale
+│       └── migration_new_schema.sql # 🆕 Migrazione schema rotte
 ├── 📁 scripts/                 # Script di utilità
 │   ├── setup.sh              # Setup Linux/Mac
 │   ├── start.sh               # Start script Unix
@@ -172,15 +174,14 @@ CREATE TABLE users (
 - **Autenticazione**: JWT con password hash bcrypt
 - **🆕 Collegamento compagnie**: Utenti airline collegati alle compagnie
 
-#### ✈️ flights (🆕 Tabella Ottimizzata)
+#### ✈️ flights (🆕 Tabella Ottimizzata con Rotte)
 ```sql
 CREATE TABLE flights (
     id SERIAL PRIMARY KEY,
     flight_number VARCHAR(10) NOT NULL,
     airline_id INTEGER REFERENCES airlines(id),
     aircraft_id INTEGER REFERENCES aircrafts(id),
-    departure_airport_id INTEGER REFERENCES airports(id),
-    arrival_airport_id INTEGER REFERENCES airports(id),
+    route_id INTEGER REFERENCES routes(id), -- 🆕 NUOVO: Collegamento alle rotte
     departure_time TIMESTAMP NOT NULL,
     arrival_time TIMESTAMP NOT NULL,
     price DECIMAL(10,2) NOT NULL,
@@ -191,9 +192,33 @@ CREATE TABLE flights (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+- **🆕 Sistema Rotte**: I voli ora utilizzano `route_id` invece di aeroporti separati
 - **Stati**: `scheduled`, `delayed`, `cancelled`, `completed`, `boarding`, `departed`
-- **🆕 Relazioni complete**: Collegamenti a airlines, aircrafts, airports
+- **🆕 Relazioni complete**: Collegamenti a airlines, aircrafts tramite rotte
 - **🆕 Gestione posti**: Posti totali e disponibili
+
+#### 🛣️ routes (🆕 Tabella Rotte)
+```sql
+CREATE TABLE routes (
+    id SERIAL PRIMARY KEY,
+    route_name VARCHAR(255) NOT NULL,
+    departure_airport_id INTEGER REFERENCES airports(id),
+    arrival_airport_id INTEGER REFERENCES airports(id),
+    airline_id INTEGER REFERENCES airlines(id),
+    distance_km INTEGER,
+    estimated_duration VARCHAR(10),
+    default_price DECIMAL(10,2),
+    business_price DECIMAL(10,2),
+    first_price DECIMAL(10,2),
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+- **🆕 Normalizzazione**: Rotte predefinite per ogni compagnia aerea
+- **🆕 Pricing Stratificato**: Prezzi per classe di servizio
+- **🆕 Metadati**: Distanza e durata stimata
+- **🆕 Stato**: Attiva/Inattiva per gestione operativa
 
 #### 🏢 airlines (🆕 Compagnie Aeree Complete)
 ```sql
@@ -273,19 +298,54 @@ CREATE TABLE bookings (
 - **🆕 Stati**: Confermato, Annullato, Check-in, Completato
 ### 🔗 Relazioni Database
 - **users** ↔ **airlines**: Utenti collegati alle compagnie (1:N)
-- **flights** ↔ **airlines**: Voli operati dalle compagnie (N:1)
+- **flights** ↔ **routes**: Voli operano su rotte predefinite (N:1) 🆕
+- **routes** ↔ **airlines**: Rotte gestite dalle compagnie (N:1) 🆕
+- **routes** ↔ **airports**: Aeroporti di partenza e arrivo delle rotte (N:1) 🆕
 - **flights** ↔ **aircrafts**: Aerei utilizzati per i voli (N:1)
-- **flights** ↔ **airports**: Aeroporti di partenza e arrivo (N:1)
 - **bookings** ↔ **users**: Prenotazioni degli utenti (N:1)
 - **bookings** ↔ **flights**: Prenotazioni sui voli (N:1)
 - **aircrafts** ↔ **airlines**: Flotta delle compagnie (N:1)
+
+### 🎯 Vista Compatibilità (flights_with_airports) 🆕
+```sql
+CREATE VIEW flights_with_airports AS
+SELECT 
+    f.*,
+    r.route_name,
+    r.distance_km,
+    r.estimated_duration as route_duration,
+    da.name as departure_airport,
+    da.iata_code as departure_code,
+    da.city as departure_city,
+    aa.name as arrival_airport,
+    aa.iata_code as arrival_code,
+    aa.city as arrival_city,
+    al.name as airline_name,
+    al.iata_code as airline_code,
+    ac.registration as aircraft_registration,
+    ac.aircraft_type,
+    ac.model as aircraft_model
+FROM flights f
+JOIN routes r ON f.route_id = r.id
+JOIN airports da ON r.departure_airport_id = da.id
+JOIN airports aa ON r.arrival_airport_id = aa.id
+JOIN airlines al ON f.airline_id = al.id
+JOIN aircrafts ac ON f.aircraft_id = ac.id;
+```
+- **🆕 Compatibilità Retroattiva**: Mantiene le informazioni degli aeroporti per i componenti esistenti
+- **🆕 Dati Arricchiti**: Include informazioni complete di rotte, aeroporti, compagnie e aerei
+- **🆕 Performance**: Un'unica query per ottenere tutti i dati necessari
 
 ### 🚀 Indici e Performance
 ```sql
 -- Indici ottimizzati per query frequenti
 CREATE INDEX idx_flights_departure_time ON flights(departure_time);
 CREATE INDEX idx_flights_airline_id ON flights(airline_id);
+CREATE INDEX idx_flights_route_id ON flights(route_id); -- 🆕 NUOVO
 CREATE INDEX idx_flights_status ON flights(status);
+CREATE INDEX idx_routes_airline_id ON routes(airline_id); -- 🆕 NUOVO
+CREATE INDEX idx_routes_departure_airport ON routes(departure_airport_id); -- 🆕 NUOVO
+CREATE INDEX idx_routes_arrival_airport ON routes(arrival_airport_id); -- 🆕 NUOVO
 CREATE INDEX idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX idx_bookings_flight_id ON bookings(flight_id);
 CREATE INDEX idx_aircrafts_airline_id ON aircrafts(airline_id);
@@ -387,16 +447,29 @@ Il database viene inizializzato automaticamente con:
 - `POST /api/users/login` - Login utente
 
 ### ✈️ Voli
-- `GET /api/flights` - Lista tutti i voli
+- `GET /api/flights` - Lista tutti i voli (con vista flights_with_airports) 🆕
 - `GET /api/flights/search` - Ricerca voli
 - `GET /api/flights/active` - Voli attivi
 - `GET /api/flights/on-time` - Voli in orario
+- `POST /api/flights` - Crea volo (richiede route_id) 🆕
+- `PUT /api/flights/:id` - Aggiorna volo 🆕
+- `DELETE /api/flights/:id` - Elimina volo 🆕
+- `GET /api/flights/data/routes` - Elenco rotte per dropdown 🆕
+
+### 🛣️ Rotte (🆕 Nuovo Sistema)
+- `GET /api/routes` - Lista tutte le rotte
+- `GET /api/routes/airline/:airlineId` - Rotte di una specifica compagnia 🆕
+- `POST /api/routes` - Crea nuova rotta (admin/airline)
+- `PUT /api/routes/:id` - Aggiorna rotta
+- `DELETE /api/routes/:id` - Elimina rotta
+- `GET /api/routes/:id` - Dettagli rotta specifica
 
 ### 🏢 Compagnie Aeree
 - `GET /api/airlines` - Lista compagnie aeree
 - `GET /api/airlines/:id` - Dettagli compagnia
 - `POST /api/airlines` - Crea compagnia (admin)
 - `GET /api/airlines/:id/aircrafts` - Aerei della compagnia
+- `GET /api/airlines/:id/routes` - Rotte della compagnia 🆕
 
 ### 🛩️ Aerei
 - `GET /api/aircrafts` - Lista aerei
@@ -458,6 +531,40 @@ docker-compose up --build -d
 4. Push al branch (`git push origin feature/AmazingFeature`)
 5. Apri una Pull Request
 
+## 📝 Changelog
+
+### 🆕 Versione 3.0.0 - Sistema Rotte (Agosto 2025)
+#### 🛣️ Architettura Normalizzata
+- **✅ Nuovo Sistema Rotte**: Implementazione completa tabella `routes` per normalizzazione database
+- **✅ Migrazione Database**: Script automatico per migrazione da aeroporti diretti a sistema rotte
+- **✅ Vista Compatibilità**: `flights_with_airports` per mantenere retrocompatibilità
+- **✅ API Rotte**: Endpoint completi per gestione CRUD rotte per compagnie aeree
+
+#### 🎯 Frontend Ottimizzato
+- **✅ Dropdown Rotte**: Sostituzione dropdown aeroporti con selezione rotte nel form voli
+- **✅ Filtro Compagnia**: Le compagnie vedono solo le proprie rotte autorizzate
+- **✅ Ricerca Estesa**: Aggiunta ricerca per nome rotta nei filtri
+- **✅ RouteAdminService**: Nuovo servizio Angular per gestione rotte
+
+#### ⚡ Performance e Sicurezza
+- **✅ Indici Ottimizzati**: Nuovi indici database per query rotte performanti
+- **✅ Autorizzazioni**: Controllo accesso rotte per compagnia specifica
+- **✅ Gestione Errori**: Fallback automatico con filtro lato client
+- **✅ Logging Dettagliato**: Debug avanzato per troubleshooting
+
+### 📊 Versione 2.0.0 - Flight Management (Luglio 2025)
+- ✅ Flight Admin Panel completo per compagnie aeree
+- ✅ Sistema autenticazione multi-ruolo (user/admin/airline)
+- ✅ Database cloud Neon PostgreSQL
+- ✅ API RESTful complete per tutte le entità
+- ✅ Docker ottimizzato per sviluppo
+
+### 🚀 Versione 1.0.0 - MVP (Giugno 2025)
+- ✅ Frontend Angular con visualizzazione voli
+- ✅ Backend Node.js/Express
+- ✅ Sistema prenotazioni base
+- ✅ Database PostgreSQL locale
+
 ## 📝 License
 
 Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per i dettagli.
@@ -471,13 +578,29 @@ Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per i dettagli.
 
 ## 🔮 Roadmap Future
 
-- [ ] Sistema di notifiche real-time
-- [ ] Integrazione pagamenti
-- [ ] App mobile React Native
-- [ ] Dashboard analytics avanzata
-- [ ] API rate limiting
-- [ ] Sistema di caching Redis
-- [ ] Microservizi architecture
+### 🎯 Prossime Implementazioni (v3.1)
+- [ ] **🪑 Sistema Selezione Posti**: Mappa interattiva aereo con prenotazione posti specifici
+- [ ] **💳 Integrazione Pagamenti**: Gateway di pagamento per prenotazioni e servizi premium
+- [ ] **📱 PWA**: Progressive Web App per esperienza mobile nativa
+- [ ] **🔔 Notifiche Real-time**: WebSocket per aggiornamenti stato voli e gate changes
+
+### 🚀 Funzionalità Avanzate (v4.0)
+- [ ] **🧠 ML Pricing**: Algoritmi di machine learning per pricing dinamico
+- [ ] **📊 Analytics Dashboard**: Dashboard avanzata con metriche dettagliate
+- [ ] **🌍 Multi-lingua**: Supporto multilingua con i18n
+- [ ] **🎫 Digital Boarding Pass**: QR code e NFC per check-in digitale
+
+### 🔧 Ottimizzazioni Tecniche
+- [ ] **⚡ Redis Caching**: Sistema di caching distribuito per performance
+- [ ] **🛡️ Rate Limiting**: Protezione API con limite richieste
+- [ ] **🔄 Microservizi**: Architettura microservizi per scalabilità
+- [ ] **📱 App Mobile**: React Native per iOS e Android
+
+### 🌟 Funzionalità Premium
+- [ ] **✈️ Fleet Management**: Gestione completa flotta aerei
+- [ ] **👥 Crew Management**: Sistema gestione equipaggi
+- [ ] **🛠️ Maintenance Tracking**: Tracking manutenzioni preventive
+- [ ] **📈 Revenue Management**: Ottimizzazione ricavi e load factor
 
 ---
 
