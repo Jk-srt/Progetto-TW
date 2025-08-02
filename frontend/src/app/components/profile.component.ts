@@ -7,13 +7,23 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 interface User {
   id: number;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   role: string;
   created_at?: string;
   phone?: string;
   date_of_birth?: string;
   nationality?: string;
+  profile_image_url?: string;
+  // Campi per compagnie aeree (dalla tabella airlines)
+  name?: string;        // Nome della compagnia (airline.name)
+  iata_code?: string;   // Codice IATA (2 caratteri)
+  icao_code?: string;   // Codice ICAO (3 caratteri)
+  country?: string;     // Paese della compagnia
+  founded_year?: number; // Anno di fondazione
+  website?: string;     // Sito web
+  logo_url?: string;    // URL del logo
+  active?: boolean;     // Stato attivo/inattivo
 }
 
 interface PasswordChangeRequest {
@@ -30,8 +40,23 @@ interface PasswordChangeRequest {
     <div class="profile-container">
       <div class="profile-header">
         <div class="header-content">
-          <div class="user-avatar">
-            <span class="avatar-text">{{ getUserInitials() }}</span>
+          <div class="user-avatar" 
+               (dblclick)="toggleAvatarMode()" 
+               (mouseenter)="onAvatarHover()"
+               title="Doppio click per gestire foto profilo">
+            <img 
+              *ngIf="currentUser?.profile_image_url" 
+              [src]="currentUser?.profile_image_url" 
+              [alt]="getUserFullName()"
+              class="avatar-img"
+              (error)="onImageError($event)"
+            />
+            <span 
+              *ngIf="!currentUser?.profile_image_url" 
+              class="avatar-text">{{ getUserInitials() }}</span>
+            <div class="avatar-overlay" *ngIf="showAvatarHint">
+              <span>� Doppio click</span>
+            </div>
           </div>
           <div class="user-info">
             <h1>{{ getUserFullName() }}</h1>
@@ -47,9 +72,16 @@ interface PasswordChangeRequest {
           <div class="tabs-nav">
             <button 
               class="tab-btn" 
+              [class.active]="activeTab === 'avatar'"
+              (click)="switchTab('avatar')"
+              *ngIf="avatarModeEnabled">
+              📷 Foto Profilo
+            </button>
+            <button 
+              class="tab-btn" 
               [class.active]="activeTab === 'personal'"
               (click)="switchTab('personal')">
-              👤 Informazioni Personali
+              👤 Informazioni {{ getUserType() }}
             </button>
             <button 
               class="tab-btn" 
@@ -57,18 +89,63 @@ interface PasswordChangeRequest {
               (click)="switchTab('security')">
               🔒 Sicurezza
             </button>
-            <button 
-              class="tab-btn" 
-              [class.active]="activeTab === 'preferences'"
-              (click)="switchTab('preferences')">
-              ⚙️ Preferenze
-            </button>
+          </div>
+
+          <!-- Avatar Tab -->
+          <div *ngIf="activeTab === 'avatar' && avatarModeEnabled" class="tab-content">
+            <div class="section-card">
+              <h2>Gestione Foto Profilo</h2>
+              <div class="avatar-section">
+                <div class="current-avatar">
+                  <img 
+                    *ngIf="currentUser?.profile_image_url" 
+                    [src]="currentUser?.profile_image_url" 
+                    [alt]="getUserFullName()"
+                    class="large-avatar"
+                    (error)="onImageError($event)"
+                  />
+                  <div 
+                    *ngIf="!currentUser?.profile_image_url" 
+                    class="large-avatar avatar-placeholder">
+                    <span class="large-avatar-text">{{ getUserInitials() }}</span>
+                  </div>
+                </div>
+                
+                <form [formGroup]="avatarForm" (ngSubmit)="updateAvatar()">
+                  <div class="form-group">
+                    <label for="imageUrl">URL Immagine Profilo</label>
+                    <input 
+                      type="url" 
+                      id="imageUrl"
+                      formControlName="imageUrl"
+                      placeholder="https://esempio.com/immagine.jpg"
+                      [class.error]="avatarForm.get('imageUrl')?.invalid && avatarForm.get('imageUrl')?.touched">
+                    <div class="form-help">
+                      Inserisci l'URL di un'immagine (jpg, jpeg, png, gif, webp)
+                    </div>
+                    <div *ngIf="avatarForm.get('imageUrl')?.invalid && avatarForm.get('imageUrl')?.touched" class="error-message">
+                      Inserisci un URL valido per l'immagine
+                    </div>
+                  </div>
+                  
+                  <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" [disabled]="avatarForm.invalid || isLoading">
+                      <span *ngIf="isLoading">Caricamento...</span>
+                      <span *ngIf="!isLoading">💾 Aggiorna Foto</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" (click)="removeAvatar()" *ngIf="currentUser?.profile_image_url">
+                      🗑️ Rimuovi Foto
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
 
           <!-- Personal Information Tab -->
           <div *ngIf="activeTab === 'personal'" class="tab-content">
             <div class="section-card">
-              <h2>Informazioni Personali</h2>
+              <h2>Informazioni {{ getUserType() }}</h2>
               <form [formGroup]="profileForm" (ngSubmit)="updateProfile()">
                 <div class="form-grid">
                   <div class="form-group">
@@ -136,6 +213,120 @@ interface PasswordChangeRequest {
                       <option value="ES">Spagna</option>
                       <option value="OTHER">Altro</option>
                     </select>
+                  </div>
+                </div>
+
+                <!-- Campi specifici per compagnie aeree -->
+                <div *ngIf="currentUser?.role === 'airline'" class="form-grid">
+                  <div class="form-group">
+                    <label for="companyName">Nome Compagnia *</label>
+                    <input 
+                      type="text" 
+                      id="companyName"
+                      formControlName="name"
+                      placeholder="Es: Alitalia"
+                      [class.error]="profileForm.get('name')?.invalid && profileForm.get('name')?.touched">
+                    <div *ngIf="profileForm.get('name')?.invalid && profileForm.get('name')?.touched" class="error-message">
+                      Il nome della compagnia è obbligatorio
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="iataCode">Codice IATA *</label>
+                    <input 
+                      type="text" 
+                      id="iataCode"
+                      formControlName="iataCode"
+                      placeholder="Es: AZ"
+                      maxlength="2"
+                      style="text-transform: uppercase;"
+                      [class.error]="profileForm.get('iataCode')?.invalid && profileForm.get('iataCode')?.touched">
+                    <div class="form-help">Codice di 2 lettere maiuscole</div>
+                    <div *ngIf="profileForm.get('iataCode')?.invalid && profileForm.get('iataCode')?.touched" class="error-message">
+                      Il codice IATA deve essere di 2 lettere maiuscole
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="icaoCode">Codice ICAO *</label>
+                    <input 
+                      type="text" 
+                      id="icaoCode"
+                      formControlName="icaoCode"
+                      placeholder="Es: AZA"
+                      maxlength="3"
+                      style="text-transform: uppercase;"
+                      [class.error]="profileForm.get('icaoCode')?.invalid && profileForm.get('icaoCode')?.touched">
+                    <div class="form-help">Codice di 3 lettere maiuscole</div>
+                    <div *ngIf="profileForm.get('icaoCode')?.invalid && profileForm.get('icaoCode')?.touched" class="error-message">
+                      Il codice ICAO deve essere di 3 lettere maiuscole
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="country">Paese *</label>
+                    <select formControlName="country" [class.error]="profileForm.get('country')?.invalid && profileForm.get('country')?.touched">
+                      <option value="">Seleziona paese</option>
+                      <option value="Italy">Italia</option>
+                      <option value="United States">Stati Uniti</option>
+                      <option value="United Kingdom">Regno Unito</option>
+                      <option value="France">Francia</option>
+                      <option value="Germany">Germania</option>
+                      <option value="Spain">Spagna</option>
+                      <option value="Other">Altro</option>
+                    </select>
+                    <div *ngIf="profileForm.get('country')?.invalid && profileForm.get('country')?.touched" class="error-message">
+                      Il paese è obbligatorio
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="foundedYear">Anno di Fondazione</label>
+                    <input 
+                      type="number" 
+                      id="foundedYear"
+                      formControlName="foundedYear"
+                      placeholder="Es: 1946"
+                      min="1900"
+                      [max]="getCurrentYear()"
+                      [class.error]="profileForm.get('foundedYear')?.invalid && profileForm.get('foundedYear')?.touched">
+                    <div *ngIf="profileForm.get('foundedYear')?.invalid && profileForm.get('foundedYear')?.touched" class="error-message">
+                      Inserisci un anno valido
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="website">Sito Web</label>
+                    <input 
+                      type="url" 
+                      id="website"
+                      formControlName="website"
+                      placeholder="https://www.esempio.com"
+                      [class.error]="profileForm.get('website')?.invalid && profileForm.get('website')?.touched">
+                    <div *ngIf="profileForm.get('website')?.invalid && profileForm.get('website')?.touched" class="error-message">
+                      Inserisci un URL valido (deve iniziare con http:// o https://)
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="logoUrl">URL Logo</label>
+                    <input 
+                      type="url" 
+                      id="logoUrl"
+                      formControlName="logoUrl"
+                      placeholder="https://www.esempio.com/logo.png"
+                      [class.error]="profileForm.get('logoUrl')?.invalid && profileForm.get('logoUrl')?.touched">
+                    <div *ngIf="profileForm.get('logoUrl')?.invalid && profileForm.get('logoUrl')?.touched" class="error-message">
+                      Inserisci un URL valido per il logo
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" formControlName="active">
+                      <span class="checkmark"></span>
+                      Compagnia attiva
+                    </label>
                   </div>
                 </div>
 
@@ -221,68 +412,6 @@ interface PasswordChangeRequest {
               </div>
             </div>
           </div>
-
-          <!-- Preferences Tab -->
-          <div *ngIf="activeTab === 'preferences'" class="tab-content">
-            <div class="section-card">
-              <h2>Preferenze Generali</h2>
-              <form [formGroup]="preferencesForm" (ngSubmit)="updatePreferences()">
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" formControlName="emailNotifications">
-                    <span class="checkmark"></span>
-                    Ricevi notifiche email
-                  </label>
-                </div>
-
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" formControlName="promotionalEmails">
-                    <span class="checkmark"></span>
-                    Ricevi email promozionali
-                  </label>
-                </div>
-
-                <div class="form-group">
-                  <label for="language">Lingua Preferita</label>
-                  <select formControlName="language">
-                    <option value="it">Italiano</option>
-                    <option value="en">English</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label for="currency">Valuta Preferita</label>
-                  <select formControlName="currency">
-                    <option value="EUR">Euro (€)</option>
-                    <option value="USD">US Dollar ($)</option>
-                    <option value="GBP">British Pound (£)</option>
-                  </select>
-                </div>
-
-                <div class="form-actions">
-                  <button type="submit" 
-                          class="btn btn-primary" 
-                          [disabled]="preferencesForm.invalid || isPreferencesLoading">
-                    <span *ngIf="isPreferencesLoading">🔄 Salvando...</span>
-                    <span *ngIf="!isPreferencesLoading">💾 Salva Preferenze</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div class="section-card danger-zone">
-              <h2>Zona Pericolosa</h2>
-              <p>Le azioni seguenti sono irreversibili. Procedi con cautela.</p>
-              <div class="danger-actions">
-                <button class="btn btn-danger" (click)="confirmDeleteAccount()">
-                  🗑️ Elimina Account
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -318,6 +447,7 @@ interface PasswordChangeRequest {
     }
 
     .user-avatar {
+      position: relative;
       width: 80px;
       height: 80px;
       border-radius: 50%;
@@ -329,6 +459,44 @@ interface PasswordChangeRequest {
       font-weight: bold;
       color: white;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .user-avatar:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      border: 2px solid rgba(78, 205, 196, 0.6);
+    }
+
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
+    .avatar-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      border-radius: 50%;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .user-avatar:hover .avatar-overlay {
+      opacity: 1;
     }
 
     .user-info h1 {
@@ -406,6 +574,62 @@ interface PasswordChangeRequest {
       margin: 0 0 1.5rem 0;
       font-size: 1.5rem;
       font-weight: 600;
+    }
+
+    .large-avatar {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      margin: 0 auto 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 4px solid rgba(78, 205, 196, 0.2);
+    }
+
+    .avatar-placeholder {
+      background: linear-gradient(45deg, #4ecdc4, #44a08d);
+      color: white;
+    }
+
+    .large-avatar-text {
+      font-size: 3rem;
+      font-weight: bold;
+    }
+
+    .avatar-section {
+      text-align: center;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .current-avatar {
+      margin-bottom: 2rem;
+    }
+
+    .form-help {
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-top: 0.25rem;
+    }
+
+    .help-message {
+      background: linear-gradient(135deg, rgba(78, 205, 196, 0.1), rgba(68, 160, 141, 0.1));
+      border: 1px solid rgba(78, 205, 196, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .help-message p {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 0.9rem;
+    }
+
+    .help-message strong {
+      color: #4ecdc4;
     }
 
     .form-grid {
@@ -636,15 +860,22 @@ interface PasswordChangeRequest {
   `]
 })
 export class ProfileComponent implements OnInit {
-  activeTab: 'personal' | 'security' | 'preferences' = 'personal';
+  activeTab: 'avatar' | 'personal' | 'security' = 'personal';
   currentUser: User | null = null;
   profileForm!: FormGroup;
   passwordForm!: FormGroup;
-  preferencesForm!: FormGroup;
+  avatarForm!: FormGroup;
   
   isLoading = false;
   isPasswordLoading = false;
-  isPreferencesLoading = false;
+  
+  // Variabili per la funzionalità nascosta
+  avatarModeEnabled = false;
+  showAvatarHint = false;
+  private clickCount = 0;
+  private clickTimer: any;
+  private secretSequence: string[] = [];
+  private targetSequence = ['p', 'h', 'o', 't', 'o']; // Sequenza segreta: "photo"
   
   message = '';
   messageType: 'success' | 'error' = 'success';
@@ -662,6 +893,7 @@ export class ProfileComponent implements OnInit {
   ngOnInit() {
     this.loadCurrentUser();
     this.loadUserProfile();
+    this.setupSecretKeyListener();
   }
 
   private initializeForms() {
@@ -671,7 +903,16 @@ export class ProfileComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       phone: [''],
       dateOfBirth: [''],
-      nationality: ['']
+      nationality: [''],
+      // Campi per compagnie aeree
+      name: [''], // Nome compagnia
+      iataCode: ['', [Validators.pattern(/^[A-Z]{2}$/)]],  // Codice IATA (2 lettere)
+      icaoCode: ['', [Validators.pattern(/^[A-Z]{3}$/)]],  // Codice ICAO (3 lettere)
+      country: [''],
+      foundedYear: ['', [Validators.min(1900), Validators.max(new Date().getFullYear())]],
+      website: ['', [Validators.pattern(/^https?:\/\/.+/)]],
+      logoUrl: ['', [Validators.pattern(/^https?:\/\/.+/)]],
+      active: [true]
     });
 
     this.passwordForm = this.fb.group({
@@ -680,11 +921,8 @@ export class ProfileComponent implements OnInit {
       confirmPassword: ['', Validators.required]
     }, { validators: this.passwordMatchValidator });
 
-    this.preferencesForm = this.fb.group({
-      emailNotifications: [true],
-      promotionalEmails: [false],
-      language: ['it'],
-      currency: ['EUR']
+    this.avatarForm = this.fb.group({
+      imageUrl: ['', [Validators.required, Validators.pattern(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)]]
     });
   }
 
@@ -717,15 +955,116 @@ export class ProfileComponent implements OnInit {
   private loadUserProfile() {
     if (!this.currentUser) return;
 
-    // Popola il form con i dati correnti dell'utente
-    this.profileForm.patchValue({
+    // Mostra indicatore di caricamento
+    this.isLoading = true;
+
+    // Carica i dati del profilo dal backend per avere i dati più aggiornati
+    this.http.get(`${this.apiUrl}/users/profile`, {
+      headers: this.getAuthHeaders()
+    }).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        if (response.success && response.user) {
+          const userData = response.user;
+          
+          // Aggiorna currentUser con i dati dal database
+          this.currentUser = {
+            ...this.currentUser,
+            ...userData
+          };
+
+          // Aggiorna anche il localStorage con i dati più recenti
+          localStorage.setItem('user', JSON.stringify(this.currentUser));
+
+          // Popola il form con i dati dal database
+          const formData: any = {
+            firstName: userData.first_name || '',
+            lastName: userData.last_name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            dateOfBirth: userData.date_of_birth || '',
+            nationality: userData.nationality || ''
+          };
+
+          // Se è una compagnia aerea, aggiungi i campi specifici
+          if (userData.role === 'airline') {
+            formData.name = userData.name || '';
+            formData.iataCode = userData.iata_code || '';
+            formData.icaoCode = userData.icao_code || '';
+            formData.country = userData.country || '';
+            formData.foundedYear = userData.founded_year || '';
+            formData.website = userData.website || '';
+            formData.logoUrl = userData.logo_url || '';
+            formData.active = userData.active !== false;
+          }
+
+          this.profileForm.patchValue(formData);
+          
+          // Aggiorna le validazioni in base al ruolo
+          this.updateFormValidations();
+        }
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error loading profile data:', error);
+        // Fallback ai dati locali se l'API fallisce
+        this.loadUserProfileFromLocal();
+      }
+    });
+  }
+
+  private loadUserProfileFromLocal() {
+    if (!this.currentUser) return;
+
+    // Popola il form con i dati correnti dell'utente (fallback)
+    const formData: any = {
       firstName: this.currentUser.first_name || '',
       lastName: this.currentUser.last_name || '',
       email: this.currentUser.email || '',
       phone: this.currentUser.phone || '',
       dateOfBirth: this.currentUser.date_of_birth || '',
       nationality: this.currentUser.nationality || ''
-    });
+    };
+
+    // Se è una compagnia aerea, aggiungi i campi specifici
+    if (this.currentUser.role === 'airline') {
+      formData.name = this.currentUser.name || '';
+      formData.iataCode = this.currentUser.iata_code || '';
+      formData.icaoCode = this.currentUser.icao_code || '';
+      formData.country = this.currentUser.country || '';
+      formData.foundedYear = this.currentUser.founded_year || '';
+      formData.website = this.currentUser.website || '';
+      formData.logoUrl = this.currentUser.logo_url || '';
+      formData.active = this.currentUser.active !== false;
+    }
+
+    this.profileForm.patchValue(formData);
+    
+    // Aggiorna le validazioni in base al ruolo
+    this.updateFormValidations();
+  }
+
+  private updateFormValidations() {
+    if (this.currentUser?.role === 'airline') {
+      // Rendi obbligatori alcuni campi per le compagnie aeree
+      this.profileForm.get('name')?.setValidators([Validators.required, Validators.minLength(2)]);
+      this.profileForm.get('iataCode')?.setValidators([Validators.required, Validators.pattern(/^[A-Z]{2}$/)]);
+      this.profileForm.get('icaoCode')?.setValidators([Validators.required, Validators.pattern(/^[A-Z]{3}$/)]);
+      this.profileForm.get('country')?.setValidators([Validators.required]);
+    } else {
+      // Rimuovi validazioni per utenti normali
+      this.profileForm.get('name')?.clearValidators();
+      this.profileForm.get('iataCode')?.clearValidators();
+      this.profileForm.get('icaoCode')?.clearValidators();
+      this.profileForm.get('country')?.clearValidators();
+    }
+    
+    // Aggiorna la validazione
+    this.profileForm.get('name')?.updateValueAndValidity();
+    this.profileForm.get('iataCode')?.updateValueAndValidity();
+    this.profileForm.get('icaoCode')?.updateValueAndValidity();
+    this.profileForm.get('country')?.updateValueAndValidity();
   }
 
   private getAuthHeaders(): HttpHeaders {
@@ -736,7 +1075,7 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  switchTab(tab: 'personal' | 'security' | 'preferences') {
+  switchTab(tab: 'avatar' | 'personal' | 'security') {
     this.activeTab = tab;
   }
 
@@ -750,6 +1089,84 @@ export class ProfileComponent implements OnInit {
   getUserFullName(): string {
     if (!this.currentUser) return '';
     return `${this.currentUser.first_name || ''} ${this.currentUser.last_name || ''}`.trim();
+  }
+
+  getCurrentYear(): number {
+    return new Date().getFullYear();
+  }
+
+  // Metodi per la funzionalità nascosta
+  setupSecretKeyListener(): void {
+    document.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      this.secretSequence.push(key);
+      
+      // Mantieni solo gli ultimi 5 caratteri
+      if (this.secretSequence.length > this.targetSequence.length) {
+        this.secretSequence.shift();
+      }
+      
+      // Controlla se la sequenza corrisponde
+      if (this.secretSequence.join('') === this.targetSequence.join('')) {
+        this.activateSecretPhotoMode();
+        this.secretSequence = []; // Reset
+      }
+      
+      // Reset dopo 3 secondi di inattività
+      setTimeout(() => {
+        if (this.secretSequence.length > 0) {
+          this.secretSequence = [];
+        }
+      }, 3000);
+    });
+  }
+
+  activateSecretPhotoMode(): void {
+    this.avatarModeEnabled = true;
+    this.activeTab = 'avatar';
+    this.showMessage('🎯 Modalità foto profilo segreta attivata! (Digitando "photo")', 'success');
+    
+    // Disattiva automaticamente dopo 10 minuti
+    setTimeout(() => {
+      if (this.avatarModeEnabled) {
+        this.avatarModeEnabled = false;
+        this.activeTab = 'personal';
+        this.showMessage('🔒 Modalità segreta disattivata automaticamente', 'error');
+      }
+    }, 600000); // 10 minuti
+  }
+
+  toggleAvatarMode(): void {
+    this.avatarModeEnabled = !this.avatarModeEnabled;
+    
+    if (this.avatarModeEnabled) {
+      this.activeTab = 'avatar';
+      this.showMessage('🔓 Modalità modifica foto profilo attivata', 'success');
+      
+      // Disattiva automaticamente dopo 5 minuti per sicurezza
+      setTimeout(() => {
+        if (this.avatarModeEnabled) {
+          this.avatarModeEnabled = false;
+          this.activeTab = 'personal';
+          this.showMessage('🔒 Modalità modifica foto profilo disattivata automaticamente', 'error');
+        }
+      }, 300000); // 5 minuti
+    } else {
+      this.activeTab = 'personal';
+      this.showMessage('🔒 Modalità modifica foto profilo disattivata', 'error');
+    }
+    
+    this.showAvatarHint = false;
+  }
+
+  // Mostra hint quando si passa il mouse sopra l'avatar
+  onAvatarHover(): void {
+    if (!this.avatarModeEnabled) {
+      this.showAvatarHint = true;
+      setTimeout(() => {
+        this.showAvatarHint = false;
+      }, 2000);
+    }
   }
 
   getRoleDisplayName(): string {
@@ -781,7 +1198,7 @@ export class ProfileComponent implements OnInit {
     this.isLoading = true;
     const formData = this.profileForm.value;
 
-    const updateData = {
+    let updateData: any = {
       first_name: formData.firstName,
       last_name: formData.lastName,
       email: formData.email,
@@ -789,6 +1206,21 @@ export class ProfileComponent implements OnInit {
       date_of_birth: formData.dateOfBirth,
       nationality: formData.nationality
     };
+
+    // Se è una compagnia aerea, aggiungi i campi specifici
+    if (this.currentUser.role === 'airline') {
+      updateData = {
+        ...updateData,
+        name: formData.name,
+        iata_code: formData.iataCode?.toUpperCase(),
+        icao_code: formData.icaoCode?.toUpperCase(),
+        country: formData.country,
+        founded_year: formData.foundedYear ? parseInt(formData.foundedYear) : null,
+        website: formData.website,
+        logo_url: formData.logoUrl,
+        active: formData.active
+      };
+    }
 
     this.http.put(`${this.apiUrl}/users/profile`, updateData, { 
       headers: this.getAuthHeaders() 
@@ -799,12 +1231,7 @@ export class ProfileComponent implements OnInit {
         // Aggiorna i dati locali dell'utente
         const updatedUser = { 
           ...this.currentUser!, 
-          first_name: updateData.first_name,
-          last_name: updateData.last_name,
-          email: updateData.email,
-          phone: updateData.phone,
-          date_of_birth: updateData.date_of_birth,
-          nationality: updateData.nationality
+          ...updateData
         };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         this.currentUser = updatedUser;
@@ -851,48 +1278,6 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  updatePreferences() {
-    this.isPreferencesLoading = true;
-    const formData = this.preferencesForm.value;
-
-    // Per ora salva in localStorage, in futuro si può implementare API dedicata
-    localStorage.setItem('userPreferences', JSON.stringify(formData));
-    
-    setTimeout(() => {
-      this.isPreferencesLoading = false;
-      this.showMessage('Preferenze salvate con successo!', 'success');
-    }, 1000);
-  }
-
-  confirmDeleteAccount() {
-    const confirmed = confirm(
-      'Sei sicuro di voler eliminare il tuo account? ' +
-      'Questa azione è irreversibile e tutti i tuoi dati saranno persi.'
-    );
-
-    if (confirmed) {
-      this.deleteAccount();
-    }
-  }
-
-  private deleteAccount() {
-    this.http.delete(`${this.apiUrl}/users/account`, { 
-      headers: this.getAuthHeaders() 
-    }).subscribe({
-      next: (response) => {
-        this.showMessage('Account eliminato con successo', 'success');
-        setTimeout(() => {
-          localStorage.clear();
-          this.router.navigate(['/']);
-        }, 2000);
-      },
-      error: (error) => {
-        console.error('Error deleting account:', error);
-        this.showMessage('Errore durante l\'eliminazione dell\'account', 'error');
-      }
-    });
-  }
-
   private showMessage(message: string, type: 'success' | 'error') {
     this.message = message;
     this.messageType = type;
@@ -901,4 +1286,80 @@ export class ProfileComponent implements OnInit {
       this.message = '';
     }, 5000);
   }
+
+  // Nuovi metodi per gestione avatar e tipi utente
+  updateAvatar() {
+    if (this.avatarForm.invalid) return;
+
+    this.isLoading = true;
+    const imageUrl = this.avatarForm.get('imageUrl')?.value;
+
+    this.http.put(`${this.apiUrl}/users/profile-image`, 
+      { profile_image_url: imageUrl },
+      { headers: this.getAuthHeaders() }
+    ).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        // Aggiorna i dati locali dell'utente
+        const updatedUser = { 
+          ...this.currentUser!, 
+          profile_image_url: imageUrl
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        this.currentUser = updatedUser;
+        
+        this.avatarForm.reset();
+        this.showMessage('Foto profilo aggiornata con successo!', 'success');
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error updating avatar:', error);
+        this.showMessage('Errore durante l\'aggiornamento della foto', 'error');
+      }
+    });
+  }
+
+  removeAvatar() {
+    this.isLoading = true;
+
+    this.http.put(`${this.apiUrl}/users/profile-image`, 
+      { profile_image_url: null },
+      { headers: this.getAuthHeaders() }
+    ).subscribe({
+      next: (response: any) => {
+        this.isLoading = false;
+        
+        // Aggiorna i dati locali dell'utente
+        const updatedUser = { 
+          ...this.currentUser!
+        };
+        delete updatedUser.profile_image_url;
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        this.currentUser = updatedUser;
+        
+        this.showMessage('Foto profilo rimossa con successo!', 'success');
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Error removing avatar:', error);
+        this.showMessage('Errore durante la rimozione della foto', 'error');
+      }
+    });
+  }
+
+  onImageError(event: any) {
+    event.target.style.display = 'none';
+    // Mostra l'avatar con iniziali come fallback
+  }
+
+  getUserType(): string {
+    if (this.currentUser?.role === 'airline') {
+      return 'Compagnia Aerea';
+    } else if (this.currentUser?.role === 'admin') {
+      return 'Amministratore';
+    }
+    return 'Personali';
+  }
+
 }
