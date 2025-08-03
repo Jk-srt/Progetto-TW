@@ -13,8 +13,17 @@ import { User } from '../models/user.model';
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   template: `
+    <!-- Loading iniziale -->
+    <div *ngIf="isInitializing" class="initial-loading">
+      <div class="initial-loading-content">
+        <div class="spinner-large"></div>
+        <h2>🛫 Caricamento Gestione Voli...</h2>
+        <p>Verifica delle autorizzazioni in corso</p>
+      </div>
+    </div>
+
     <!-- Controllo accesso -->
-    <div *ngIf="!canAccess" class="access-denied">
+    <div *ngIf="!isInitializing && !canAccess" class="access-denied">
       <div class="access-denied-content">
         <h1>🚫 Accesso Negato</h1>
         <p>Solo le compagnie aeree registrate possono accedere a questa sezione.</p>
@@ -29,7 +38,7 @@ import { User } from '../models/user.model';
       </div>
     </div>
 
-    <div *ngIf="canAccess" class="flight-admin-container">
+    <div *ngIf="!isInitializing && canAccess" class="flight-admin-container">
       <!-- Header -->
       <div class="admin-header">
         <div class="header-info">
@@ -39,7 +48,7 @@ import { User } from '../models/user.model';
             <span class="role-badge">{{getRoleLabel(currentUser.role)}}</span>
           </div>
         </div>
-        <button class="btn btn-primary" (click)="openCreateModal()">
+        <button class="nav-style-btn primary-btn" (click)="openCreateModal()">
           ➕ Nuovo Volo
         </button>
       </div>
@@ -356,27 +365,9 @@ import { User } from '../models/user.model';
                 🗑️ Elimina Definitivamente
               </button>
               
-              <!-- Debug button - Remove in production -->
-              <button type="button" class="btn btn-debug" (click)="debugForm()" 
-                      style="background: orange; color: white; margin-right: 10px;">
-                🐛 Debug Form
-              </button>
-              
               <button type="submit" class="btn btn-save" [disabled]="flightForm.invalid || isLoading">
                 {{isLoading ? 'Salvando...' : 'Salva'}}
               </button>
-            </div>
-            
-            <!-- Form status debug -->
-            <div class="debug-info" style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
-              <strong>Form Status:</strong> 
-              <span [style.color]="flightForm.valid ? 'green' : 'red'">
-                {{flightForm.valid ? '✅ VALID' : '❌ INVALID'}}
-              </span>
-              <br>
-              <strong>Loading:</strong> {{isLoading ? 'YES' : 'NO'}}
-              <br>
-              <strong>Button Disabled:</strong> {{(flightForm.invalid || isLoading) ? 'YES' : 'NO'}}
             </div>
           </form>
         </div>
@@ -485,6 +476,7 @@ export class FlightAdminComponent implements OnInit {
   canAccess = false;
   currentUser: User | null = null;
   isAdmin = false;
+  isInitializing = true; // Nuovo stato per il caricamento iniziale
   
   // Variabile globale per airline_id
   
@@ -500,16 +492,19 @@ export class FlightAdminComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Controlla autorizzazione
-    this.checkAccess();
-    
-    // Crea il form dopo aver verificato l'accesso
-    this.flightForm = this.createFlightForm();
-    
-    if (this.canAccess) {
-      this.loadFlights();
-      this.loadSupportData();
-    }
+    // Aggiungi un piccolo delay per rendere il caricamento più fluido
+    setTimeout(() => {
+      // Controlla autorizzazione
+      this.checkAccess();
+      
+      // Crea il form dopo aver verificato l'accesso
+      this.flightForm = this.createFlightForm();
+      
+      if (this.canAccess) {
+        this.loadFlights();
+        this.loadSupportData();
+      }
+    }, 300); // Delay di 300ms per evitare flash della pagina bianca
   }
 
   private checkAccess(): void {
@@ -518,26 +513,16 @@ export class FlightAdminComponent implements OnInit {
     this.isAdmin = this.currentUser?.role === 'admin';
     this.canAccess = this.flightAdminService.canAccessFlightManagement();
     this.airlineId = localStorage.getItem('airlineId');
-    console.log('AirlineId from localStorage:', this.airlineId);
+    
     // Imposta la variabile globale airline_id se l'utente è una compagnia aerea
     if (this.currentUser?.role === 'airline') {
-      console.log('Impostato airlineId globale (stringa):', this.airlineId);
-      console.log('Valore numerico corrispondente:', this.airlineId);
+      // L'airlineId è già impostato sopra
     } else {
       this.airlineId = null;
     }
     
-    // Stampa informazioni dell'utente loggato
-    console.log('=== USER ACCESS INFO ===');
-    console.log('Current User:', this.currentUser);
-    console.log('User Role:', this.currentUser?.role);
-    console.log('Is Admin:', this.isAdmin);
-    console.log('Airline ID (dal currentUser):', this.currentUser?.airline_id);
-    console.log('Global Airline ID (stringa):', this.airlineId);
-    console.log('Global Airline ID (numero):', this.airlineId ? parseInt(this.airlineId) : null);
-    console.log('Airline Name:', this.currentUser?.airline_name);
-    console.log('Can Access:', this.canAccess);
-    console.log('========================');
+    // Termina il caricamento iniziale
+    this.isInitializing = false;
   }
 
   private createFlightForm(): FormGroup {
@@ -631,21 +616,18 @@ export class FlightAdminComponent implements OnInit {
       // Admin può vedere tutte le rotte
       this.routeAdminService.getRoutes().subscribe(routes => {
         this.routes = routes;
-        console.log('Admin - Caricate tutte le rotte:', routes);
       });
     } else if (this.airlineId) {
       // Compagnia aerea vede solo le proprie rotte
       this.routeAdminService.getRoutesByAirline(parseInt(this.airlineId)).subscribe({
         next: (routes: Route[]) => {
           this.routes = routes;
-          console.log(`Compagnia ${this.airlineId} - Caricate rotte specifiche:`, routes);
         },
         error: (error: any) => {
           console.error('Errore nel caricamento delle rotte della compagnia:', error);
           // Fallback: carica tutte le rotte e filtra lato client
           this.routeAdminService.getRoutes().subscribe(allRoutes => {
             this.routes = allRoutes.filter(route => route.airline_id === parseInt(this.airlineId!));
-            console.log('Fallback - Rotte filtrate lato client:', this.routes);
           });
         }
       });
@@ -661,28 +643,24 @@ export class FlightAdminComponent implements OnInit {
       // Admin può vedere tutti gli aerei
       this.flightAdminService.getAircrafts().subscribe(aircrafts => {
         this.aircrafts = aircrafts;
-        console.log('Admin - Caricati tutti gli aerei:', aircrafts);
       });
     } else if (this.airlineId) {
       // Compagnia aerea vede solo i propri aerei
       this.flightAdminService.getAircraftsByAirline(parseInt(this.airlineId)).subscribe({
         next: (aircrafts: Aircraft[]) => {
           this.aircrafts = aircrafts;
-          console.log(`Compagnia ${this.airlineId} - Caricati aerei specifici:`, aircrafts);
         },
         error: (error: any) => {
           console.error('Errore nel caricamento degli aerei della compagnia:', error);
           // Fallback: carica tutti gli aerei e filtra lato client
           this.flightAdminService.getAircrafts().subscribe(allAircrafts => {
             this.aircrafts = allAircrafts.filter(aircraft => aircraft.airline_id === parseInt(this.airlineId!));
-            console.log('Fallback - Aerei filtrati lato client:', this.aircrafts);
           });
         }
       });
     } else {
       // Utente senza airline_id non dovrebbe essere qui, ma per sicurezza
       this.aircrafts = [];
-      console.log('Nessun airline_id trovato - array aerei vuoto');
     }
   }
 
@@ -700,8 +678,6 @@ export class FlightAdminComponent implements OnInit {
       let matchesAirline = true;
       if (!this.isAdmin && this.showOnlyMyFlights && this.airlineId) {
         const myAirlineId = parseInt(this.airlineId);
-        console.log('Filtraggio voli per airline_id:', myAirlineId);
-        console.log('Volo corrente airline_id:', flight.airline_id);
         matchesAirline = flight.airline_id === myAirlineId;
       }
       
@@ -719,10 +695,6 @@ export class FlightAdminComponent implements OnInit {
     if (!this.isAdmin && this.airlineId) {
       const airlineIdNumber = parseInt(this.airlineId);
       this.flightForm.patchValue({ airline_id: airlineIdNumber });
-      console.log('Impostato airline_id nel form:', airlineIdNumber);
-      
-      // Verifica che il valore sia stato impostato correttamente
-      console.log('Valore airline_id nel form dopo patchValue:', this.flightForm.get('airline_id')?.value);
     }
     
     this.showModal = true;
@@ -790,8 +762,6 @@ export class FlightAdminComponent implements OnInit {
         status: 'completed' // Cambia lo stato in "completed"
       };
 
-      console.log('Completing flight (changing status to completed):', updatedFlightData);
-
       this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
         next: () => {
           this.loadFlights();
@@ -833,8 +803,6 @@ export class FlightAdminComponent implements OnInit {
         available_seats: flight.available_seats || 0,
         status: 'cancelled' // Cambia solo lo stato in "cancelled"
       };
-
-      console.log('Cancelling flight (changing status to cancelled):', updatedFlightData);
 
       this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
         next: () => {
@@ -917,8 +885,6 @@ export class FlightAdminComponent implements OnInit {
       status: 'delayed' // Cambia lo stato a "delayed"
     };
 
-    console.log('Updating flight with delay:', updatedFlightData);
-
     this.flightAdminService.updateFlight(this.selectedFlightForDelay.id, updatedFlightData).subscribe({
       next: () => {
         this.closeDelayModal();
@@ -949,7 +915,6 @@ export class FlightAdminComponent implements OnInit {
         const airlineIdNumber = parseInt(this.airlineId);
         if (!formData.airline_id || formData.airline_id !== airlineIdNumber) {
           formData.airline_id = airlineIdNumber;
-          console.log('Forzato airline_id nel saveFlight:', airlineIdNumber);
         }
       }
       
@@ -963,7 +928,6 @@ export class FlightAdminComponent implements OnInit {
 
       // Salva solo il sovrapprezzo inserito dall'utente (non sommato al prezzo base)
       const surcharge = formData.price || 0;
-      console.log(`Salvando solo il sovrapprezzo: €${surcharge}`);
 
       // Prepara i dati del volo con posti automatici e solo il sovrapprezzo
       const flightData: FlightFormData = {
@@ -972,8 +936,6 @@ export class FlightAdminComponent implements OnInit {
         total_seats: aircraftCapacity,
         available_seats: aircraftCapacity // Per un nuovo volo, tutti i posti sono disponibili
       };
-
-      console.log('Saving flight with data:', flightData);
 
       const operation = this.isEditing 
         ? this.flightAdminService.updateFlight(this.editingFlightId!, flightData)
@@ -992,11 +954,6 @@ export class FlightAdminComponent implements OnInit {
         }
       });
     } else {
-      console.log('Form non valido, controlla i campi obbligatori');
-      // Debug aggiuntivo per airline_id
-      console.log('airline_id nel form:', this.flightForm.get('airline_id')?.value);
-      console.log('airline_id errors:', this.flightForm.get('airline_id')?.errors);
-      
       // Marca tutti i campi come touched per mostrare gli errori
       Object.keys(this.flightForm.controls).forEach(key => {
         this.flightForm.get(key)?.markAsTouched();
@@ -1071,7 +1028,6 @@ export class FlightAdminComponent implements OnInit {
     // Trova la rotta selezionata
     const selectedRoute = this.routes.find(route => route.id == routeId);
     if (!selectedRoute || !selectedRoute.estimated_duration) {
-      console.log('Rotta non trovata o durata mancante');
       return;
     }
 
@@ -1079,7 +1035,6 @@ export class FlightAdminComponent implements OnInit {
       // Calcola l'orario di arrivo
       const arrivalTime = this.addDurationToDateTime(departureTime, selectedRoute.estimated_duration);
       this.flightForm.patchValue({ arrival_time: arrivalTime });
-      console.log(`Orario arrivo calcolato: ${arrivalTime} (durata rotta: ${selectedRoute.estimated_duration})`);
     } catch (error) {
       console.error('Errore nel calcolo dell\'orario di arrivo:', error);
     }
@@ -1095,7 +1050,6 @@ export class FlightAdminComponent implements OnInit {
     // Trova la rotta selezionata
     const selectedRoute = this.routes.find(route => route.id == routeId);
     if (!selectedRoute || !selectedRoute.default_price) {
-      console.log('Rotta non trovata o prezzo mancante');
       return;
     }
 
@@ -1104,7 +1058,6 @@ export class FlightAdminComponent implements OnInit {
     const currentPrice = this.flightForm.get('price')?.value;
     if (!currentPrice || currentPrice === 0) {
       this.flightForm.patchValue({ price: 0 });
-      console.log(`Sovrapprezzo impostato a €0 (prezzo base rotta: €${selectedRoute.default_price})`);
     }
   }
 
@@ -1194,80 +1147,25 @@ export class FlightAdminComponent implements OnInit {
     return labels[role] || role;
   }
 
-  // Debug method to check form status
-  debugForm() {
-    console.log('=== FORM DEBUG ===');
-    console.log('Form valid:', this.flightForm.valid);
-    console.log('Form invalid:', this.flightForm.invalid);
-    console.log('Loading:', this.isLoading);
-    console.log('Form values:', this.flightForm.value);
-    console.log('Form errors:', this.flightForm.errors);
-    
-    // Debug specifico per airline_id
-    console.log('=== AIRLINE_ID DEBUG ===');
-    console.log('Global airlineId (stringa):', this.airlineId);
-    console.log('airlineId come numero:', this.airlineId ? parseInt(this.airlineId) : null);
-    console.log('airline_id nel form:', this.flightForm.get('airline_id')?.value);
-    console.log('airline_id type:', typeof this.flightForm.get('airline_id')?.value);
-    console.log('Is Admin:', this.isAdmin);
-    console.log('========================');
-    
-    // Check each control
-    Object.keys(this.flightForm.controls).forEach(key => {
-      const control = this.flightForm.get(key);
-      console.log(`${key}:`, {
-        value: control?.value,
-        valid: control?.valid,
-        invalid: control?.invalid,
-        errors: control?.errors,
-        touched: control?.touched,
-        dirty: control?.dirty
-      });
-    });
-    console.log('=================');
-  }
-
   canManageFlight(flight: Flight): boolean {
-    // Debug: log dei dati per troubleshooting
-    console.log('=== canManageFlight DEBUG ===');
-    console.log('Flight:', flight);
-    console.log('Flight airline_id:', flight.airline_id);
-    console.log('Current user:', this.currentUser);
-    console.log('Current user role:', this.currentUser?.role);
-    console.log('Current user airline_id:', this.currentUser?.airline_id);
-    console.log('Global airlineId (string):', this.airlineId);
-    console.log('Is Admin:', this.isAdmin);
-    
     // Se è admin, può gestire tutti i voli
     if (this.isAdmin) {
-      console.log('User is admin - CAN MANAGE');
-      console.log('============================');
       return true;
     }
     
     // Se non è una compagnia aerea, non può gestire nulla
     if (this.currentUser?.role !== 'airline') {
-      console.log('User is not airline - CANNOT MANAGE');
-      console.log('============================');
       return false;
     }
     
     // Verifica che abbia un airline_id
     const userAirlineId = this.currentUser?.airline_id || (this.airlineId ? parseInt(this.airlineId) : null);
     if (!userAirlineId) {
-      console.log('No airline_id found - CANNOT MANAGE');
-      console.log('============================');
       return false;
     }
     
     // Verifica che il volo appartenga alla sua compagnia
-    const canManage = flight.airline_id === userAirlineId;
-    console.log('User airline_id:', userAirlineId);
-    console.log('Flight airline_id:', flight.airline_id);
-    console.log('Match:', canManage ? 'YES - CAN MANAGE' : 'NO - CANNOT MANAGE');
-    console.log('============================');
-    
-    return canManage;
+    return flight.airline_id === userAirlineId;
   }
 
   getNoPermissionMessage(flight: Flight): string {
