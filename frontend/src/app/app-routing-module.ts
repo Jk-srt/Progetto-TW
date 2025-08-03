@@ -9,6 +9,7 @@ import { SettingsComponent } from './components/settings.component';
 import { FlightAdminComponent } from './components/flight-admin.component';
 import { AdminDashboardComponent } from './components/admin-dashboard.component';
 import { RouteAdminComponent } from './components/route-admin.component';
+import { AircraftAdminComponent } from './components/aircraft-admin.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -23,5 +24,7 @@ export const routes: Routes = [
   { path: 'admin/flights', component: FlightAdminComponent },
   { path: 'routes', component: RouteAdminComponent },
   { path: 'admin/routes', component: RouteAdminComponent },
+  { path: 'aircraft-admin', component: AircraftAdminComponent }, // Gestione aeromobili
+  { path: 'admin/aircrafts', component: AircraftAdminComponent },
   { path: '**', redirectTo: '' } // Redirect per tutte le altre rotte
 ];

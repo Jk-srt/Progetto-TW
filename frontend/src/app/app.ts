@@ -31,6 +31,9 @@ import { CommonModule } from '@angular/common';
               <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/routes" class="nav-link" routerLinkActive="active">
                 🗺️ Rotte
               </a>
+              <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/aircraft-admin" class="nav-link" routerLinkActive="active">
+                ✈️ Aeromobili
+              </a>
 
               <!-- Airline Flight Management link -->
               <a *ngIf="currentUser?.role === 'airline'"
