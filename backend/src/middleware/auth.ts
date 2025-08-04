@@ -138,6 +138,27 @@ export function verifyAdminOrAirlineAdmin(req: AuthRequest, res: Response, next:
     }
 }
 
+// Middleware per verificare accesso compagnia aerea (qualsiasi ruolo airline)
+export function verifyAirlineUser(req: AuthRequest, res: Response, next: NextFunction) {
+    const userRole = req.userRole;
+    const airlineId = req.airlineId;
+
+    if (userRole !== 'airline' && userRole !== 'airline_admin') {
+        return res.status(403).json({
+            error: 'Accesso riservato agli utenti delle compagnie aeree'
+        });
+    }
+
+    if (!airlineId) {
+        return res.status(403).json({
+            error: 'ID compagnia aerea mancante nel token'
+        });
+    }
+
+    console.debug('[DEBUG] Airline user verified:', req.airlineName, '(ID:', airlineId, ')');
+    next();
+}
+
 // Middleware per operazioni che richiedono solo admin generale
 export function verifySystemAdmin(req: AuthRequest, res: Response, next: NextFunction) {
     const userRole = req.userRole;

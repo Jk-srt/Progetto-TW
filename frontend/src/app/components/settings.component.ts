@@ -1,5 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 @Component({
   selector: 'app-settings',
@@ -47,6 +49,22 @@ import { CommonModule } from '@angular/common';
                 <input type="checkbox" checked>
                 <span class="slider"></span>
               </label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sezione Gestione Flotta (solo per compagnie aeree) -->
+        <div class="settings-card" *ngIf="isAirlineUser()">
+          <h2>Gestione Flotta</h2>
+          <div class="settings-section">
+            <p>Gestisci gli aeromobili della tua compagnia aerea</p>
+            <div class="fleet-actions">
+              <button class="action-button primary" (click)="navigateToAircraftAdmin()">
+                ✈️ Gestisci Aeromobili
+              </button>
+              <button class="action-button secondary" (click)="viewFleetStats()">
+                📊 Statistiche Flotta
+              </button>
             </div>
           </div>
         </div>
@@ -217,6 +235,94 @@ import { CommonModule } from '@angular/common';
       background: #f8d7da;
     }
 
+    .fleet-actions {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .action-button.primary {
+      background: linear-gradient(45deg, #4ecdc4, #44a08d);
+      color: white;
+      border: 1px solid transparent;
+    }
+
+    .action-button.primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(78, 205, 196, 0.3);
+    }
+
+    .action-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .aircraft-form {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .aircraft-form h3 {
+      color: #333;
+      margin-bottom: 1.5rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 0.75rem;
+      border: 2px solid #e1e5e9;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s ease;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #4ecdc4;
+      box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.1);
+    }
+
+    .form-group input.error,
+    .form-group select.error {
+      border-color: #ff6b6b;
+    }
+
+    .error-message {
+      color: #ff6b6b;
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-start;
+    }
+
     @media (max-width: 768px) {
       .settings-header h1 {
         font-size: 2rem;
@@ -231,7 +337,60 @@ import { CommonModule } from '@angular/common';
       .toggle {
         align-self: flex-end;
       }
+
+      .fleet-actions {
+        flex-direction: column;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
     }
   `]
 })
-export class SettingsComponent {}
+export class SettingsComponent implements OnInit {
+  title = 'Impostazioni';
+  isDarkMode = false;
+  showNotifications = true;
+  autoSave = true;
+  language = 'it';
+  userRole: string | null = null;
+  currentUser: any = null;
+
+  constructor(
+    private router: Router,
+    private http: HttpClient
+  ) {}
+
+  ngOnInit() {
+    // Get user role from token
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        this.userRole = payload.role;
+        this.currentUser = payload;
+      } catch (e) {
+        console.error('Error parsing token:', e);
+      }
+    }
+  }
+
+  isAirlineUser(): boolean {
+    return this.userRole === 'airline_admin' || this.userRole === 'airline';
+  }
+
+  navigateToAircraftAdmin() {
+    this.router.navigate(['/aircraft-admin']);
+  }
+
+  viewFleetStats() {
+    // TODO: Navigate to fleet statistics view or open modal
+    console.log('Navigate to fleet statistics');
+    alert('Funzionalità statistiche flotta in arrivo!');
+  }
+
+  navigateToHome() {
+    this.router.navigate(['/']);
+  }
+}

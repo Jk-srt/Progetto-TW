@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { DatabaseService } from '../models/database';
 import { Pool } from 'pg';
-import { authenticateToken, verifyAirlineAdmin, verifyAirlineAccess, verifyAdminOrAirlineAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateToken, verifyAirlineAdmin, verifyAirlineAccess, verifyAdminOrAirlineAdmin, verifyAirlineUser, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -40,8 +40,8 @@ router.get('/', authenticateToken, verifyAdminOrAirlineAdmin, async (req: AuthRe
     }
 });
 
-// Ottieni aerei della mia compagnia (solo admin compagnie)
-router.get('/my-aircrafts', authenticateToken, verifyAirlineAdmin, async (req: AuthRequest, res: Response) => {
+// Ottieni aerei della mia compagnia (per utenti compagnie aeree)
+router.get('/my-aircrafts', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
     console.log('[DEBUG] GET /my-aircrafts called for airline:', req.airlineId);
     try {
         if (!req.airlineId) {
@@ -147,7 +147,7 @@ router.get('/:id', authenticateToken, verifyAdminOrAirlineAdmin, async (req: Aut
 });
 
 // Crea nuovo aereo (solo admin compagnie per la propria compagnia)
-router.post('/', authenticateToken, verifyAirlineAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
     console.log('[DEBUG] POST /aircrafts called for airline:', req.airlineId);
     try {
         const { registration, aircraft_type, manufacturer, model, seat_capacity, business_class_seats, economy_class_seats, manufacturing_year } = req.body;
@@ -217,7 +217,7 @@ router.post('/', authenticateToken, verifyAirlineAdmin, async (req: AuthRequest,
 });
 
 // Aggiorna aereo esistente
-router.put('/:id', authenticateToken, verifyAirlineAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
         const { registration, aircraft_type, manufacturer, model, seat_capacity, business_class_seats, economy_class_seats, manufacturing_year, status } = req.body;
@@ -279,7 +279,7 @@ router.put('/:id', authenticateToken, verifyAirlineAdmin, async (req: AuthReques
 });
 
 // Elimina aereo
-router.delete('/:id', authenticateToken, verifyAirlineAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
 
@@ -315,6 +315,73 @@ router.delete('/:id', authenticateToken, verifyAirlineAdmin, async (req: AuthReq
         console.error('[ERROR] Error deleting aircraft:', error);
         res.status(500).json({
             error: 'Errore nell\'eliminazione dell\'aereo',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Verifica se una registrazione esiste già
+router.get('/check-registration/:registration', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
+    console.log('[DEBUG] GET /check-registration called for registration:', req.params.registration);
+    try {
+        const { registration } = req.params;
+        
+        const existingAircraft = await pool.query(
+            'SELECT id FROM aircrafts WHERE registration = $1',
+            [registration]
+        );
+
+        res.json({ exists: existingAircraft.rows.length > 0 });
+    } catch (error) {
+        console.error('[ERROR] Error checking registration:', error);
+        res.status(500).json({
+            error: 'Errore durante la verifica della registrazione',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Aggiorna lo stato di un aeromobile
+router.patch('/:id/status', authenticateToken, verifyAirlineUser, async (req: AuthRequest, res: Response) => {
+    console.log('[DEBUG] PATCH /:id/status called for aircraft:', req.params.id);
+    try {
+        const aircraftId = parseInt(req.params.id);
+        const { status } = req.body;
+
+        if (!['active', 'maintenance', 'retired'].includes(status)) {
+            return res.status(400).json({ error: 'Stato non valido' });
+        }
+
+        // Verifica che l'aeromobile appartenga alla compagnia dell'utente
+        const aircraftCheck = await pool.query(
+            'SELECT airline_id FROM aircrafts WHERE id = $1',
+            [aircraftId]
+        );
+
+        if (aircraftCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Aeromobile non trovato' });
+        }
+
+        if (aircraftCheck.rows[0].airline_id !== req.airlineId) {
+            return res.status(403).json({ error: 'Non autorizzato a modificare questo aeromobile' });
+        }
+
+        const result = await pool.query(
+            'UPDATE aircrafts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+            [status, aircraftId]
+        );
+
+        console.log('[INFO] Aircraft status updated:', {
+            id: aircraftId,
+            newStatus: status,
+            airline_id: req.airlineId
+        });
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[ERROR] Error updating aircraft status:', error);
+        res.status(500).json({
+            error: 'Errore durante l\'aggiornamento dello stato',
             message: error instanceof Error ? error.message : 'Unknown error'
         });
     }

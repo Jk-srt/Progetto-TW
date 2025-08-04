@@ -322,6 +322,18 @@ export class DatabaseService {
             SELECT a.*, al.name as airline_name
             FROM aircrafts a
             LEFT JOIN airlines al ON a.airline_id = al.id
+            WHERE a.airline_id = $1
+            ORDER BY a.registration ASC
+        `;
+        const result = await this.pool.query(query, [airlineId]);
+        return result.rows;
+    }
+
+    async getActiveAircraftsByAirline(airlineId: number): Promise<Aircraft[]> {
+        const query = `
+            SELECT a.*, al.name as airline_name
+            FROM aircrafts a
+            LEFT JOIN airlines al ON a.airline_id = al.id
             WHERE a.airline_id = $1 AND a.status = 'active'
             ORDER BY a.registration ASC
         `;
