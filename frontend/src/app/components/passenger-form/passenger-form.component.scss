@@ -1,0 +1,452 @@
+/* Stili per il componente form passeggeri */
+
+.passenger-form-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.form-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 25px;
+  text-align: center;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+
+  h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1rem;
+  }
+}
+
+.reservation-timer {
+  margin-top: 20px;
+
+  .timer-alert {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 3px 10px rgba(255, 107, 107, 0.3);
+    animation: pulse 2s infinite;
+
+    .timer-icon {
+      font-size: 1.1rem;
+    }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.selected-seats-recap {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  border: 1px solid #e9ecef;
+
+  h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .seats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+
+    .seat-card {
+      background: white;
+      border: 2px solid #2196f3;
+      border-radius: 10px;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+
+      .seat-info {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+
+        .seat-number {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #1565c0;
+        }
+
+        .seat-class {
+          font-size: 0.85rem;
+          color: #666;
+          text-transform: capitalize;
+        }
+      }
+
+      .passenger-assignment {
+        background: linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%);
+        color: #1565c0;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+.user-login-section {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border: 1px solid #ffb74d;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 25px;
+
+  .login-prompt {
+    text-align: center;
+
+    p {
+      margin: 0;
+      color: #e65100;
+      font-size: 1rem;
+    }
+
+    .login-link {
+      color: #2196f3;
+      text-decoration: none;
+      font-weight: 600;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.current-user-info {
+  margin-bottom: 25px;
+
+  .user-card {
+    background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+    border: 2px solid #4caf50;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+
+    h4 {
+      margin: 0 0 5px 0;
+      color: #2e7d32;
+      font-size: 1.1rem;
+    }
+
+    p {
+      margin: 0 0 15px 0;
+      color: #388e3c;
+      font-size: 0.95rem;
+    }
+
+    .btn-link {
+      background: none;
+      border: none;
+      color: #2196f3;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0;
+
+      &:hover {
+        color: #1976d2;
+      }
+    }
+  }
+}
+
+.passengers-form {
+  .passengers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    margin-bottom: 30px;
+
+    .passenger-card {
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 3px 15px rgba(0, 0, 0, 0.05);
+      transition: all 0.3s ease;
+
+      &:hover {
+        border-color: #2196f3;
+        box-shadow: 0 5px 20px rgba(33, 150, 243, 0.1);
+      }
+
+      .passenger-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #e0e0e0;
+
+        h4 {
+          margin: 0;
+          color: #333;
+          font-size: 1.2rem;
+          font-weight: 600;
+        }
+
+        .seat-class-badge {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+      }
+
+      .passenger-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+
+          &.full-width {
+            grid-column: 1 / -1;
+          }
+
+          label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+          }
+
+          .form-control {
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: #fafafa;
+
+            &:focus {
+              outline: none;
+              border-color: #2196f3;
+              background: white;
+              box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+            }
+
+            &.error {
+              border-color: #f44336;
+              background: #ffebee;
+            }
+
+            &::placeholder {
+              color: #999;
+              font-style: italic;
+            }
+          }
+
+          select.form-control {
+            cursor: pointer;
+          }
+
+          .error-message {
+            color: #f44336;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-top: 5px;
+          }
+        }
+      }
+    }
+  }
+}
+
+.important-notes {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border: 2px solid #ffb74d;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+
+  h4 {
+    margin: 0 0 15px 0;
+    color: #e65100;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+
+    li {
+      color: #bf360c;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+  }
+}
+
+.form-actions {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+
+  .btn {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &.btn-secondary {
+      background: #6c757d;
+      color: white;
+
+      &:hover {
+        background: #5a6268;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+      }
+    }
+
+    &.btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      min-width: 250px;
+      justify-content: center;
+
+      &:hover:not([disabled]) {
+        background: linear-gradient(135deg, #5a6fd8 0%, #654a96 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      &[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+    }
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .passenger-form-container {
+    padding: 15px;
+  }
+
+  .form-header {
+    padding: 20px;
+
+    h2 {
+      font-size: 1.4rem;
+    }
+  }
+
+  .selected-seats-recap {
+    .seats-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .passengers-form {
+    .passenger-card {
+      padding: 20px;
+
+      .passenger-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+
+        h4 {
+          font-size: 1.1rem;
+        }
+      }
+
+      .passenger-form-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+    }
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 15px;
+
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .passenger-form-container {
+    padding: 10px;
+  }
+
+  .form-header {
+    padding: 15px;
+    
+    h2 {
+      font-size: 1.2rem;
+    }
+  }
+
+  .passenger-card {
+    padding: 15px !important;
+  }
+
+  .reservation-timer {
+    .timer-alert {
+      padding: 10px 15px;
+      font-size: 0.85rem;
+    }
+  }
+}

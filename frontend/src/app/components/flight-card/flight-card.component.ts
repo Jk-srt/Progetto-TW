@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { Flight } from '../../models/flight.model';
 
 @Component({
@@ -37,7 +38,16 @@ import { Flight } from '../../models/flight.model';
       
       <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
         <div class="flight-date" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
-        <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">€{{flight.price}}</div>
+        <div class="price-and-book" style="display: flex; align-items: center; gap: 16px;">
+          <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">€{{flight.price}}</div>
+          <button 
+            (click)="bookFlight()"
+            style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem;"
+            onmouseover="this.style.background='#5a67d8'"
+            onmouseout="this.style.background='#667eea'">
+            Prenota
+          </button>
+        </div>
       </div>
     </div>
   `,
@@ -45,6 +55,8 @@ import { Flight } from '../../models/flight.model';
 })
 export class FlightCardComponent {
   @Input() flight!: any;
+
+  constructor(private router: Router) {}
 
   getAirportCode(airportName: string): string {
     if (!airportName) return 'N/A';
@@ -97,6 +109,7 @@ export class FlightCardComponent {
 
   bookFlight(): void {
     console.log('Prenotazione volo:', this.flight.flight_number);
-    // Implementeremo la logica di prenotazione
+    // Naviga alla pagina di selezione posti
+    this.router.navigate(['/flights', this.flight.id, 'seats']);
   }
 }

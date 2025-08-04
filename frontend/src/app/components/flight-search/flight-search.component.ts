@@ -1,0 +1,244 @@
+import { Component, EventEmitter, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+export interface FlightSearchCriteria {
+  departure: string;
+  arrival: string;
+  departureDate: string;
+  returnDate?: string;
+  passengers: number;
+  roundTrip: boolean;
+}
+
+@Component({
+  selector: 'app-flight-search',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <div class="flight-search">
+      <div class="search-header">
+        <h2>Cerca Voli</h2>
+        <p>Trova il volo perfetto per il tuo viaggio</p>
+      </div>
+
+      <div class="search-form">
+        <div class="trip-type">
+          <label class="radio-option">
+            <input type="radio" name="tripType" [value]="false" [(ngModel)]="searchCriteria.roundTrip">
+            <span>Solo andata</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="tripType" [value]="true" [(ngModel)]="searchCriteria.roundTrip">
+            <span>Andata e ritorno</span>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="departure">Da</label>
+            <select id="departure" [(ngModel)]="searchCriteria.departure">
+              <option value="">Seleziona partenza</option>
+              <option value="Roma Fiumicino">Roma Fiumicino (FCO)</option>
+              <option value="Milano Malpensa">Milano Malpensa (MXP)</option>
+              <option value="Francoforte">Francoforte (FRA)</option>
+              <option value="Parigi CDG">Parigi CDG (CDG)</option>
+              <option value="Londra Heathrow">Londra Heathrow (LHR)</option>
+              <option value="Amsterdam">Amsterdam (AMS)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="arrival">A</label>
+            <select id="arrival" [(ngModel)]="searchCriteria.arrival">
+              <option value="">Seleziona destinazione</option>
+              <option value="Roma Fiumicino">Roma Fiumicino (FCO)</option>
+              <option value="Milano Malpensa">Milano Malpensa (MXP)</option>
+              <option value="Francoforte">Francoforte (FRA)</option>
+              <option value="Parigi CDG">Parigi CDG (CDG)</option>
+              <option value="Londra Heathrow">Londra Heathrow (LHR)</option>
+              <option value="Amsterdam">Amsterdam (AMS)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="departureDate">Data partenza</label>
+            <input type="date" id="departureDate" [(ngModel)]="searchCriteria.departureDate" [min]="today">
+          </div>
+
+          <div class="form-group" *ngIf="searchCriteria.roundTrip">
+            <label for="returnDate">Data ritorno</label>
+            <input type="date" id="returnDate" [(ngModel)]="searchCriteria.returnDate" [min]="searchCriteria.departureDate">
+          </div>
+
+          <div class="form-group">
+            <label for="passengers">Passeggeri</label>
+            <select id="passengers" [(ngModel)]="searchCriteria.passengers">
+              <option [value]="1">1 Passeggero</option>
+              <option [value]="2">2 Passeggeri</option>
+              <option [value]="3">3 Passeggeri</option>
+              <option [value]="4">4 Passeggeri</option>
+              <option [value]="5">5+ Passeggeri</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <button type="button" class="search-btn" (click)="searchFlights()" [disabled]="!isFormValid()">
+              🔍 Cerca Voli
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .flight-search {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 20px;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .search-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .search-header h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .search-header p {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 1.1rem;
+    }
+
+    .trip-type {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .radio-option input[type="radio"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      align-items: end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .form-group select,
+    .form-group input {
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+    }
+
+    .form-group select:focus,
+    .form-group input:focus {
+      outline: none;
+      background: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+    }
+
+    .search-btn {
+      padding: 12px 24px;
+      background: #48bb78;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      height: fit-content;
+    }
+
+    .search-btn:hover:not(:disabled) {
+      background: #38a169;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(72, 187, 120, 0.4);
+    }
+
+    .search-btn:disabled {
+      background: rgba(255, 255, 255, 0.3);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    @media (max-width: 768px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      
+      .trip-type {
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+    }
+  `]
+})
+export class FlightSearchComponent {
+  @Output() searchRequested = new EventEmitter<FlightSearchCriteria>();
+
+  today = new Date().toISOString().split('T')[0];
+
+  searchCriteria: FlightSearchCriteria = {
+    departure: '',
+    arrival: '',
+    departureDate: '',
+    returnDate: '',
+    passengers: 1,
+    roundTrip: false
+  };
+
+  isFormValid(): boolean {
+    return !!(
+      this.searchCriteria.departure &&
+      this.searchCriteria.arrival &&
+      this.searchCriteria.departureDate &&
+      this.searchCriteria.departure !== this.searchCriteria.arrival
+    );
+  }
+
+  searchFlights(): void {
+    if (this.isFormValid()) {
+      console.log('Ricerca voli con criteri:', this.searchCriteria);
+      this.searchRequested.emit(this.searchCriteria);
+    }
+  }
+}

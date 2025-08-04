@@ -10,7 +10,12 @@ import bcrypt from 'bcryptjs';
 import {readFile} from "node:fs/promises";
 import { DatabaseService } from './models/database';
 
-// Import routers
+// Load environment variables from workspace root .env FIRST
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+console.debug('[DEBUG] Loaded .env from', path.resolve(__dirname, '../../.env'));
+console.debug('[DEBUG] DATABASE_URL:', process.env.DATABASE_URL);
+
+// Import routers AFTER dotenv is loaded
 import adminRouter from './routes/admin';
 import flightsRouter from './routes/flights';
 import authRouter from './routes/auth';
@@ -21,11 +26,8 @@ import airlinesRouter from './routes/airlines';
 import aircraftsRouter from './routes/aircrafts';
 import bookingsRouter from './routes/bookings';
 import routePricingRouter from './routes/route-pricing';
+import seatsRouter from './routes/seats';
 
-// Load environment variables from workspace root .env
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-console.debug('[DEBUG] Loaded .env from', path.resolve(__dirname, '../../.env'));
-console.debug('[DEBUG] DATABASE_URL:', process.env.DATABASE_URL);
 console.debug('[DEBUG] Routes imported successfully');
 
 // Debug global errors
@@ -130,6 +132,64 @@ app.use((req, res, next) => {
     next();
 });
 
+// Serve static files from frontend build
+const frontendPath = process.env.NODE_ENV === 'development' && process.env.DOCKER 
+  ? '/frontend/dist/frontend/browser'
+  : path.resolve(__dirname, '../../frontend/dist/frontend/browser');
+console.debug('[DEBUG] Serving static files from:', frontendPath);
+app.use(express.static(frontendPath));
+
+// Serve index.html for Angular routes (BEFORE any other routes)
+const indexPath = process.env.NODE_ENV === 'development' && process.env.DOCKER
+  ? '/frontend/dist/frontend/browser/index.html'
+  : path.resolve(__dirname, '../../frontend/dist/frontend/browser/index.html');
+console.debug('[DEBUG] Serving index.html from:', indexPath);
+
+app.get('/debug-test-123', (req, res) => {
+    console.log('[DEBUG] ***** HIT DEBUG TEST ROUTE *****');
+    res.json({ message: 'DEBUG TEST ROUTE WORKS!' });
+});
+
+app.get('/', (req, res) => {
+    console.log('[DEBUG] ***** HIT ROOT ROUTE ***** Serving home page with index.html');
+    console.log('[DEBUG] Request headers:', req.headers);
+    console.log('[DEBUG] Request path:', req.path);
+    console.log('[DEBUG] Request original URL:', req.originalUrl);
+    console.log('[DEBUG] Index path:', indexPath);
+    
+    try {
+        res.sendFile(indexPath);
+        console.log('[DEBUG] ***** INDEX.HTML SENT SUCCESSFULLY *****');
+    } catch (error) {
+        console.error('[ERROR] Error sending index.html:', error);
+        res.status(500).send('Error loading page');
+    }
+});
+
+app.get('/flights', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.get('/flights/:id/seats', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.get('/register', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.get('/checkout', (req, res) => {
+    res.sendFile(indexPath);
+});
+
 // Authentication middleware
 function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers['authorization'];
@@ -216,9 +276,13 @@ app.use('/api/airlines', airlinesRouter);
 app.use('/api/aircrafts', aircraftsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/route-pricing', routePricingRouter);
+app.use('/api/seats', seatsRouter);
 
-// Default route
-app.get('/', (req, res) => {
+// API info route (moved after frontend routes)
+app.get('/api', (req, res) => {
+    console.log('[DEBUG] ***** HIT /api ROUTE ***** Serving API info JSON');
+    console.log('[DEBUG] Request path:', req.path);
+    console.log('[DEBUG] Request original URL:', req.originalUrl);
     res.json({
         message: 'Flight Management API',
         version: '1.0.0',
@@ -238,21 +302,20 @@ app.get('/', (req, res) => {
     });
 });
 
+// 404 handler for unmatched routes
+app.use((req, res) => {
+    if (req.originalUrl.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(indexPath);
+});
+
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('[ERROR]', err.stack);
     res.status(500).json({
         error: 'Errore interno del server',
         message: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
-    });
-});
-
-// 404 handler
-app.use((req: express.Request, res: express.Response) => {
-    res.status(404).json({
-        error: 'Endpoint non trovato',
-        path: req.originalUrl,
-        method: req.method
     });
 });
 

@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { Router, RouterOutlet, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
+import { NotificationsComponent } from './components/notifications.component';
 
 @Component({
   selector: 'app-root',
@@ -97,10 +98,13 @@ import { CommonModule } from '@angular/common';
       <main class="app-main">
         <router-outlet></router-outlet>
       </main>
+
+      <!-- Notifications Component -->
+      <app-notifications></app-notifications>
     </div>
   `,
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterModule],
+  imports: [CommonModule, RouterOutlet, RouterModule, NotificationsComponent],
   styles: [`
     .app-container {
       display: flex;
