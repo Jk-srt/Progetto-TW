@@ -80,6 +80,7 @@ import { Airport } from '../models/flight.model';
         </div>
       </div>
 
+
       <!-- Modal migliorato -->
       <div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
         <div class="modal-content" (click)="$event.stopPropagation()">
@@ -154,7 +155,7 @@ import { Airport } from '../models/flight.model';
                 <label for="estimated_duration">Durata Prevista *</label>
                 <input 
                   id="estimated_duration"
-                  type="text" 
+                  type="time" 
                   formControlName="estimated_duration" 
                   placeholder="01:30"
                 />

@@ -1005,19 +1005,27 @@ export class FlightAdminComponent implements OnInit {
 
   onRouteChange() {
     // Calcola automaticamente l'orario di arrivo quando cambia la rotta
-    this.calculateArrivalTime();
-    // Imposta automaticamente il prezzo dalla rotta
-    this.setDefaultPriceFromRoute();
+    console.log('onRouteChange called');
+    setTimeout(() => {
+      this.calculateArrivalTime();
+      // Imposta automaticamente il prezzo dalla rotta
+      this.setDefaultPriceFromRoute();
+    }, 100); // Piccolo delay per assicurare che il valore sia stato aggiornato nel form
   }
 
   onDepartureTimeChange() {
     // Calcola automaticamente l'orario di arrivo quando cambia l'orario di partenza
-    this.calculateArrivalTime();
+    console.log('onDepartureTimeChange called');
+    setTimeout(() => {
+      this.calculateArrivalTime();
+    }, 100); // Piccolo delay per assicurare che il valore sia stato aggiornato nel form
   }
 
   private calculateArrivalTime() {
     const routeId = this.flightForm.get('route_id')?.value;
     const departureTime = this.flightForm.get('departure_time')?.value;
+
+    console.log('calculateArrivalTime called with routeId:', routeId, 'departureTime:', departureTime);
 
     if (!routeId || !departureTime) {
       // Se manca la rotta o l'orario di partenza, pulisci l'orario di arrivo
@@ -1027,13 +1035,23 @@ export class FlightAdminComponent implements OnInit {
 
     // Trova la rotta selezionata
     const selectedRoute = this.routes.find(route => route.id == routeId);
-    if (!selectedRoute || !selectedRoute.estimated_duration) {
+    console.log('selectedRoute found:', selectedRoute);
+    
+    if (!selectedRoute) {
+      console.warn('Rotta non trovata per ID:', routeId);
       return;
+    }
+
+    if (!selectedRoute.estimated_duration) {
+      console.warn('Durata stimata non trovata per la rotta:', selectedRoute);
+      // Usa una durata di default di 2 ore se non specificata
+      selectedRoute.estimated_duration = '02:00:00';
     }
 
     try {
       // Calcola l'orario di arrivo
       const arrivalTime = this.addDurationToDateTime(departureTime, selectedRoute.estimated_duration);
+      console.log('Calculated arrival time:', arrivalTime);
       this.flightForm.patchValue({ arrival_time: arrivalTime });
     } catch (error) {
       console.error('Errore nel calcolo dell\'orario di arrivo:', error);
@@ -1062,16 +1080,22 @@ export class FlightAdminComponent implements OnInit {
   }
 
   private addDurationToDateTime(dateTimeString: string, duration: string): string {
-    if (!dateTimeString || !duration) return '';
+    if (!dateTimeString || !duration) {
+      console.warn('Missing dateTimeString or duration:', { dateTimeString, duration });
+      return '';
+    }
 
     try {
       const departureDate = new Date(dateTimeString);
+      console.log('Departure date parsed:', departureDate);
       
       // Parse della durata nel formato "HH:MM:SS" o "HH:MM"
       const durationParts = duration.split(':');
       const hours = parseInt(durationParts[0] || '0', 10);
       const minutes = parseInt(durationParts[1] || '0', 10);
       const seconds = parseInt(durationParts[2] || '0', 10);
+
+      console.log('Duration parsed:', { hours, minutes, seconds });
 
       // Aggiungi la durata alla data di partenza
       const arrivalDate = new Date(departureDate.getTime() + 
@@ -1080,8 +1104,12 @@ export class FlightAdminComponent implements OnInit {
         (seconds * 1000)
       );
 
+      console.log('Arrival date calculated:', arrivalDate);
+
       // Converti nel formato datetime-local
-      return arrivalDate.toISOString().slice(0, 16);
+      const result = arrivalDate.toISOString().slice(0, 16);
+      console.log('Final result:', result);
+      return result;
     } catch (error) {
       console.error('Errore nel parsing della durata:', error);
       return '';
