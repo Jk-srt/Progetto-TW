@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SeatService } from '../../services/seat.service';
+import { FlightService } from '../../services/flight.service';
 import { FlightSeatMap, SeatSelectionState } from '../../models/seat.model';
 import { Flight } from '../../models/flight.model';
 
@@ -186,6 +187,7 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
 
   constructor(
     private seatService: SeatService, 
+    private flightService: FlightService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -412,33 +414,25 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   }
 
   private loadFlightDetails(): Promise<any> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       // Se abbiamo già i dati del volo, li usiamo
       if (this.flight) {
         resolve(this.flight);
         return;
       }
 
-      // Altrimenti, simula una chiamata API per caricare i dettagli del volo
-      // In una implementazione reale, faresti una chiamata HTTP qui
-      const mockFlight = {
-        id: this.flightId,
-        flight_number: 'AZ123',
-        airline_name: 'Alitalia',
-        departure_airport: 'Leonardo da Vinci',
-        departure_code: 'FCO',
-        departure_city: 'Roma',
-        arrival_airport: 'Milano Malpensa',
-        arrival_code: 'MXP',
-        arrival_city: 'Milano',
-        departure_time: '2025-08-05T10:30:00Z',
-        arrival_time: '2025-08-05T12:00:00Z',
-        price: 89.99
-      };
-
-      setTimeout(() => {
-        resolve(mockFlight);
-      }, 500);
+      // Carica i dettagli del volo dal backend
+      const sub = this.flightService.getFlightById(this.flightId.toString()).subscribe({
+        next: (flight) => {
+          this.flight = flight;
+          resolve(flight);
+        },
+        error: (error) => {
+          console.error('Errore nel caricamento dettagli volo:', error);
+          reject(error);
+        }
+      });
+      this.subscriptions.push(sub);
     });
   }
 }

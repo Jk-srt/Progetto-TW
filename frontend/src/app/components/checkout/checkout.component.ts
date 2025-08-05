@@ -408,10 +408,21 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   getSeatPrice(seat: FlightSeatMap): number {
-    // Per ora usa il prezzo base del volo
-    // Implementa logica per prezzi diversi per classe
-    const basePrice = this.checkoutData?.flight?.price || 100;
-    return seat.seat_class === 'business' ? basePrice * 1.5 : basePrice;
+    if (!this.checkoutData?.flight) return 0;
+    
+    const flight = this.checkoutData.flight;
+    
+    // Usa i prezzi specifici per classe dal sistema route pricing + flight surcharge
+    switch (seat.seat_class) {
+      case 'economy':
+        return flight.economy_price || flight.price || 0;
+      case 'business':
+        return flight.business_price || (flight.price * 1.5) || 0;
+      case 'first':
+        return flight.first_price || (flight.price * 2) || 0;
+      default:
+        return flight.economy_price || flight.price || 0;
+    }
   }
 
   getTotalPrice(): number {

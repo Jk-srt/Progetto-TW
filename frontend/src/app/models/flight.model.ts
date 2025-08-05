@@ -27,6 +27,15 @@ export interface Flight {
   airline_id?: number;
   airline_name?: string;
   
+  // NUOVI CAMPI PER PREZZI CON ROUTE PRICING
+  flight_surcharge?: number; // Sovrapprezzo del volo specifico
+  economy_price?: number; // Prezzo finale economia (base + sovrapprezzo)
+  business_price?: number; // Prezzo finale business (base + sovrapprezzo)
+  first_price?: number; // Prezzo finale first class (base + sovrapprezzo)
+  economy_base_price?: number; // Solo prezzo base economia
+  business_base_price?: number; // Solo prezzo base business
+  first_base_price?: number; // Solo prezzo base first class
+  
   // Campi rimanenti per compatibilità
   aircraft_id?: number;
   aircraft_model?: string; // ← Per flights-view.component.ts

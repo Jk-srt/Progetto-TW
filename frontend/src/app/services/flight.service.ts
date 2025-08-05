@@ -17,7 +17,7 @@ export class FlightService {
     return {
       id: backendFlight.id.toString(),
       flightNumber: backendFlight.flight_number,
-      airline: backendFlight.airline || 'N/A',
+      airline: backendFlight.airline_name || backendFlight.airline || 'N/A',
       origin: backendFlight.departure_airport,
       destination: backendFlight.arrival_airport,
       departureTime: new Date(backendFlight.departure_time).toLocaleTimeString('it-IT', { 
@@ -33,11 +33,26 @@ export class FlightService {
       // Mantieni anche i campi originali per compatibilità
       flight_number: backendFlight.flight_number,
       departure_airport: backendFlight.departure_airport,
+      departure_city: backendFlight.departure_city,
+      departure_code: backendFlight.departure_code,
       arrival_airport: backendFlight.arrival_airport,
+      arrival_city: backendFlight.arrival_city,
+      arrival_code: backendFlight.arrival_code,
       departure_time: backendFlight.departure_time,
       arrival_time: backendFlight.arrival_time,
       available_seats: backendFlight.available_seats,
-      total_seats: backendFlight.total_seats
+      total_seats: backendFlight.total_seats,
+      airline_name: backendFlight.airline_name,
+      // NUOVI CAMPI PER PREZZI CON ROUTE PRICING
+      flight_surcharge: backendFlight.flight_surcharge,
+      economy_price: backendFlight.economy_price,
+      business_price: backendFlight.business_price,
+      first_price: backendFlight.first_price,
+      economy_base_price: backendFlight.economy_base_price,
+      business_base_price: backendFlight.business_base_price,
+      first_base_price: backendFlight.first_base_price,
+      route_id: backendFlight.route_id,
+      route_name: backendFlight.route_name
     };
   }
 
@@ -60,7 +75,10 @@ export class FlightService {
         .then(response => response.json())
         .then(flights => {
           console.log('🌐 FlightService: Fetch success:', flights);
-          observer.next(flights || []);
+          // Mappa i voli attraverso mapBackendFlight per includere i nuovi campi
+          const mappedFlights = (flights || []).map((flight: any) => this.mapBackendFlight(flight));
+          console.log('🌐 FlightService: Mapped flights:', mappedFlights);
+          observer.next(mappedFlights);
           observer.complete();
         })
         .catch(error => {

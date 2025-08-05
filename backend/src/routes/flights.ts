@@ -69,7 +69,7 @@ router.get('/search', async (req, res) => {
         fwa.flight_number,
         fwa.departure_time,
         fwa.arrival_time,
-        fwa.price,
+        fwa.price as flight_surcharge,
         fwa.total_seats,
         fwa.available_seats,
         fwa.status,
@@ -81,9 +81,24 @@ router.get('/search', async (req, res) => {
         fwa.arrival_city,
         airlines.name as airline_name,
         airlines.iata_code as airline_code,
-        fwa.route_name
+        fwa.route_name,
+        fwa.route_id,
+        -- Calcola prezzi finali per ogni classe
+        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
+        CASE 
+          WHEN rp_first.base_price IS NULL THEN 0 
+          ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
+        END as first_price,
+        -- Include anche i prezzi base per riferimento
+        rp_economy.base_price as economy_base_price,
+        rp_business.base_price as business_base_price,
+        rp_first.base_price as first_base_price
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
       WHERE fwa.status = 'scheduled'
     `;
     
@@ -158,7 +173,7 @@ router.get('/', async (req, res) => {
         fwa.route_id,
         fwa.departure_time,
         fwa.arrival_time,
-        fwa.price,
+        fwa.price as flight_surcharge,
         fwa.total_seats,
         fwa.available_seats,
         fwa.status,
@@ -177,10 +192,24 @@ router.get('/', async (req, res) => {
         airlines.iata_code as airline_code,
         aircrafts.registration as aircraft_registration,
         aircrafts.aircraft_type,
-        aircrafts.model as aircraft_model
+        aircrafts.model as aircraft_model,
+        -- Calcola prezzi finali per ogni classe
+        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
+        CASE 
+          WHEN rp_first.base_price IS NULL THEN 0 
+          ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
+        END as first_price,
+        -- Include anche i prezzi base per riferimento
+        rp_economy.base_price as economy_base_price,
+        rp_business.base_price as business_base_price,
+        rp_first.base_price as first_base_price
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
       LEFT JOIN aircrafts ON fwa.aircraft_id = aircrafts.id
+      LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
       ORDER BY fwa.departure_time ASC
     `;
     const result = await pool.query(query);
@@ -536,10 +565,25 @@ router.get('/:id', async (req, res) => {
         fwa.distance_km,
         fwa.route_duration,
         airlines.name as airline_name,
-        aircrafts.registration as aircraft_registration
+        aircrafts.registration as aircraft_registration,
+        -- Calcola prezzi finali per ogni classe
+        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
+        CASE 
+          WHEN rp_first.base_price IS NULL THEN 0 
+          ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
+        END as first_price,
+        -- Include anche i prezzi base per riferimento
+        rp_economy.base_price as economy_base_price,
+        rp_business.base_price as business_base_price,
+        rp_first.base_price as first_base_price,
+        fwa.price as flight_surcharge
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
       LEFT JOIN aircrafts ON fwa.aircraft_id = aircrafts.id
+      LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
       WHERE fwa.id = $1
     `;
     const result = await pool.query(query, [id]);
@@ -552,6 +596,52 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error fetching flight:', err);
     res.status(500).json({ error: 'Errore nel recupero del volo' });
+  }
+});
+
+// Endpoint per ottenere i prezzi dettagliati di un volo
+router.get('/:id/pricing', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT 
+        f.id as flight_id,
+        f.flight_number,
+        f.price as flight_surcharge,
+        r.route_name,
+        -- Prezzi per classe con sovrapprezzo
+        json_build_object(
+          'economy', COALESCE(rp_economy.base_price, 0) + COALESCE(f.price, 0),
+          'business', COALESCE(rp_business.base_price, 0) + COALESCE(f.price, 0),
+          'first', CASE 
+            WHEN rp_first.base_price IS NULL THEN 0 
+            ELSE rp_first.base_price + COALESCE(f.price, 0) 
+          END
+        ) as final_prices,
+        -- Prezzi base della rotta
+        json_build_object(
+          'economy', rp_economy.base_price,
+          'business', rp_business.base_price,
+          'first', rp_first.base_price
+        ) as base_prices
+      FROM flights f
+      JOIN routes r ON f.route_id = r.id
+      LEFT JOIN route_pricing rp_economy ON f.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON f.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON f.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+      WHERE f.id = $1
+    `;
+    
+    const result = await pool.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching flight pricing:', err);
+    res.status(500).json({ error: 'Errore nel recupero dei prezzi del volo' });
   }
 });
 

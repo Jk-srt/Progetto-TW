@@ -39,7 +39,19 @@ import { Flight } from '../../models/flight.model';
       <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
         <div class="flight-date" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
         <div class="price-and-book" style="display: flex; align-items: center; gap: 16px;">
-          <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">€{{flight.price}}</div>
+          <div class="pricing-info" style="text-align: right;">
+            <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">
+              da €{{getLowestPrice()}}
+            </div>
+            <div class="price-breakdown" style="font-size: 0.75rem; color: #64748b;">
+              <span *ngIf="flight.flight_surcharge && flight.flight_surcharge > 0">
+                Base + €{{flight.flight_surcharge}} sovrapprezzo
+              </span>
+              <span *ngIf="!flight.flight_surcharge || flight.flight_surcharge === 0">
+                Solo prezzo base
+              </span>
+            </div>
+          </div>
           <button 
             (click)="bookFlight()"
             style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem;"
@@ -105,6 +117,29 @@ export class FlightCardComponent {
       return `${hours}h ${minutes}m`;
     }
     return duration;
+  }
+
+  // Metodo per ottenere il prezzo più basso tra le classi disponibili
+  getLowestPrice(): number {
+    const prices = [];
+    
+    // Aggiungi i prezzi delle varie classi se disponibili
+    if (this.flight.economy_price && this.flight.economy_price > 0) {
+      prices.push(this.flight.economy_price);
+    }
+    if (this.flight.business_price && this.flight.business_price > 0) {
+      prices.push(this.flight.business_price);
+    }
+    if (this.flight.first_price && this.flight.first_price > 0) {
+      prices.push(this.flight.first_price);
+    }
+    
+    // Se non ci sono prezzi delle classi, usa il prezzo vecchio come fallback
+    if (prices.length === 0) {
+      return this.flight.price || 0;
+    }
+    
+    return Math.min(...prices);
   }
 
   bookFlight(): void {

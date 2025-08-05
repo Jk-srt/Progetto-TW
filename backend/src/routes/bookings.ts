@@ -98,12 +98,24 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             const seat = seatCheck.rows[0];
 
-            // Calcola il prezzo per questo posto
-            let seatPrice = flight.price; // Prezzo base
+            // Calcola il prezzo per questo posto usando i nuovi prezzi del route_pricing
             const seatClass = seat.seat_class;
-            // Aggiungi maggiorazione per classe business/premium
-            if (seatClass === 'business') seatPrice *= 1.5;
-            else if (seatClass === 'first') seatPrice *= 2.0;
+            let seatPrice = 0;
+
+            // Usa i prezzi calcolati dal sistema route_pricing + flight_surcharge
+            switch (seatClass) {
+                case 'economy':
+                    seatPrice = flight.economy_price || flight.price || 0;
+                    break;
+                case 'business':
+                    seatPrice = flight.business_price || flight.price * 1.5 || 0;
+                    break;
+                case 'first':
+                    seatPrice = flight.first_price || flight.price * 2.0 || 0;
+                    break;
+                default:
+                    seatPrice = flight.economy_price || flight.price || 0;
+            }
 
             // Inserisce la prenotazione nella struttura esistente
             const bookingResult = await pool.query(
