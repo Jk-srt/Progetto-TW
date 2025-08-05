@@ -111,12 +111,24 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             const seat = seatCheck.rows[0];
 
-            // Calcola il prezzo per questo posto
-            let seatPrice = flight.price; // Prezzo base
+            // Calcola il prezzo per questo posto usando i nuovi prezzi del route_pricing
             const seatClass = seat.seat_class;
-            // Aggiungi maggiorazione per classe business/premium
-            if (seatClass === 'business') seatPrice *= 1.5;
-            else if (seatClass === 'first') seatPrice *= 2.0;
+            let seatPrice = 0;
+
+            // Usa i prezzi calcolati dal sistema route_pricing + flight_surcharge
+            switch (seatClass) {
+                case 'economy':
+                    seatPrice = flight.economy_price || flight.price || 0;
+                    break;
+                case 'business':
+                    seatPrice = flight.business_price || flight.price * 1.5 || 0;
+                    break;
+                case 'first':
+                    seatPrice = flight.first_price || flight.price * 2.0 || 0;
+                    break;
+                default:
+                    seatPrice = flight.economy_price || flight.price || 0;
+            }
 
             // Inserisce la prenotazione nella struttura esistente
             const bookingResult = await pool.query(
@@ -244,6 +256,111 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
         res.status(500).json({ 
             success: false,
             message: 'Errore nel recupero delle prenotazioni utente',
+            error: (err as Error).message 
+        });
+    }
+});
+
+// DELETE: Cancella una prenotazione (richiede autenticazione)
+router.delete('/:bookingId', authenticateToken, async (req: AuthRequest, res: express.Response) => {
+    console.log('🗑️ DELETE /bookings/:bookingId - Cancel booking request');
+    console.log('Booking ID:', req.params.bookingId);
+    console.log('User ID:', req.userId);
+    
+    try {
+        const userId = req.userId as number;
+        const bookingId = parseInt(req.params.bookingId);
+
+        if (isNaN(bookingId)) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'ID prenotazione non valido' 
+            });
+        }
+
+        // Verifica che la prenotazione appartenga all'utente e sia cancellabile
+        const checkQuery = `
+            SELECT 
+                b.id,
+                b.booking_reference,
+                b.booking_status,
+                f.departure_time
+            FROM bookings b
+            JOIN flights f ON b.flight_id = f.id
+            WHERE b.id = $1 AND b.user_id = $2
+        `;
+        
+        const checkResult = await pool.query(checkQuery, [bookingId, userId]);
+        
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'Prenotazione non trovata o non autorizzata' 
+            });
+        }
+
+        const booking = checkResult.rows[0];
+        
+        // Verifica se la prenotazione è già cancellata
+        if (booking.booking_status === 'cancelled') {
+            return res.status(400).json({ 
+                success: false,
+                message: 'La prenotazione è già stata cancellata' 
+            });
+        }
+
+        // Verifica se è possibile cancellare (almeno 24 ore prima della partenza)
+        const departureTime = new Date(booking.departure_time);
+        const now = new Date();
+        const hoursUntilDeparture = (departureTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursUntilDeparture <= 24) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'Impossibile cancellare: rimangono meno di 24 ore alla partenza' 
+            });
+        }
+
+        // Aggiorna lo status della prenotazione a 'cancelled'
+        const updateQuery = `
+            UPDATE bookings 
+            SET booking_status = 'cancelled',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND user_id = $2
+        `;
+        
+        await pool.query(updateQuery, [bookingId, userId]);
+
+        // Libera il posto se era riservato
+        const releaseSeatQuery = `
+            UPDATE aircraft_seats 
+            SET seat_status = 'available'
+            WHERE id = (
+                SELECT seat_id FROM bookings 
+                WHERE id = $1 AND user_id = $2
+            )
+            AND seat_status = 'booked'
+        `;
+        
+        await pool.query(releaseSeatQuery, [bookingId, userId]);
+
+        console.log('✅ Booking cancelled successfully:', booking.booking_reference);
+        
+        res.json({ 
+            success: true,
+            message: `Prenotazione ${booking.booking_reference} cancellata con successo`,
+            data: {
+                booking_id: bookingId,
+                booking_reference: booking.booking_reference,
+                status: 'cancelled'
+            }
+        });
+        
+    } catch (err) {
+        console.error('❌ Error cancelling booking:', err);
+        res.status(500).json({ 
+            success: false,
+            message: 'Errore nella cancellazione della prenotazione',
             error: (err as Error).message 
         });
     }

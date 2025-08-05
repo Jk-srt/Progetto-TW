@@ -82,12 +82,20 @@ export interface Flight {
     arrival_city?: string;
     departure_time: Date;
     arrival_time: Date;
-    price: number;
+    price: number; // Manteniamo per compatibilità (ora è il flight_surcharge)
     available_seats: number;
     total_seats: number;
     status: 'scheduled' | 'delayed' | 'cancelled' | 'completed';
     created_at: Date;
     updated_at: Date;
+    // NUOVI CAMPI PER PREZZI CON ROUTE PRICING
+    flight_surcharge?: number; // Sovrapprezzo del volo specifico
+    economy_price?: number; // Prezzo finale economia (base + sovrapprezzo)
+    business_price?: number; // Prezzo finale business (base + sovrapprezzo)
+    first_price?: number; // Prezzo finale first class (base + sovrapprezzo)
+    economy_base_price?: number; // Solo prezzo base economia
+    business_base_price?: number; // Solo prezzo base business
+    first_base_price?: number; // Solo prezzo base first class
 }
 
 export interface Booking {
@@ -472,17 +480,31 @@ export class DatabaseService {
                 fwa.route_name,
                 fwa.departure_time,
                 fwa.arrival_time,
-                fwa.price,
+                fwa.price as flight_surcharge,
                 fwa.available_seats,
                 fwa.total_seats,
                 fwa.status,
                 fwa.created_at,
                 fwa.updated_at,
                 al.name as airline_name,
-                ac.registration as aircraft_registration
+                ac.registration as aircraft_registration,
+                -- Calcola prezzi finali per ogni classe
+                COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+                COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
+                CASE 
+                  WHEN rp_first.base_price IS NULL THEN 0 
+                  ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
+                END as first_price,
+                -- Include anche i prezzi base per riferimento
+                rp_economy.base_price as economy_base_price,
+                rp_business.base_price as business_base_price,
+                rp_first.base_price as first_base_price
             FROM flights_with_airports fwa
             LEFT JOIN airlines al ON fwa.airline_id = al.id
             LEFT JOIN aircrafts ac ON fwa.aircraft_id = ac.id
+            LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+            LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+            LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
             WHERE fwa.id = $1
         `;
         const result = await this.pool.query(query, [id]);
@@ -507,12 +529,20 @@ export class DatabaseService {
             arrival_city: row.arrival_city,
             departure_time: row.departure_time,
             arrival_time: row.arrival_time,
-            price: row.price,
+            price: row.flight_surcharge, // Sovrapprezzo del volo
             available_seats: row.available_seats,
             total_seats: row.total_seats,
             status: row.status,
             created_at: row.created_at,
-            updated_at: row.updated_at
+            updated_at: row.updated_at,
+            // NUOVI CAMPI PER PREZZI CON ROUTE PRICING
+            flight_surcharge: row.flight_surcharge,
+            economy_price: row.economy_price,
+            business_price: row.business_price,
+            first_price: row.first_price,
+            economy_base_price: row.economy_base_price,
+            business_base_price: row.business_base_price,
+            first_base_price: row.first_base_price
         };
     }
 
