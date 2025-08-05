@@ -127,7 +127,10 @@ import { User } from '../models/user.model';
               <td>{{formatDateTime(flight.departure_time)}}</td>
               <td>{{formatDateTime(flight.arrival_time)}}</td>
               <td class="price">
-                €{{flight.price}}
+                <div *ngIf="getFlightPriceRange(flight); else noPrice">
+                  €{{getFlightPriceRange(flight)}}
+                </div>
+                <ng-template #noPrice>N/A</ng-template>
               </td>
               <td class="seats">
                 <span class="available">{{flight.available_seats}}</span>
@@ -1153,6 +1156,33 @@ export class FlightAdminComponent implements OnInit {
       });
     } catch (error) {
       return 'Data non valida';
+    }
+  }
+
+  getFlightPriceRange(flight: Flight): string {
+    const prices: number[] = [];
+    
+    if (flight.economy_price && flight.economy_price > 0) {
+      prices.push(flight.economy_price);
+    }
+    if (flight.business_price && flight.business_price > 0) {
+      prices.push(flight.business_price);
+    }
+    if (flight.first_price && flight.first_price > 0) {
+      prices.push(flight.first_price);
+    }
+    
+    if (prices.length === 0) {
+      return 'N/A';
+    }
+    
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    
+    if (minPrice === maxPrice) {
+      return minPrice.toString();
+    } else {
+      return `${minPrice} - ${maxPrice}`;
     }
   }
 
