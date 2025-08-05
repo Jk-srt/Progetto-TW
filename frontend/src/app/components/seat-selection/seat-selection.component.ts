@@ -296,49 +296,47 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   }
 
   onSeatClick(seat: FlightSeatMap): void {
-    if (!this.canSelectSeat(seat)) return;
+    console.log('🖱️ Seat clicked:', seat);
+    console.log('🔍 Can select seat:', this.canSelectSeat(seat));
+    console.log('🔍 Seat status:', seat.seat_status);
+    console.log('🔍 Is airline user:', this.isAirlineUser);
+    console.log('🔑 JWT Token exists:', !!localStorage.getItem('token'));
+    console.log('🔑 JWT Token value:', localStorage.getItem('token'));
+    console.log('👤 User logged in:', !!localStorage.getItem('user'));
+    
+    if (!this.canSelectSeat(seat)) {
+      console.log('❌ Cannot select seat');
+      return;
+    }
 
     if (this.isSelected(seat.seat_id)) {
+      console.log('🗑️ Removing seat');
       this.removeSeat(seat.seat_id);
     } else {
+      console.log('✅ Selecting seat');
       this.selectSeat(seat);
     }
   }
 
   private selectSeat(seat: FlightSeatMap): void {
-    const sub = this.seatService.reserveSeat(this.flightId, seat.seat_id).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.seatService.addSeatToSelection(seat);
-          if (response.reservation_expires) {
-            this.seatService.setReservationExpiry(new Date(response.reservation_expires));
-          }
-          // Ricarica la mappa per aggiornare gli stati
-          this.loadSeatMap();
-        } else {
-          alert('Impossibile selezionare il posto: ' + response.message);
-        }
-      },
-      error: (error) => {
-        console.error('Errore nella selezione posto:', error);
-        alert('Errore nella selezione del posto');
-      }
-    });
-    this.subscriptions.push(sub);
+    console.log('🎯 SelectSeat called with:', seat);
+    // Usa il nuovo sistema automatico di prenotazione temporanea
+    this.seatService.addSeatToSelection(seat);
+    
+    // Ricarica la mappa per aggiornare gli stati
+    setTimeout(() => {
+      this.loadSeatMap();
+    }, 100);
   }
 
   removeSeat(seatId: number): void {
-    const sub = this.seatService.releaseSeat(this.flightId, seatId).subscribe({
-      next: () => {
-        this.seatService.removeSeatFromSelection(seatId);
-        // Ricarica la mappa per aggiornare gli stati
-        this.loadSeatMap();
-      },
-      error: (error) => {
-        console.error('Errore nel rilascio posto:', error);
-      }
-    });
-    this.subscriptions.push(sub);
+    // Usa il nuovo sistema automatico di rilascio prenotazione temporanea
+    this.seatService.removeSeatFromSelection(seatId);
+    
+    // Ricarica la mappa per aggiornare gli stati
+    setTimeout(() => {
+      this.loadSeatMap();
+    }, 100);
   }
 
   clearSelection(): void {

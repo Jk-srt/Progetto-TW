@@ -27,6 +27,7 @@ import aircraftsRouter from './routes/aircrafts';
 import bookingsRouter from './routes/bookings';
 import routePricingRouter from './routes/route-pricing';
 import seatsRouter from './routes/seats';
+import seatReservationsRouter from './routes/seat-reservations';
 
 console.debug('[DEBUG] Routes imported successfully');
 
@@ -232,6 +233,7 @@ app.use('/api/aircrafts', aircraftsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/route-pricing', routePricingRouter);
 app.use('/api/seats', seatsRouter);
+app.use('/api/seat-reservations', seatReservationsRouter);
 
 // API info route (moved after frontend routes)
 app.get('/api', (req, res) => {

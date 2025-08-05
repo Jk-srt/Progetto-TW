@@ -1,8 +1,0 @@
-{
-  "devDependencies": {
-    "@types/morgan": "^1.9.10"
-  },
-  "dependencies": {
-    "typescript": "^5.8.3"
-  }
-}

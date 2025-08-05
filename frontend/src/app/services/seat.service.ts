@@ -57,10 +57,18 @@ export class SeatService {
   }
 
   private getHeaders(): HttpHeaders {
-    return new HttpHeaders({
+    const headers: any = {
       'Content-Type': 'application/json',
       'X-Session-Id': this.sessionId
-    });
+    };
+    
+    // Aggiungi il token JWT se disponibile
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return new HttpHeaders(headers);
   }
 
   // Setup listener per cambiamenti di autenticazione
@@ -106,12 +114,12 @@ export class SeatService {
   reserveSeat(flightId: number, seatId: number, userId?: number): Observable<SeatReservationResponse> {
     const data = {
       flight_id: flightId,
-      seat_id: seatId,
-      session_id: this.sessionId,
-      user_id: userId
+      seat_ids: [seatId], // Cambiato da seat_id a seat_ids per compatibilità con nuovo endpoint
+      session_id: this.sessionId
     };
 
-    return this.http.post<SeatReservationResponse>(`${this.baseUrl}/reserve`, data);
+    const headers = this.getHeaders();
+    return this.http.post<SeatReservationResponse>(`${environment.apiUrl}/seat-reservations/reserve`, data, { headers });
   }
 
   /**
@@ -163,20 +171,68 @@ export class SeatService {
   }
 
   /**
+   * Crea una prenotazione temporanea per i posti selezionati
+   */
+  createTemporaryReservation(flightId: number, seatIds: number[]): Observable<any> {
+    const data = {
+      flight_id: flightId,
+      seat_ids: seatIds,
+      session_id: this.sessionId
+    };
+    
+    const headers = this.getHeaders();
+    return this.http.post(`${environment.apiUrl}/seat-reservations/reserve`, data, { headers });
+  }
+
+  /**
+   * Rilascia le prenotazioni temporanee
+   */
+  releaseTemporaryReservations(flightId?: number, seatIds?: number[]): Observable<any> {
+    const data: any = {
+      session_id: this.sessionId
+    };
+    
+    if (flightId) data.flight_id = flightId;
+    if (seatIds) data.seat_ids = seatIds;
+    
+    const headers = this.getHeaders();
+    return this.http.post(`${environment.apiUrl}/seat-reservations/release`, data, { headers });
+  }
+
+  /**
    * Aggiunge un posto alla selezione corrente
    */
   addSeatToSelection(seat: FlightSeatMap): void {
+    console.log('🎯 Adding seat to selection:', seat);
     const currentState = this.seatSelectionState.value;
     const existingIndex = currentState.selectedSeats.findIndex(s => s.seat_id === seat.seat_id);
     
     if (existingIndex === -1) {
       const newSelectedSeats = [...currentState.selectedSeats, seat];
       
+      // Aggiorna lo stato locale
       this.seatSelectionState.next({
         ...currentState,
         selectedSeats: newSelectedSeats,
         passengers: this.adjustPassengersArray(newSelectedSeats.length, currentState.passengers)
       });
+
+      // Crea prenotazione temporanea per questo posto
+      if (seat.flight_id) {
+        console.log('🔄 Creating temporary reservation for seat:', seat.seat_number);
+        console.log('🔑 Token available:', !!localStorage.getItem('token'));
+        
+        this.createTemporaryReservation(seat.flight_id, [seat.seat_id]).subscribe({
+          next: (response) => {
+            console.log('✅ Temporary reservation created for seat', seat.seat_number, response);
+          },
+          error: (error) => {
+            console.error('❌ Error creating temporary reservation:', error);
+            // In caso di errore, rimuovi il posto dalla selezione
+            this.removeSeatFromSelection(seat.seat_id);
+          }
+        });
+      }
     }
   }
 
@@ -185,13 +241,27 @@ export class SeatService {
    */
   removeSeatFromSelection(seatId: number): void {
     const currentState = this.seatSelectionState.value;
+    const seatToRemove = currentState.selectedSeats.find(s => s.seat_id === seatId);
     const newSelectedSeats = currentState.selectedSeats.filter(s => s.seat_id !== seatId);
     
+    // Aggiorna lo stato locale
     this.seatSelectionState.next({
       ...currentState,
       selectedSeats: newSelectedSeats,
       passengers: this.adjustPassengersArray(newSelectedSeats.length, currentState.passengers)
     });
+
+    // Rilascia prenotazione temporanea per questo posto
+    if (seatToRemove && seatToRemove.flight_id) {
+      this.releaseTemporaryReservations(seatToRemove.flight_id, [seatId]).subscribe({
+        next: (response) => {
+          console.log('✅ Temporary reservation released for seat', seatToRemove.seat_number);
+        },
+        error: (error) => {
+          console.error('❌ Error releasing temporary reservation:', error);
+        }
+      });
+    }
   }
 
   /**

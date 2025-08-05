@@ -83,6 +83,19 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                 });
             }
 
+            // Verifica che l'utente abbia una riserva temporanea valida per questo posto
+            const tempReservation = await pool.query(
+                'SELECT id FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2 AND seat_id = $3 AND expires_at > NOW()',
+                [userId, flight_id, passenger.seat_id]
+            );
+
+            if (tempReservation.rows.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Il posto ${passenger.seat_id} non è più riservato per te. La riserva potrebbe essere scaduta.`
+                });
+            }
+
             // Verifica che il posto sia effettivamente disponibile
             const seatCheck = await pool.query(
                 'SELECT id, seat_class FROM aircraft_seats WHERE id = $1',
@@ -130,6 +143,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
             await pool.query(
                 'UPDATE aircraft_seats SET status = $1 WHERE id = $2',
                 ['occupied', passenger.seat_id]
+            );
+
+            // Rimuovi la riserva temporanea ora che la prenotazione è confermata
+            await pool.query(
+                'DELETE FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2 AND seat_id = $3',
+                [userId, flight_id, passenger.seat_id]
             );
 
             createdBookings.push(bookingResult.rows[0]);

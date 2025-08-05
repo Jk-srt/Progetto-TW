@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { FlightSeatMap, SeatReservationRequest, SeatBookingRequest } from '../models/seat';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -64,15 +65,29 @@ router.get('/flight/:flightId', authenticateOptional, async (req: Request, res: 
   try {
     const { flightId } = req.params;
     const sessionId = req.headers['x-session-id'] as string || generateSessionId();
+    const userId = (req as any).userId;
 
     // Pulisci prenotazioni scadute prima di restituire la mappa
-    await pool.query('SELECT cleanup_expired_reservations()');
+    await pool.query('DELETE FROM temporary_seat_reservations WHERE expires_at < NOW()');
 
+    // Query aggiornata per includere riserve temporanee
     const result = await pool.query(`
-      SELECT * FROM flight_seat_map 
-      WHERE flight_id = $1 
-      ORDER BY seat_row, seat_column
-    `, [flightId]);
+      SELECT 
+        s.*,
+        CASE 
+          WHEN b.id IS NOT NULL THEN 'occupied'
+          WHEN tr.id IS NOT NULL AND tr.user_id != $2 THEN 'temporarily_reserved'
+          WHEN tr.id IS NOT NULL AND tr.user_id = $2 THEN 'my_reservation'
+          ELSE s.seat_status
+        END as actual_status,
+        tr.expires_at as reservation_expires,
+        tr.user_id = $2 as is_my_reservation
+      FROM flight_seat_map s
+      LEFT JOIN bookings b ON s.flight_id = b.flight_id AND s.seat_id = b.seat_id
+      LEFT JOIN temporary_seat_reservations tr ON s.flight_id = tr.flight_id AND s.seat_id = tr.seat_id AND tr.expires_at > NOW()
+      WHERE s.flight_id = $1 
+      ORDER BY s.seat_row, s.seat_column
+    `, [flightId, userId || 0]);
 
     const seatMap: FlightSeatMap[] = result.rows;
 
@@ -93,7 +108,12 @@ router.get('/flight/:flightId', authenticateOptional, async (req: Request, res: 
 });
 
 // POST /api/seats/reserve - Riserva temporaneamente un posto
-router.post('/reserve', authenticateOptional, preventAirlineBooking, async (req: Request, res: Response) => {
+router.post('/reserve', authenticateToken, preventAirlineBooking, async (req: AuthRequest, res: Response) => {
+  console.log('🔥🔥🔥 OLD SEATS RESERVE API CALLED - /seats/reserve 🔥🔥🔥');
+  console.log('🔍 Request body:', req.body);
+  console.log('🔍 req.user:', (req as any).user);
+  console.log('🔍 req.userId:', (req as any).userId);
+  
   try {
     const { flight_id, seat_id, session_id, user_id }: SeatReservationRequest = req.body;
 
