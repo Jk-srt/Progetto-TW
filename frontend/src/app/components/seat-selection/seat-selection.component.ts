@@ -48,6 +48,10 @@ import { Flight } from '../../models/flight.model';
           <span>Selezionato</span>
         </div>
         <div class="legend-item">
+          <div class="seat-icon my-reservation"></div>
+          <span>Tua riserva (15 min)</span>
+        </div>
+        <div class="legend-item">
           <div class="seat-icon temporarily-reserved"></div>
           <span>Riservato (altri)</span>
         </div>
@@ -81,10 +85,11 @@ import { Flight } from '../../models/flight.model';
                       *ngFor="let seat of row.leftSeats" 
                       class="seat"
                       [ngClass]="{
-                        'available': seat.seat_status === 'available',
+                        'available': (seat.actual_status || seat.seat_status) === 'available',
                         'selected': isSelected(seat.seat_id),
-                        'temporarily-reserved': seat.seat_status === 'temporarily_reserved' && !isSelectedByMe(seat),
-                        'booked': seat.seat_status === 'booked',
+                        'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
+                        'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
+                        'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
                         'window': seat.is_window,
                         'aisle': seat.is_aisle,
                         'emergency': seat.is_emergency_exit,
@@ -106,10 +111,11 @@ import { Flight } from '../../models/flight.model';
                       *ngFor="let seat of row.rightSeats" 
                       class="seat"
                       [ngClass]="{
-                        'available': seat.seat_status === 'available',
+                        'available': (seat.actual_status || seat.seat_status) === 'available',
                         'selected': isSelected(seat.seat_id),
-                        'temporarily-reserved': seat.seat_status === 'temporarily_reserved' && !isSelectedByMe(seat),
-                        'booked': seat.seat_status === 'booked',
+                        'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
+                        'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
+                        'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
                         'window': seat.is_window,
                         'aisle': seat.is_aisle,
                         'emergency': seat.is_emergency_exit,
@@ -352,8 +358,8 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
       return false;
     }
     
-    return seat.seat_status === 'available' || 
-           (seat.seat_status === 'temporarily_reserved' && this.isSelectedByMe(seat));
+    const status = seat.actual_status || seat.seat_status;
+    return status === 'available' || status === 'my_reservation';
   }
 
   isSelected(seatId: number): boolean {
@@ -361,7 +367,7 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   }
 
   isSelectedByMe(seat: FlightSeatMap): boolean {
-    return seat.reserved_by_session === this.selectionState.sessionId;
+    return seat.is_my_reservation || seat.reserved_by_session === this.selectionState.sessionId;
   }
 
   getSeatTooltip(seat: FlightSeatMap): string {
@@ -371,18 +377,19 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
     if (seat.is_aisle) tooltip += ' (Corridoio)';
     if (seat.is_emergency_exit) tooltip += ' (Uscita emergenza)';
     
-    switch (seat.seat_status) {
+    const status = seat.actual_status || seat.seat_status;
+    switch (status) {
       case 'available':
         tooltip += ' - Disponibile';
         break;
       case 'temporarily_reserved':
-        if (this.isSelectedByMe(seat)) {
-          tooltip += ' - Selezionato da te';
-        } else {
-          tooltip += ' - Riservato temporaneamente';
-        }
+        tooltip += ' - Riservato temporaneamente da altro utente';
+        break;
+      case 'my_reservation':
+        tooltip += ' - Riservato da te (15 min)';
         break;
       case 'booked':
+      case 'occupied':
         tooltip += ' - Occupato';
         break;
     }

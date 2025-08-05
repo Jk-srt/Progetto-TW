@@ -70,24 +70,25 @@ router.get('/flight/:flightId', authenticateOptional, async (req: Request, res: 
     // Pulisci prenotazioni scadute prima di restituire la mappa
     await pool.query('DELETE FROM temporary_seat_reservations WHERE expires_at < NOW()');
 
-    // Query aggiornata per includere riserve temporanee
+    // Query aggiornata per includere riserve temporanee (anche per ospiti con session_id)
     const result = await pool.query(`
       SELECT 
         s.*,
         CASE 
           WHEN b.id IS NOT NULL THEN 'occupied'
-          WHEN tr.id IS NOT NULL AND tr.user_id != $2 THEN 'temporarily_reserved'
-          WHEN tr.id IS NOT NULL AND tr.user_id = $2 THEN 'my_reservation'
+          WHEN tr.id IS NOT NULL AND (tr.user_id != $2 OR (tr.user_id IS NULL AND tr.session_id != $3)) THEN 'temporarily_reserved'
+          WHEN tr.id IS NOT NULL AND (tr.user_id = $2 OR (tr.user_id IS NULL AND tr.session_id = $3)) THEN 'my_reservation'
           ELSE s.seat_status
         END as actual_status,
         tr.expires_at as reservation_expires,
-        tr.user_id = $2 as is_my_reservation
+        (tr.user_id = $2 OR (tr.user_id IS NULL AND tr.session_id = $3)) as is_my_reservation,
+        tr.session_id as reservation_session
       FROM flight_seat_map s
       LEFT JOIN bookings b ON s.flight_id = b.flight_id AND s.seat_id = b.seat_id
       LEFT JOIN temporary_seat_reservations tr ON s.flight_id = tr.flight_id AND s.seat_id = tr.seat_id AND tr.expires_at > NOW()
       WHERE s.flight_id = $1 
       ORDER BY s.seat_row, s.seat_column
-    `, [flightId, userId || 0]);
+    `, [flightId, userId || 0, sessionId]);
 
     const seatMap: FlightSeatMap[] = result.rows;
 
