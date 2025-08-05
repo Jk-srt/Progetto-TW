@@ -680,11 +680,11 @@ GET /api/flights?status=delayed&includeDelayMinutes=true
 
 Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per i dettagli.
 
-## 👨‍💻 Autore
+## 👨‍💻 Autori
 
-**Federico Riato** - Progetto Tecnologie Web
-**Alessandro Sartori** - Progetto Tecnologie Web
-**Federico Vedovotto** - Progetto Tecnologie Web
+- **Federico Riato** - Progetto Tecnologie Web
+- **Alessandro Sartori** - Progetto Tecnologie Web  
+- **Federico Vedovotto** - Progetto Tecnologie Web
 
 
 ## 🔮 Roadmap Future
