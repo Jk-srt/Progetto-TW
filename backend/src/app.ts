@@ -132,62 +132,17 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serve static files from frontend build
-const frontendPath = process.env.NODE_ENV === 'development' && process.env.DOCKER 
-  ? '/frontend/dist/frontend/browser'
-  : path.resolve(__dirname, '../../frontend/dist/frontend/browser');
-console.debug('[DEBUG] Serving static files from:', frontendPath);
-app.use(express.static(frontendPath));
+// Backend API only - no static file serving
 
-// Serve index.html for Angular routes (BEFORE any other routes)
-const indexPath = process.env.NODE_ENV === 'development' && process.env.DOCKER
-  ? '/frontend/dist/frontend/browser/index.html'
-  : path.resolve(__dirname, '../../frontend/dist/frontend/browser/index.html');
-console.debug('[DEBUG] Serving index.html from:', indexPath);
-
-app.get('/debug-test-123', (req, res) => {
-    console.log('[DEBUG] ***** HIT DEBUG TEST ROUTE *****');
-    res.json({ message: 'DEBUG TEST ROUTE WORKS!' });
-});
-
-app.get('/', (req, res) => {
-    console.log('[DEBUG] ***** HIT ROOT ROUTE ***** Serving home page with index.html');
-    console.log('[DEBUG] Request headers:', req.headers);
-    console.log('[DEBUG] Request path:', req.path);
-    console.log('[DEBUG] Request original URL:', req.originalUrl);
-    console.log('[DEBUG] Index path:', indexPath);
-    
-    try {
-        res.sendFile(indexPath);
-        console.log('[DEBUG] ***** INDEX.HTML SENT SUCCESSFULLY *****');
-    } catch (error) {
-        console.error('[ERROR] Error sending index.html:', error);
-        res.status(500).send('Error loading page');
-    }
-});
-
-app.get('/flights', (req, res) => {
-    res.sendFile(indexPath);
-});
-
-app.get('/flights/:id/seats', (req, res) => {
-    res.sendFile(indexPath);
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(indexPath);
-});
-
-app.get('/register', (req, res) => {
-    res.sendFile(indexPath);
-});
-
-app.get('/admin', (req, res) => {
-    res.sendFile(indexPath);
-});
-
-app.get('/checkout', (req, res) => {
-    res.sendFile(indexPath);
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    console.log('[DEBUG] Health check endpoint called');
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        port: PORT,
+        database: 'PostgreSQL'
+    });
 });
 
 // Authentication middleware
@@ -302,12 +257,13 @@ app.get('/api', (req, res) => {
     });
 });
 
-// 404 handler for unmatched routes
+// 404 handler for unmatched API routes
 app.use((req, res) => {
     if (req.originalUrl.startsWith('/api/')) {
         return res.status(404).json({ error: 'API endpoint not found' });
     }
-    res.sendFile(indexPath);
+    // For non-API routes, return 404 since this is backend only
+    res.status(404).json({ error: 'Backend API only - use frontend container for web interface' });
 });
 
 // Error handling middleware

@@ -2,12 +2,13 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { Flight, Airport, Airline, Aircraft, FlightFormData } from '../models/flight.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class FlightAdminService {
-  private readonly API_URL = 'http://localhost:3000/api/flights';
+  private readonly API_URL = `${environment.apiUrl}/flights`;
   
   // Subject per aggiornamenti in tempo reale
   private flightsSubject = new BehaviorSubject<Flight[]>([]);
@@ -106,7 +107,7 @@ export class FlightAdminService {
   // Ottieni gli aerei di una compagnia specifica
   getAircraftsByAirline(airlineId: number): Observable<Aircraft[]> {
     const headers = this.getAuthHeaders();
-    return this.http.get<Aircraft[]>(`http://localhost:3000/api/airlines/${airlineId}/aircrafts`, { headers });
+    return this.http.get<Aircraft[]>(`${environment.apiUrl}/airlines/${airlineId}/aircrafts`, { headers });
   }
 
   // Aggiorna la lista locale

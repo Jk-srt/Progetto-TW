@@ -9,12 +9,13 @@ import {
   PassengerData,
   SeatSelectionState 
 } from '../models/seat.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SeatService {
-  private baseUrl = 'http://localhost:3000/api/seats';
+  private baseUrl = `${environment.apiUrl}/seats`;
   private sessionId: string;
   
   // Subject per gestire lo stato di selezione posti

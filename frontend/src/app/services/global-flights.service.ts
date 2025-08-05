@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -38,7 +39,7 @@ export class GlobalFlightsService {
   loadFlightsGlobally(): Promise<any[]> {
     console.log('🌍 GlobalFlightsService: Loading flights globally...');
     
-    return fetch('http://localhost:3000/api/flights')
+    return fetch(`${environment.apiUrl}/flights`)
       .then(response => response.json())
       .then(flights => {
         console.log('🌍 GlobalFlightsService: Fetch SUCCESS:', flights.length, 'flights');
