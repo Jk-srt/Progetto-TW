@@ -14,12 +14,25 @@ Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnol
 
 ### 🎯 Funzionalità Core
 - **Gestione Voli Completa**: Visualizzazione, ricerca, filtraggio e amministrazione voli
+- **🆕 Sistema Stati Avanzato**: Gestione completa stati voli (programmato, ritardato, cancellato, completato)
+- **⏰ Gestione Ritardi**: Calcolo automatico e visualizzazione ritardi con indicatori visivi
+- **🚫 Controllo Prenotazioni**: Restrizioni intelligenti basate su stato volo (cancellato = non prenotabile)
 - **Sistema di Amministrazione Voli**: Pannello dedicato per compagnie aeree con gestione CRUD completa
+- **💰 Pricing Dinamico**: Visualizzazione range prezzi reali (economia, business, first class)
 - **Autenticazione Multi-Ruolo**: Sistema JWT con utenti, admin e compagnie aeree
 - **Dashboard Compagnie**: Interfaccia dedicata per la gestione dei voli delle compagnie
 - **Sistema Prenotazioni**: Prenotazione voli con gestione posti e tracking
 - **Database Cloud**: Integrazione con Neon PostgreSQL per performance ottimali
 - **API RESTful Completa**: Endpoints per tutte le operazioni CRUD
+
+### 🆕 Nuove Funzionalità (v3.1) - Sistema Stato Voli Avanzato
+- **🚨 Gestione Stati Voli**: Sistema completo per gestire cancellazioni, ritardi e completamenti
+- **⏰ Calcolo Ritardi**: Visualizzazione automatica dei minuti di ritardo per voli delayed
+- **🚫 Restrizioni Prenotazione**: Voli cancellati non prenotabili, voli ritardati con avvisi
+- **📊 Indicatori Visivi**: Badge colorati per stati (Programmato, Ritardato, Cancellato, Completato)
+- **🔧 Gestione Admin**: Pannello compagnie aeree per aggiungere ritardi e gestire stati
+- **📈 Prezzi Reali**: Visualizzazione range prezzi calcolati invece del solo sovrapprezzo
+- **🎯 UX Migliorata**: Interfaccia intuitiva con colori e icone per ogni stato volo
 
 ### 🆕 Nuove Funzionalità (v3.0) - Sistema Rotte
 - **�️ Gestione Rotte**: Sistema normalizzato con rotte predefinite per le compagnie aeree
@@ -77,13 +90,15 @@ Progetto-TW/
 │   │       ├── 📁 components/   # Componenti UI
 │   │       │   ├── home.component.ts
 │   │       │   ├── flights-view.component.ts     # Visualizzazione voli
-│   │       │   ├── flight-admin.component.ts     # 🆕 Admin panel voli
+│   │       │   ├── flight-admin.component.ts     # 🆕 Admin panel voli con gestione stati
 │   │       │   ├── user-login.component.ts
 │   │       │   ├── airline-login.component.ts    # 🆕 Login compagnie
 │   │       │   ├── user-register.component.ts
 │   │       │   ├── bookings.component.ts
 │   │       │   ├── settings.component.ts
-│   │       │   ├── flight-card/                  # Card componente volo
+│   │       │   ├── flight-card/                  # 🆕 Card componente volo con stati
+│   │       │   │   ├── flight-card.component.ts  # Logica stati e restrizioni prenotazione
+│   │       │   │   └── flight-card.component.scss # Stili badge stati colorati
 │   │       │   ├── flight-filters/               # Filtri ricerca
 │   │       │   ├── flight-search/                # Barra ricerca
 │   │       │   ├── flights-grid/                 # Griglia voli
@@ -174,7 +189,7 @@ CREATE TABLE users (
 - **Autenticazione**: JWT con password hash bcrypt
 - **🆕 Collegamento compagnie**: Utenti airline collegati alle compagnie
 
-#### ✈️ flights (🆕 Tabella Ottimizzata con Rotte)
+#### ✈️ flights (🆕 Tabella Ottimizzata con Rotte e Stati)
 ```sql
 CREATE TABLE flights (
     id SERIAL PRIMARY KEY,
@@ -184,18 +199,24 @@ CREATE TABLE flights (
     route_id INTEGER REFERENCES routes(id), -- 🆕 NUOVO: Collegamento alle rotte
     departure_time TIMESTAMP NOT NULL,
     arrival_time TIMESTAMP NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
+    price DECIMAL(10,2) NOT NULL, -- 🆕 Sovrapprezzo della compagnia
     total_seats INTEGER NOT NULL,
     available_seats INTEGER NOT NULL,
-    status VARCHAR(20) DEFAULT 'scheduled',
+    status VARCHAR(20) DEFAULT 'scheduled', -- 🆕 Stati: scheduled, delayed, cancelled, completed
+    delay_minutes INTEGER DEFAULT 0, -- 🆕 Minuti di ritardo (calcolato automaticamente)
+    economy_price DECIMAL(10,2), -- 🆕 Prezzo economy calcolato (route + surcharge)
+    business_price DECIMAL(10,2), -- 🆕 Prezzo business calcolato (route + surcharge)  
+    first_price DECIMAL(10,2), -- 🆕 Prezzo first class calcolato (route + surcharge)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 - **🆕 Sistema Rotte**: I voli ora utilizzano `route_id` invece di aeroporti separati
-- **Stati**: `scheduled`, `delayed`, `cancelled`, `completed`, `boarding`, `departed`
+- **🆕 Stati Avanzati**: `scheduled`, `delayed`, `cancelled`, `completed` con gestione completa
+- **🆕 Gestione Ritardi**: Campo `delay_minutes` per tracking ritardi automatico
+- **🆕 Pricing Dinamico**: Prezzi calcolati per economia, business e first class
 - **🆕 Relazioni complete**: Collegamenti a airlines, aircrafts tramite rotte
-- **🆕 Gestione posti**: Posti totali e disponibili
+- **🆕 Gestione posti**: Posti totali e disponibili con aggiornamento dinamico
 
 #### 🛣️ routes (🆕 Tabella Rotte)
 ```sql
@@ -314,6 +335,17 @@ SELECT
     r.route_name,
     r.distance_km,
     r.estimated_duration as route_duration,
+    -- 🆕 Calcolo dinamico delay_minutes e prezzi
+    CASE 
+        WHEN f.status = 'delayed' AND f.departure_time > CURRENT_TIMESTAMP 
+        THEN EXTRACT(EPOCH FROM (f.departure_time - 
+            (SELECT departure_time FROM flights WHERE id = f.id AND status = 'scheduled'))) / 60
+        ELSE COALESCE(f.delay_minutes, 0)
+    END AS calculated_delay_minutes,
+    -- 🆕 Prezzi calcolati per classi di servizio
+    (r.default_price + COALESCE(f.price, 0)) AS economy_price,
+    (COALESCE(r.business_price, r.default_price * 1.5) + COALESCE(f.price, 0)) AS business_price,
+    (COALESCE(r.first_price, r.default_price * 2.0) + COALESCE(f.price, 0)) AS first_price,
     da.name as departure_airport,
     da.iata_code as departure_code,
     da.city as departure_city,
@@ -333,8 +365,10 @@ JOIN airlines al ON f.airline_id = al.id
 JOIN aircrafts ac ON f.aircraft_id = ac.id;
 ```
 - **🆕 Compatibilità Retroattiva**: Mantiene le informazioni degli aeroporti per i componenti esistenti
+- **🆕 Calcoli Dinamici**: Delay_minutes e prezzi calcolati automaticamente nella vista
+- **🆕 Pricing Intelligente**: Prezzi base rotta + sovrapprezzo compagnia per ogni classe
 - **🆕 Dati Arricchiti**: Include informazioni complete di rotte, aeroporti, compagnie e aerei
-- **🆕 Performance**: Un'unica query per ottenere tutti i dati necessari
+- **🆕 Performance**: Un'unica query per ottenere tutti i dati necessari con calcoli ottimizzati
 
 ### 🚀 Indici e Performance
 ```sql
@@ -446,14 +480,18 @@ Il database viene inizializzato automaticamente con:
 - `POST /api/users/register` - Registrazione utente
 - `POST /api/users/login` - Login utente
 
-### ✈️ Voli
+### ✈️ Voli (🆕 Sistema Stato Avanzato)
 - `GET /api/flights` - Lista tutti i voli (con vista flights_with_airports) 🆕
-- `GET /api/flights/search` - Ricerca voli
-- `GET /api/flights/active` - Voli attivi
-- `GET /api/flights/on-time` - Voli in orario
+- `GET /api/flights/search` - Ricerca voli con filtri stato
+- `GET /api/flights/active` - Voli attivi (esclusi cancellati/completati)
+- `GET /api/flights/delayed` - Voli in ritardo con delay_minutes 🆕
+- `GET /api/flights/cancelled` - Voli cancellati 🆕
 - `POST /api/flights` - Crea volo (richiede route_id) 🆕
-- `PUT /api/flights/:id` - Aggiorna volo 🆕
-- `DELETE /api/flights/:id` - Elimina volo 🆕
+- `PUT /api/flights/:id` - Aggiorna volo (stato, ritardi) 🆕
+- `PUT /api/flights/:id/delay` - Aggiungi ritardo specifico 🆕
+- `PUT /api/flights/:id/complete` - Completa volo 🆕
+- `PUT /api/flights/:id/cancel` - Cancella volo 🆕
+- `DELETE /api/flights/:id` - Elimina volo definitivamente 🆕
 - `GET /api/flights/data/routes` - Elenco rotte per dropdown 🆕
 
 ### 🛣️ Rotte (🆕 Nuovo Sistema)
@@ -516,7 +554,61 @@ docker-compose up --build -d
 - **CORS** configurato per domini specifici
 - **Validazione input** su tutti gli endpoint
 
-## 📊 Monitoraggio
+## �️ Sistema Gestione Stati Voli 🆕
+
+### 📊 Stati Volo Supportati
+- **🟢 scheduled**: Volo programmato (prenotabile)
+- **🟡 delayed**: Volo in ritardo (prenotabile con avviso)
+- **🔴 cancelled**: Volo cancellato (non prenotabile)
+- **✅ completed**: Volo completato (archiviato)
+
+### ⏰ Gestione Ritardi Intelligente
+Il sistema calcola automaticamente i ritardi e li visualizza in modo intuitivo:
+
+```typescript
+// Calcolo automatico ritardo in minuti
+const delayMinutes = flight.status === 'delayed' ? 
+  calculateDelayFromOriginalTime(flight.departure_time) : 0;
+
+// Visualizzazione badge colorato
+const statusBadge = getStatusWithDelay(flight.status, delayMinutes);
+```
+
+### 🎨 Indicatori Visivi
+- **Badge Stato**: Colori distintivi per ogni stato volo
+- **Icone Intuitive**: ✈️ Programmato, ⏰ Ritardato, 🚫 Cancellato, ✅ Completato
+- **Range Prezzi**: Visualizzazione "€150 - €300" invece del solo sovrapprezzo
+- **Restrizioni Prenotazione**: Pulsanti disabilitati per voli non prenotabili
+
+### 🔧 Pannello Gestione Compagnie
+Le compagnie aeree possono:
+- **Aggiungere Ritardi**: Selezionare ritardo da 15 minuti a 4 ore
+- **Cancellare Voli**: Cambio stato a cancellato (reversibile)
+- **Completare Voli**: Segnare voli come completati
+- **Modificare Dettagli**: Form completo per aggiornamento voli
+- **Eliminazione Definitiva**: Rimozione permanente dal database (con conferma)
+
+### 📈 API Stati Voli
+```javascript
+// Aggiunta ritardo
+PUT /api/flights/:id/delay
+{
+  "delayMinutes": 30,
+  "newDepartureTime": "2025-08-05T11:30:00Z",
+  "newArrivalTime": "2025-08-05T13:00:00Z"
+}
+
+// Cambio stato
+PUT /api/flights/:id/status
+{
+  "status": "cancelled" | "completed" | "delayed" | "scheduled"
+}
+
+// Ricerca per stato
+GET /api/flights?status=delayed&includeDelayMinutes=true
+```
+
+## �📊 Monitoraggio
 
 - Health check endpoints disponibili
 - Logging dettagliato con Morgan
@@ -532,6 +624,25 @@ docker-compose up --build -d
 5. Apri una Pull Request
 
 ## 📝 Changelog
+
+### 🆕 Versione 3.1.0 - Sistema Stati Voli Avanzato (Agosto 2025)
+#### 🚨 Gestione Stati Completa
+- **✅ Stati Dinamici**: Sistema completo scheduled/delayed/cancelled/completed con logica avanzata
+- **✅ Calcolo Ritardi**: Visualizzazione automatica minuti di ritardo per voli delayed
+- **✅ Restrizioni Smart**: Voli cancellati non prenotabili, delayed con avvisi utente
+- **✅ Badge Colorati**: Indicatori visivi intuitivi per ogni stato volo
+
+#### 🎨 UX/UI Migliorata
+- **✅ Prezzi Reali**: Range "€150-€300" invece del solo sovrapprezzo nella gestione admin
+- **✅ Pannello Ritardi**: Modal dedicato per aggiungere ritardi con preview orari
+- **✅ Azioni Contestuali**: Pulsanti dinamici basati su stato volo (Completa/Cancella/Ritarda)
+- **✅ Conferme Sicurezza**: Dialog di conferma per azioni critiche (elimina definitivo)
+
+#### ⚡ Backend Ottimizzato
+- **✅ API Stati**: Endpoint dedicati per gestione stati e ritardi voli
+- **✅ Calcoli Dinamici**: Delay_minutes e prezzi calcolati automaticamente nella vista DB
+- **✅ Validazioni**: Controlli business logic per transizioni stati valide
+- **✅ Error Handling**: Gestione errori migliorata con messaggi utente chiari
 
 ### 🆕 Versione 3.0.0 - Sistema Rotte (Agosto 2025)
 #### 🛣️ Architettura Normalizzata
