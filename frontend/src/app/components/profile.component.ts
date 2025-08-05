@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { environment } from '@environments/environment';
 
 interface User {
   id: number;
@@ -880,7 +881,7 @@ export class ProfileComponent implements OnInit {
   message = '';
   messageType: 'success' | 'error' = 'success';
 
-  private apiUrl = 'http://localhost:3000/api';
+  private apiUrl = environment.apiUrl;
 
   constructor(
     private fb: FormBuilder,

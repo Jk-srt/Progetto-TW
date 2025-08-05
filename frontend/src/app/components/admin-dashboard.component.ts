@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { environment } from '@environments/environment';
 
 interface Airline {
   id: number;
@@ -261,7 +262,7 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   loadAirlines() {
-    this.http.get<any>('http://localhost:3000/api/auth/airlines', {
+    this.http.get<any>(`${environment.apiUrl}/auth/airlines`, {
       headers: this.getAuthHeaders()
     }).subscribe({
       next: (response: any) => {
@@ -284,8 +285,8 @@ export class AdminDashboardComponent implements OnInit {
     this.successMessage = '';
 
     const url = this.editingAirline 
-      ? `http://localhost:3000/api/auth/airlines/${this.editingAirline.id}`
-      : 'http://localhost:3000/api/auth/airlines';
+      ? `${environment.apiUrl}/auth/airlines/${this.editingAirline.id}`
+      : `${environment.apiUrl}/auth/airlines`;
 
     const request = this.editingAirline 
       ? this.http.put<any>(url, this.formData, { headers: this.getAuthHeaders() })
@@ -336,7 +337,7 @@ export class AdminDashboardComponent implements OnInit {
       return;
     }
 
-    this.http.delete<any>(`http://localhost:3000/api/auth/airlines/${airline.id}`, {
+    this.http.delete<any>(`${environment.apiUrl}/auth/airlines/${airline.id}`, {
       headers: this.getAuthHeaders()
     }).subscribe({
       next: (response: any) => {

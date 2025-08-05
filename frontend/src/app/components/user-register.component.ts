@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
+import { environment } from '@environments/environment';
 
 @Component({
   selector: 'app-user-register',
@@ -276,7 +277,7 @@ export class UserRegisterComponent {
     this.isLoading = true;
     this.errorMessage = null;
     this.successMessage = null;
-    this.http.post('http://localhost:3000/api/users/register', {
+    this.http.post(`${environment.apiUrl}/users/register`, {
       email: this.registerData.email,
       password: this.registerData.password,
       first_name: this.registerData.firstName,

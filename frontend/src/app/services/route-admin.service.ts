@@ -3,12 +3,13 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Route, RouteFormData } from '../models/route.model';
 import { Airport } from '../models/flight.model';
+import { environment } from '@environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class RouteAdminService {
-  private readonly API_URL = 'http://localhost:3000/api/routes';
+  private readonly API_URL = `${environment.apiUrl}/routes`;
   private routesSubject = new BehaviorSubject<Route[]>([]);
   public routes$ = this.routesSubject.asObservable();
 
@@ -70,7 +71,7 @@ export class RouteAdminService {
 
   // Dati di supporto
   getAirports(): Observable<Airport[]> {
-    return this.http.get<Airport[]>('http://localhost:3000/api/airports');
+    return this.http.get<Airport[]>(`${environment.apiUrl}/airports`);
   }
 
   refreshRoutes(): void {

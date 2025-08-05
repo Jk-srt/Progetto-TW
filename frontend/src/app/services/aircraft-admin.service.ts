@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { environment } from '@environments/environment';
 
 interface AircraftApiResponse {
   aircrafts: Aircraft[];
@@ -45,7 +46,7 @@ export interface AircraftFormData {
   providedIn: 'root'
 })
 export class AircraftAdminService {
-  private readonly API_URL = 'http://localhost:3000/api/aircrafts';
+  private readonly API_URL = `${environment.apiUrl}/aircrafts`;
   private aircraftsSubject = new BehaviorSubject<Aircraft[]>([]);
   public aircrafts$ = this.aircraftsSubject.asObservable();
 

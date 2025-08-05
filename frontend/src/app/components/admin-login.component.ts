@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
+import { environment } from '@environments/environment';
 
 @Component({
   selector: 'app-admin-login',
@@ -273,7 +274,7 @@ export class AdminLoginComponent {
       password: this.password
     };
 
-    this.http.post<any>('http://localhost:3000/api/auth/admin/login', loginData)
+    this.http.post<any>(`${environment.apiUrl}/auth/admin/login`, loginData)
       .subscribe({
         next: (response) => {
           this.isLoading = false;

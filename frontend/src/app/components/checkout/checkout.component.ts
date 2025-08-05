@@ -8,6 +8,7 @@ import { SeatService } from '../../services/seat.service';
 import { AuthService, User } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { FlightSeatMap, SeatSelectionState } from '../../models/seat.model';
+import { environment } from '@environments/environment';
 
 interface CheckoutData {
   flightId: number;
@@ -272,7 +273,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   initialTime = 900;
   timerSubscription?: Subscription;
   userSubscription?: Subscription;
-  private baseUrl = 'http://localhost:3000/api';
+  private baseUrl = `${environment.apiUrl}`;
 
   constructor(
     private fb: FormBuilder,
