@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { tap, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface User {
@@ -21,6 +22,8 @@ export interface UserBooking {
   booking_reference: string;
   flight_id: number;
   flight_number: string;
+  flight_name: string; // Nuovo campo
+  flight_route_name: string; // Nuovo campo
   airline_name: string;
   departure_airport: string;
   arrival_airport: string;
@@ -34,6 +37,10 @@ export interface UserBooking {
   booking_status: 'confirmed' | 'cancelled' | 'pending';
   total_price: number;
   created_at: string;
+  // Campi aggiuntivi per compagnie aeree
+  customer_first_name?: string;
+  customer_last_name?: string;
+  customer_phone?: string;
 }
 
 @Injectable({
@@ -119,9 +126,19 @@ export class AuthService {
 
   // Ottieni le prenotazioni dell'utente corrente
   getUserBookings(): Observable<UserBooking[]> {
+    console.log('🔗 AuthService: Making request to get user bookings');
+    console.log('🌐 Base URL:', this.baseUrl);
+    console.log('🔑 Auth headers:', this.getAuthHeaders());
+    
     return this.http.get<UserBooking[]>(`${this.baseUrl}/bookings/user`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('📦 AuthService: Response received:', response)),
+      catchError(error => {
+        console.error('💥 AuthService: HTTP Error:', error);
+        throw error;
+      })
+    );
   }
 
   // Cancella una prenotazione

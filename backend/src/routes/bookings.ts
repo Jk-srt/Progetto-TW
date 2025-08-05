@@ -121,13 +121,13 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                     seatPrice = flight.economy_price || flight.price || 0;
                     break;
                 case 'business':
-                    seatPrice = flight.business_price || flight.price * 1.5 || 0;
+                    seatPrice = (flight as any).business_price || (flight as any).price * 1.5 || 0;
                     break;
                 case 'first':
-                    seatPrice = flight.first_price || flight.price * 2.0 || 0;
+                    seatPrice = (flight as any).first_price || (flight as any).price * 2.0 || 0;
                     break;
                 default:
-                    seatPrice = flight.economy_price || flight.price || 0;
+                    seatPrice = (flight as any).economy_price || (flight as any).price || 0;
             }
 
             // Inserisce la prenotazione nella struttura esistente
@@ -216,39 +216,92 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
     
     try {
         const userId = req.userId as number;
+        const userRole = req.userRole as string;
+        const airlineId = req.airlineId as number;
         
-        const query = `
-            SELECT 
-                b.id as booking_id,
-                b.booking_reference,
-                COALESCE(b.booking_status, 'confirmed') as booking_status,
-                b.price as total_price,
-                1 as passenger_count,
-                COALESCE(b.booking_date, b.updated_at) as created_at,
-                f.id as flight_id,
-                f.flight_number,
-                f.departure_time,
-                f.arrival_time,
-                dep_airport.iata_code as departure_airport,
-                arr_airport.iata_code as arrival_airport,
-                dep_airport.city as departure_city,
-                arr_airport.city as arrival_city,
-                al.name as airline_name,
-                CONCAT(b.passenger_first_name, ' ', b.passenger_last_name) as passenger_name,
-                COALESCE(seats.seat_number, 'Non specificato') as seat_number,
-                COALESCE(b.booking_class, 'Economy') as seat_class
-            FROM bookings b
-            JOIN flights f ON b.flight_id = f.id
-            JOIN routes r ON f.route_id = r.id
-            JOIN airports dep_airport ON r.departure_airport_id = dep_airport.id
-            JOIN airports arr_airport ON r.arrival_airport_id = arr_airport.id
-            JOIN airlines al ON f.airline_id = al.id
-            LEFT JOIN aircraft_seats seats ON b.seat_id = seats.id
-            WHERE b.user_id = $1
-            ORDER BY COALESCE(b.booking_date, b.updated_at) DESC
-        `;
+        let query: string;
+        let queryParams: any[];
         
-        const result = await pool.query(query, [userId]);
+        if (userRole === 'airline') {
+            // Per compagnie aeree: mostra tutte le prenotazioni sui voli della compagnia
+            query = `
+                SELECT 
+                    b.id as booking_id,
+                    b.booking_reference,
+                    COALESCE(b.booking_status, 'confirmed') as booking_status,
+                    b.price as total_price,
+                    1 as passenger_count,
+                    COALESCE(b.booking_date, b.updated_at) as created_at,
+                    f.id as flight_id,
+                    f.flight_number,
+                    f.departure_time,
+                    f.arrival_time,
+                    dep_airport.iata_code as departure_airport,
+                    arr_airport.iata_code as arrival_airport,
+                    dep_airport.city as departure_city,
+                    arr_airport.city as arrival_city,
+                    al.name as airline_name,
+                    CONCAT(dep_airport.city, ' → ', arr_airport.city) as flight_route_name,
+                    CONCAT(f.flight_number, ' - ', dep_airport.city, ' to ', arr_airport.city) as flight_name,
+                    CONCAT(b.passenger_first_name, ' ', b.passenger_last_name) as passenger_name,
+                    COALESCE(seats.seat_number, 'Non specificato') as seat_number,
+                    COALESCE(b.booking_class, 'Economy') as seat_class,
+                    u.first_name as customer_first_name,
+                    u.last_name as customer_last_name,
+                    u.phone as customer_phone
+                FROM bookings b
+                JOIN flights f ON b.flight_id = f.id
+                JOIN routes r ON f.route_id = r.id
+                JOIN airports dep_airport ON r.departure_airport_id = dep_airport.id
+                JOIN airports arr_airport ON r.arrival_airport_id = arr_airport.id
+                JOIN airlines al ON f.airline_id = al.id
+                LEFT JOIN aircraft_seats seats ON b.seat_id = seats.id
+                LEFT JOIN users u ON b.user_id = u.id
+                WHERE f.airline_id = $1
+                ORDER BY COALESCE(b.booking_date, b.updated_at) DESC
+            `;
+            queryParams = [airlineId];
+            console.log('🏢 Fetching bookings for airline ID:', airlineId);
+        } else {
+            // Per utenti normali: mostra solo le proprie prenotazioni
+            query = `
+                SELECT 
+                    b.id as booking_id,
+                    b.booking_reference,
+                    COALESCE(b.booking_status, 'confirmed') as booking_status,
+                    b.price as total_price,
+                    1 as passenger_count,
+                    COALESCE(b.booking_date, b.updated_at) as created_at,
+                    f.id as flight_id,
+                    f.flight_number,
+                    f.departure_time,
+                    f.arrival_time,
+                    dep_airport.iata_code as departure_airport,
+                    arr_airport.iata_code as arrival_airport,
+                    dep_airport.city as departure_city,
+                    arr_airport.city as arrival_city,
+                    al.name as airline_name,
+                    CONCAT(dep_airport.city, ' → ', arr_airport.city) as flight_route_name,
+                    CONCAT(f.flight_number, ' - ', dep_airport.city, ' to ', arr_airport.city) as flight_name,
+                    CONCAT(b.passenger_first_name, ' ', b.passenger_last_name) as passenger_name,
+                    COALESCE(seats.seat_number, 'Non specificato') as seat_number,
+                    COALESCE(b.booking_class, 'Economy') as seat_class
+                FROM bookings b
+                JOIN flights f ON b.flight_id = f.id
+                JOIN routes r ON f.route_id = r.id
+                JOIN airports dep_airport ON r.departure_airport_id = dep_airport.id
+                JOIN airports arr_airport ON r.arrival_airport_id = arr_airport.id
+                JOIN airlines al ON f.airline_id = al.id
+                LEFT JOIN aircraft_seats seats ON b.seat_id = seats.id
+                WHERE b.user_id = $1
+                ORDER BY COALESCE(b.booking_date, b.updated_at) DESC
+            `;
+            queryParams = [userId];
+            console.log('👤 Fetching bookings for user ID:', userId);
+        }
+        
+        const result = await pool.query(query, queryParams);
+        console.log(`✅ Found ${result.rows.length} bookings`);
         res.json(result.rows);
         
     } catch (err) {
@@ -361,6 +414,177 @@ router.delete('/:bookingId', authenticateToken, async (req: AuthRequest, res: ex
         res.status(500).json({ 
             success: false,
             message: 'Errore nella cancellazione della prenotazione',
+            error: (err as Error).message 
+        });
+    }
+});
+
+// ADMIN: Ottieni le prenotazioni per compagnia aerea (per admin)
+router.get('/admin/airline-bookings', authenticateToken, async (req: AuthRequest, res: express.Response) => {
+    try {
+        const userId = req.userId as number;
+        
+        // Verifica che l'utente sia un admin di compagnia aerea
+        const userResult = await pool.query('SELECT role, airline_id FROM users WHERE id = $1', [userId]);
+        if (userResult.rows.length === 0 || userResult.rows[0].role !== 'airline_admin') {
+            return res.status(403).json({ 
+                success: false,
+                message: 'Accesso non autorizzato. Solo gli amministratori delle compagnie aeree possono accedere a queste informazioni.' 
+            });
+        }
+
+        const airlineId = userResult.rows[0].airline_id;
+        
+        // Query per ottenere tutte le prenotazioni della compagnia aerea con dettagli completi
+        const query = `
+            SELECT 
+                b.id as booking_id,
+                b.booking_reference,
+                b.booking_status,
+                b.price as booking_price,
+                b.booking_date,
+                b.passenger_first_name,
+                b.passenger_last_name,
+                b.passenger_email,
+                b.passenger_phone,
+                b.booking_class,
+                f.flight_number,
+                f.departure_time,
+                f.arrival_time,
+                f.status as flight_status,
+                dep_airport.name as departure_airport_name,
+                dep_airport.iata_code as departure_airport_code,
+                dep_airport.city as departure_city,
+                arr_airport.name as arrival_airport_name,
+                arr_airport.iata_code as arrival_airport_code,
+                arr_airport.city as arrival_city,
+                a.registration as aircraft_registration,
+                a.aircraft_type,
+                a.model as aircraft_model,
+                al.name as airline_name,
+                al.iata_code as airline_code,
+                CASE 
+                    WHEN b.seat_id IS NOT NULL THEN (
+                        SELECT seat_number FROM aircraft_seats WHERE id = b.seat_id
+                    )
+                    ELSE 'N/A'
+                END as seat_number
+            FROM bookings b
+            JOIN flights f ON b.flight_id = f.id
+            JOIN airlines al ON f.airline_id = al.id
+            JOIN aircrafts a ON f.aircraft_id = a.id
+            JOIN routes r ON f.route_id = r.id
+            JOIN airports dep_airport ON r.departure_airport_id = dep_airport.id
+            JOIN airports arr_airport ON r.arrival_airport_id = arr_airport.id
+            WHERE f.airline_id = $1
+            ORDER BY b.booking_date DESC, f.departure_time ASC
+        `;
+
+        const result = await pool.query(query, [airlineId]);
+
+        // Raggruppa le prenotazioni per volo
+        const bookingsByFlight = result.rows.reduce((acc: any, booking: any) => {
+            const flightKey = booking.flight_number;
+            
+            if (!acc[flightKey]) {
+                acc[flightKey] = {
+                    flight_number: booking.flight_number,
+                    departure_time: booking.departure_time,
+                    arrival_time: booking.arrival_time,
+                    flight_status: booking.flight_status,
+                    route: {
+                        departure: {
+                            airport_name: booking.departure_airport_name,
+                            airport_code: booking.departure_airport_code,
+                            city: booking.departure_city
+                        },
+                        arrival: {
+                            airport_name: booking.arrival_airport_name,
+                            airport_code: booking.arrival_airport_code,
+                            city: booking.arrival_city
+                        }
+                    },
+                    aircraft: {
+                        registration: booking.aircraft_registration,
+                        type: booking.aircraft_type,
+                        model: booking.aircraft_model
+                    },
+                    airline: {
+                        name: booking.airline_name,
+                        code: booking.airline_code
+                    },
+                    bookings: [],
+                    total_bookings: 0,
+                    total_revenue: 0,
+                    seats_by_class: {
+                        economy: 0,
+                        business: 0,
+                        first: 0
+                    }
+                };
+            }
+
+            acc[flightKey].bookings.push({
+                booking_id: booking.booking_id,
+                booking_reference: booking.booking_reference,
+                booking_status: booking.booking_status,
+                booking_price: parseFloat(booking.booking_price),
+                booking_date: booking.booking_date,
+                passenger: {
+                    first_name: booking.passenger_first_name,
+                    last_name: booking.passenger_last_name,
+                    email: booking.passenger_email,
+                    phone: booking.passenger_phone
+                },
+                seat_number: booking.seat_number,
+                booking_class: booking.booking_class
+            });
+
+            acc[flightKey].total_bookings++;
+            acc[flightKey].total_revenue += parseFloat(booking.booking_price);
+            
+            // Conta i posti per classe
+            const seatClass = booking.booking_class || 'economy';
+            if (acc[flightKey].seats_by_class[seatClass] !== undefined) {
+                acc[flightKey].seats_by_class[seatClass]++;
+            }
+
+            return acc;
+        }, {});
+
+        // Converti l'oggetto in array
+        const flightsArray = Object.values(bookingsByFlight);
+
+        // Calcola statistiche generali
+        const totalBookings = result.rows.length;
+        const totalRevenue = result.rows.reduce((sum: number, booking: any) => sum + parseFloat(booking.booking_price), 0);
+        const activeBookings = result.rows.filter(b => b.booking_status === 'confirmed').length;
+        const cancelledBookings = result.rows.filter(b => b.booking_status === 'cancelled').length;
+
+        res.json({
+            success: true,
+            data: {
+                airline: {
+                    id: airlineId,
+                    name: result.rows.length > 0 ? result.rows[0].airline_name : '',
+                    code: result.rows.length > 0 ? result.rows[0].airline_code : ''
+                },
+                flights: flightsArray,
+                statistics: {
+                    total_bookings: totalBookings,
+                    active_bookings: activeBookings,
+                    cancelled_bookings: cancelledBookings,
+                    total_revenue: totalRevenue,
+                    average_booking_value: totalBookings > 0 ? totalRevenue / totalBookings : 0
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error('❌ Error fetching airline bookings:', err);
+        res.status(500).json({ 
+            success: false,
+            message: 'Errore interno del server durante il recupero delle prenotazioni',
             error: (err as Error).message 
         });
     }
