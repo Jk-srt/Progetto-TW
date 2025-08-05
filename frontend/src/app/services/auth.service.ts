@@ -124,6 +124,13 @@ export class AuthService {
     });
   }
 
+  // Cancella una prenotazione
+  cancelBooking(bookingId: number): Observable<any> {
+    return this.http.delete(`${this.baseUrl}/bookings/${bookingId}`, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   // Aggiorna i dati dell'utente
   updateUserProfile(userData: Partial<User>): Observable<any> {
     return this.http.put(`${this.baseUrl}/users/profile`, userData, {
