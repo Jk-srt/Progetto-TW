@@ -14,7 +14,11 @@ import { Flight } from '../../models/flight.model';
           <div class="flight-number" style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">Volo {{flight.flight_number}}</div>
           <div class="airline-name" style="font-size: 0.9rem; color: #64748b; margin-top: 2px;">{{flight.airline || 'N/A'}}</div>
         </div>
-        <div class="status-badge" style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem;">In Orario</div>
+        <div class="status-badge" 
+             [style.background]="getStatusColor()" 
+             style="color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem;">
+          {{getStatusLabel()}}
+        </div>
       </div>
       
       <div class="flight-route" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
@@ -53,12 +57,19 @@ import { Flight } from '../../models/flight.model';
             </div>
           </div>
           <button 
+            *ngIf="!isFlightUnavailable()"
             (click)="bookFlight()"
             style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem;"
             onmouseover="this.style.background='#5a67d8'"
             onmouseout="this.style.background='#667eea'">
             Prenota
           </button>
+          <div 
+            *ngIf="isFlightUnavailable()"
+            class="unavailable-badge"
+            style="background: #ef4444; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-align: center;">
+            Non Disponibile
+          </div>
         </div>
       </div>
     </div>
@@ -146,5 +157,46 @@ export class FlightCardComponent {
     console.log('Prenotazione volo:', this.flight.flight_number);
     // Naviga alla pagina di selezione posti
     this.router.navigate(['/flights', this.flight.id, 'seats']);
+  }
+
+  // Metodi per la gestione dello stato dei voli
+  getStatusLabel(): string {
+    const status = this.flight.status?.toLowerCase();
+    
+    switch (status) {
+      case 'scheduled':
+        return 'Programmato';
+      case 'delayed':
+        const delayMinutes = this.flight.delay_minutes || 30; // Default a 30 minuti se non specificato
+        return `In Ritardo ${delayMinutes}min`;
+      case 'cancelled':
+        return 'Cancellato';
+      case 'completed':
+        return 'Completato';
+      default:
+        return 'Programmato';
+    }
+  }
+
+  getStatusColor(): string {
+    const status = this.flight.status?.toLowerCase();
+    
+    switch (status) {
+      case 'scheduled':
+        return '#10b981'; // Verde
+      case 'delayed':
+        return '#f59e0b'; // Giallo/Arancione
+      case 'cancelled':
+        return '#ef4444'; // Rosso
+      case 'completed':
+        return '#3b82f6'; // Blu
+      default:
+        return '#10b981'; // Verde di default
+    }
+  }
+
+  isFlightUnavailable(): boolean {
+    const status = this.flight.status?.toLowerCase();
+    return status === 'cancelled' || status === 'completed';
   }
 }

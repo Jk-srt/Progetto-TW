@@ -9,6 +9,7 @@ export interface Flight {
   arrivalTime: string;
   price: number;
   status: 'On Time' | 'Delayed' | 'Boarding' | 'Departed' | 'scheduled' | 'delayed' | 'cancelled' | 'completed';
+  delay_minutes?: number; // ← NUOVO: Minuti di ritardo per i voli delayed
   
   // Campi dal database - NUOVA STRUTTURA CON ROUTE
   flight_number?: string;

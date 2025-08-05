@@ -145,3 +145,35 @@
     text-align: center;
   }
 }
+
+// Stili per i diversi stati dei voli
+.flight-card {
+  &.cancelled {
+    opacity: 0.7;
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+
+  &.delayed {
+    border-color: #f59e0b;
+    background: #fffbeb;
+  }
+
+  &.completed {
+    opacity: 0.8;
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+}
+
+// Badge non disponibile
+.unavailable-badge {
+  background: #ef4444 !important;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: not-allowed;
+}
