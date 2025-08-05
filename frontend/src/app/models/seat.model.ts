@@ -27,9 +27,12 @@ export interface FlightSeatMap {
   is_window: boolean;
   is_aisle: boolean;
   is_emergency_exit: boolean;
-  seat_status: 'available' | 'temporarily_reserved' | 'booked';
-  reserved_by_session?: string;
+  seat_status: 'available' | 'temporarily_reserved' | 'booked' | 'occupied';
+  actual_status?: 'available' | 'temporarily_reserved' | 'my_reservation' | 'occupied';
   reservation_expires?: Date;
+  is_my_reservation?: boolean;
+  reservation_session?: string;
+  reserved_by_session?: string;
   booked_by_passenger?: string;
 }
 
