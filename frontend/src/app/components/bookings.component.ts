@@ -80,10 +80,10 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                 </div>
               </div>
               <div class="stat-card">
-                <div class="stat-icon">📈</div>
+                <div class="stat-icon">✅</div>
                 <div class="stat-content">
-                  <h3>{{ getOccupancyRate() | number:'1.0-0' }}%</h3>
-                  <p>Tasso Occupazione</p>
+                  <h3>{{ airlineData.statistics.active_bookings }}</h3>
+                  <p>Prenotazioni Attive</p>
                 </div>
               </div>
             </div>
@@ -556,209 +556,337 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
     /* Admin Overview */
     .admin-overview .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
       margin-bottom: 2rem;
+      padding: 1rem;
     }
 
     .stat-card {
       display: flex;
       align-items: center;
-      padding: 1.5rem;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 12px;
+      padding: 2rem 1.5rem;
+      border-radius: 16px;
       color: white;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card:nth-child(1) {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .stat-card:nth-child(2) {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .stat-card:nth-child(3) {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .stat-card:nth-child(4) {
+      background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.1);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
     }
 
     .stat-icon {
-      font-size: 2.5rem;
-      margin-right: 1rem;
+      font-size: 3.5rem;
+      margin-right: 1.5rem;
+      opacity: 0.9;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
 
     .stat-content h3 {
-      font-size: 2rem;
+      font-size: 2.5rem;
       margin: 0;
-      font-weight: 700;
+      font-weight: 800;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .stat-content p {
-      margin: 0.5rem 0 0 0;
-      opacity: 0.9;
+      margin: 0.8rem 0 0 0;
+      opacity: 0.95;
+      font-size: 1.1rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     /* Flight Seats Cards */
     .admin-flights {
       display: flex;
       flex-direction: column;
-      gap: 2rem;
+      gap: 2.5rem;
+      padding: 1rem;
     }
 
     .flight-seats-card {
-      border: 1px solid #e0e0e0;
-      border-radius: 12px;
+      border: none;
+      border-radius: 20px;
       overflow: hidden;
       background: white;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+    }
+
+    .flight-seats-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.15);
     }
 
     .flight-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1.5rem;
-      background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+      padding: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .flight-header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: shine 3s ease-in-out infinite;
+    }
+
+    @keyframes shine {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
     }
 
     .flight-info h3 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1.5rem;
+      margin: 0 0 0.8rem 0;
+      font-size: 1.8rem;
+      font-weight: 800;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .route {
-      font-size: 1rem;
-      opacity: 0.9;
-      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+      opacity: 0.95;
+      margin-bottom: 0.8rem;
+      font-weight: 500;
     }
 
     .flight-time {
-      font-size: 0.9rem;
-      opacity: 0.8;
+      font-size: 1rem;
+      opacity: 0.9;
+      font-weight: 400;
     }
 
     .occupancy-stats {
       text-align: right;
+      z-index: 1;
+      position: relative;
     }
 
     .total-seats {
-      font-size: 1.2rem;
-      font-weight: 600;
-      margin-bottom: 0.3rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .revenue {
-      font-size: 1.1rem;
-      opacity: 0.9;
+      font-size: 1.2rem;
+      opacity: 0.95;
+      font-weight: 500;
     }
 
     /* Seat Map */
     .seat-map-container {
-      padding: 1.5rem;
-      border-bottom: 1px solid #f0f0f0;
+      padding: 2rem;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-bottom: 1px solid #dee2e6;
     }
 
     .seat-map-container h4 {
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
       color: #2c3e50;
+      font-size: 1.3rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .seat-map-container h4::before {
+      content: '🪑';
+      font-size: 1.2rem;
     }
 
     .seat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 1rem;
-      max-height: 300px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1.5rem;
+      max-height: 350px;
       overflow-y: auto;
+      padding: 0.5rem;
     }
 
     .occupied-seat {
       display: flex;
       flex-direction: column;
-      padding: 0.8rem;
-      border-radius: 8px;
-      border-left: 4px solid;
-      background: #f8f9fa;
-      transition: transform 0.2s ease;
+      padding: 1.2rem;
+      border-radius: 12px;
+      border-left: 5px solid;
+      background: white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
     }
 
     .occupied-seat:hover {
       transform: translateY(-2px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.12);
     }
 
     .occupied-seat.seat-first {
-      border-left-color: #8e44ad;
-      background: linear-gradient(135deg, #f8f4ff 0%, #f0e6ff 100%);
+      border-left-color: #9b59b6;
+      background: linear-gradient(135deg, #f8f4ff 0%, #e8d5ff 100%);
     }
 
     .occupied-seat.seat-business {
-      border-left-color: #e67e22;
-      background: linear-gradient(135deg, #fff8f0 0%, #ffe6d0 100%);
+      border-left-color: #f39c12;
+      background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
     }
 
     .occupied-seat.seat-economy {
       border-left-color: #27ae60;
-      background: linear-gradient(135deg, #f0fff4 0%, #e8f5e8 100%);
+      background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
     }
 
     .seat-number {
-      font-weight: 700;
-      font-size: 1.1rem;
+      font-weight: 800;
+      font-size: 1.2rem;
       color: #2c3e50;
-      margin-bottom: 0.3rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .seat-number::before {
+      content: '💺';
+      font-size: 1rem;
     }
 
     .passenger-name {
-      font-weight: 500;
-      color: #34495e;
-      margin-bottom: 0.2rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 0.3rem;
+      font-size: 1rem;
     }
 
     .seat-class {
-      font-size: 0.8rem;
-      font-weight: 500;
+      font-size: 0.85rem;
+      font-weight: 600;
       opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     /* Class Distribution */
     .class-distribution {
-      padding: 1.5rem;
+      padding: 2rem;
+      background: #f8f9fa;
     }
 
     .class-distribution h4 {
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
       color: #2c3e50;
+      font-size: 1.3rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .class-distribution h4::before {
+      content: '📊';
+      font-size: 1.2rem;
     }
 
     .class-stats {
       display: flex;
-      gap: 1rem;
+      gap: 1.5rem;
       flex-wrap: wrap;
+      justify-content: space-around;
     }
 
     .class-stat {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 1rem;
-      border-radius: 8px;
-      min-width: 120px;
+      padding: 1.5rem;
+      border-radius: 16px;
+      min-width: 140px;
+      background: white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
+    }
+
+    .class-stat:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.12);
     }
 
     .class-label {
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      padding: 0.3rem 0.8rem;
-      border-radius: 15px;
+      font-weight: 700;
+      margin-bottom: 0.8rem;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
       color: white;
       font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .class-label.first {
-      background: #8e44ad;
+      background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
     }
 
     .class-label.business {
-      background: #e67e22;
+      background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
     }
 
     .class-label.economy {
-      background: #27ae60;
+      background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
     }
 
     .class-count {
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-size: 1.4rem;
+      font-weight: 800;
       color: #2c3e50;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
     /* Error State */
@@ -906,6 +1034,90 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
 
     .status-cancelled {
       background: linear-gradient(135deg, #dc3545 0%, #e57373 100%);
+    }
+
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+      .bookings-container {
+        padding: 0 0.5rem;
+        margin: 1rem auto;
+      }
+      
+      .bookings-header h1 {
+        font-size: 2rem;
+      }
+      
+      .admin-tabs {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .tab-button {
+        padding: 1rem;
+        text-align: center;
+      }
+      
+      .admin-overview .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 0.5rem;
+      }
+      
+      .stat-card {
+        padding: 1.5rem 1rem;
+      }
+      
+      .stat-icon {
+        font-size: 2.5rem;
+        margin-right: 1rem;
+      }
+      
+      .stat-content h3 {
+        font-size: 2rem;
+      }
+      
+      .flight-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+      }
+      
+      .occupancy-stats {
+        text-align: center;
+      }
+      
+      .seat-grid {
+        grid-template-columns: 1fr;
+        max-height: 250px;
+      }
+      
+      .class-stats {
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+      
+      .class-stat {
+        min-width: 200px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .bookings-header h1 {
+        font-size: 1.5rem;
+      }
+      
+      .stat-content h3 {
+        font-size: 1.5rem;
+      }
+      
+      .flight-info h3 {
+        font-size: 1.4rem;
+      }
+      
+      .route {
+        font-size: 1rem;
+      }
     }
   `]
 })
@@ -1061,20 +1273,6 @@ export class BookingsComponent implements OnInit, OnDestroy {
       'first': 'First Class'
     };
     return classLabels[seatClass] || seatClass;
-  }
-
-  getOccupancyRate(): number {
-    if (!this.airlineData) return 0;
-    
-    // Calcola una stima del tasso di occupazione
-    const totalBookings = this.airlineData.statistics.total_bookings;
-    const totalFlights = this.airlineData.flights.length;
-    
-    if (totalFlights === 0) return 0;
-    
-    // Stima basata su una media di 150 posti per volo
-    const estimatedTotalSeats = totalFlights * 150;
-    return totalBookings / estimatedTotalSeats * 100;
   }
 
   formatDateTime(dateString: string): string {

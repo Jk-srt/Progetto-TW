@@ -425,8 +425,8 @@ router.get('/admin/airline-bookings', authenticateToken, async (req: AuthRequest
         const userId = req.userId as number;
         
         // Verifica che l'utente sia un admin di compagnia aerea
-        const userResult = await pool.query('SELECT role, airline_id FROM users WHERE id = $1', [userId]);
-        if (userResult.rows.length === 0 || userResult.rows[0].role !== 'airline_admin') {
+        const userResult = await pool.query('SELECT role, airline_id FROM accesso WHERE id = $1', [userId]);
+        if (userResult.rows.length === 0 || userResult.rows[0].role !== 'airline') {
             return res.status(403).json({ 
                 success: false,
                 message: 'Accesso non autorizzato. Solo gli amministratori delle compagnie aeree possono accedere a queste informazioni.' 
