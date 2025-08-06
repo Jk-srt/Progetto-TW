@@ -63,73 +63,166 @@ import { Flight } from '../../models/flight.model';
 
       <!-- Mappa posti -->
       <div class="aircraft-container" *ngIf="seatMap.length > 0">
+        <!-- Parte anteriore dell'aereo -->
         <div class="aircraft-nose">
-          <div class="cockpit">🛩️ Cockpit</div>
+          <div class="nose-cone">
+            <div class="nose-tip"></div>
+            <div class="nose-body">
+              <div class="nose-highlight"></div>
+            </div>
+            <div class="pitot-tubes">
+              <div class="pitot-tube left"></div>
+              <div class="pitot-tube right"></div>
+            </div>
+          </div>
+          <div class="cockpit">
+            <div class="cockpit-frame"></div>
+            <div class="cockpit-windows">
+              <div class="window captain">
+                <div class="window-frame"></div>
+                <div class="window-glare"></div>
+              </div>
+              <div class="window first-officer">
+                <div class="window-frame"></div>
+                <div class="window-glare"></div>
+              </div>
+            </div>
+            <div class="cockpit-text">
+              <span class="cockpit-label">Flight Deck</span>
+              <div class="airline-logo">✈</div>
+            </div>
+          </div>
         </div>
         
-        <div class="cabin">
-          <!-- Sezioni business e economy separate -->
-          <div class="seat-section" *ngFor="let section of getSeatSections()">
-            <div class="section-header" *ngIf="section.class !== 'economy' || hasBusinessClass">
-              <h4>{{ section.class | titlecase }} Class</h4>
+        <!-- Fusoliera dell'aereo -->
+        <div class="aircraft-fuselage">
+          <div class="fuselage-left">
+            <div class="fuselage-details">
+              <div class="rivet-line"></div>
+              <div class="panel-line"></div>
+            </div>
+          </div>
+          <div class="fuselage-right">
+            <div class="fuselage-details">
+              <div class="rivet-line"></div>
+              <div class="panel-line"></div>
+            </div>
+          </div>
+          <div class="fuselage-center">
+            <div class="registration-number">I-ABCD</div>
+          </div>
+          
+          <div class="cabin">
+            <!-- Header con indicatori di posizione -->
+            <div class="cabin-header">
+              <div class="position-indicators">
+                <span class="position-label left">A B C</span>
+                <span class="aisle-indicator">┈┈┈┈</span>
+                <span class="position-label right">D E F</span>
+              </div>
             </div>
             
-            <div class="seat-rows">
-              <div class="seat-row" *ngFor="let row of section.rows">
-                <div class="row-number">{{ row.rowNumber }}</div>
-                
-                <div class="seats-container">
-                  <!-- Lato sinistro (A, B, C) -->
-                  <div class="seat-group left">
-                    <div 
-                      *ngFor="let seat of row.leftSeats" 
-                      class="seat"
-                      [ngClass]="{
-                        'available': (seat.actual_status || seat.seat_status) === 'available',
-                        'selected': isSelected(seat.seat_id),
-                        'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
-                        'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
-                        'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
-                        'window': seat.is_window,
-                        'aisle': seat.is_aisle,
-                        'emergency': seat.is_emergency_exit,
-                        'disabled': !canSelectSeat(seat)
-                      }"
-                      [title]="getSeatTooltip(seat)"
-                      (click)="onSeatClick(seat)">
-                      <span class="seat-number">{{ seat.seat_number }}</span>
-                      <i *ngIf="seat.is_emergency_exit" class="emergency-icon">⚠️</i>
+            <!-- Sezioni business e economy separate -->
+            <div class="seat-section" *ngFor="let section of getSeatSections()">
+              <div class="section-header" *ngIf="section.class !== 'economy' || hasBusinessClass">
+                <h4>
+                  <span class="class-icon">{{ section.class === 'business' ? '💼' : section.class === 'first' ? '👑' : '🪑' }}</span>
+                  {{ section.class | titlecase }} Class
+                </h4>
+              </div>
+              
+              <div class="seat-rows">
+                <div class="seat-row" *ngFor="let row of section.rows">
+                  <div class="row-number">{{ row.rowNumber }}</div>
+                  
+                  <div class="seats-container">
+                    <!-- Lato sinistro (A, B, C) -->
+                    <div class="seat-group left">
+                      <div 
+                        *ngFor="let seat of row.leftSeats" 
+                        class="seat"
+                        [ngClass]="{
+                          'available': (seat.actual_status || seat.seat_status) === 'available',
+                          'selected': isSelected(seat.seat_id),
+                          'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
+                          'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
+                          'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
+                          'window': seat.is_window,
+                          'aisle': seat.is_aisle,
+                          'emergency': seat.is_emergency_exit,
+                          'disabled': !canSelectSeat(seat),
+                          'business': seat.seat_class === 'business',
+                          'first': seat.seat_class === 'first',
+                          'economy': seat.seat_class === 'economy'
+                        }"
+                        [title]="getSeatTooltip(seat)"
+                        (click)="onSeatClick(seat)">
+                        <span class="seat-number">{{ seat.seat_number }}</span>
+                        <i *ngIf="seat.is_emergency_exit" class="emergency-icon">⚠️</i>
+                        <i *ngIf="seat.is_window" class="window-icon">🪟</i>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <!-- Corridoio -->
-                  <div class="aisle"></div>
-                  
-                  <!-- Lato destro (D, E, F) -->
-                  <div class="seat-group right">
-                    <div 
-                      *ngFor="let seat of row.rightSeats" 
-                      class="seat"
-                      [ngClass]="{
-                        'available': (seat.actual_status || seat.seat_status) === 'available',
-                        'selected': isSelected(seat.seat_id),
-                        'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
-                        'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
-                        'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
-                        'window': seat.is_window,
-                        'aisle': seat.is_aisle,
-                        'emergency': seat.is_emergency_exit,
-                        'disabled': !canSelectSeat(seat)
-                      }"
-                      [title]="getSeatTooltip(seat)"
-                      (click)="onSeatClick(seat)">
-                      <span class="seat-number">{{ seat.seat_number }}</span>
-                      <i *ngIf="seat.is_emergency_exit" class="emergency-icon">⚠️</i>
+                    
+                    <!-- Corridoio con indicatore -->
+                    <div class="aisle">
+                      <div class="aisle-carpet"></div>
+                    </div>
+                    
+                    <!-- Lato destro (D, E, F) -->
+                    <div class="seat-group right">
+                      <div 
+                        *ngFor="let seat of row.rightSeats" 
+                        class="seat"
+                        [ngClass]="{
+                          'available': (seat.actual_status || seat.seat_status) === 'available',
+                          'selected': isSelected(seat.seat_id),
+                          'temporarily-reserved': (seat.actual_status || seat.seat_status) === 'temporarily_reserved',
+                          'my-reservation': (seat.actual_status || seat.seat_status) === 'my_reservation',
+                          'booked': (seat.actual_status || seat.seat_status) === 'booked' || (seat.actual_status || seat.seat_status) === 'occupied',
+                          'window': seat.is_window,
+                          'aisle': seat.is_aisle,
+                          'emergency': seat.is_emergency_exit,
+                          'disabled': !canSelectSeat(seat),
+                          'business': seat.seat_class === 'business',
+                          'first': seat.seat_class === 'first',
+                          'economy': seat.seat_class === 'economy'
+                        }"
+                        [title]="getSeatTooltip(seat)"
+                        (click)="onSeatClick(seat)">
+                        <span class="seat-number">{{ seat.seat_number }}</span>
+                        <i *ngIf="seat.is_emergency_exit" class="emergency-icon">⚠️</i>
+                        <i *ngIf="seat.is_window" class="window-icon">🪟</i>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <!-- Coda dell'aereo -->
+        <div class="aircraft-tail">
+          <div class="tail-section">
+            <div class="tail-fin">
+              <div class="airline-logo">{{ flight?.airline_name || 'AIRLINE' }}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Motori -->
+        <div class="aircraft-engines">
+          <div class="engine left-engine"></div>
+          <div class="engine right-engine"></div>
+        </div>
+        
+        <!-- Ali -->
+        <div class="aircraft-wings">
+          <div class="wing left-wing">
+            <div class="winglet left-winglet"></div>
+          </div>
+          <div class="wing right-wing">
+            <div class="winglet right-winglet"></div>
           </div>
         </div>
       </div>
