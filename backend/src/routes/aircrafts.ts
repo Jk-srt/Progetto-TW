@@ -241,33 +241,23 @@ router.put('/:id', authenticateToken, verifyAirlineUser, async (req: AuthRequest
             }
         }
 
-        const updateQuery = `
-            UPDATE aircrafts 
-            SET registration = COALESCE($1, registration),
-                aircraft_type = COALESCE($2, aircraft_type),
-                manufacturer = COALESCE($3, manufacturer),
-                model = COALESCE($4, model),
-                seat_capacity = COALESCE($5, seat_capacity),
-                business_class_seats = COALESCE($6, business_class_seats),
-                economy_class_seats = COALESCE($7, economy_class_seats),
-                manufacturing_year = COALESCE($8, manufacturing_year),
-                status = COALESCE($9, status),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $10
-            RETURNING *
-        `;
-
-        const values = [
-            registration, aircraft_type, manufacturer, model,
-            seat_capacity, business_class_seats, economy_class_seats,
-            manufacturing_year, status, id
-        ];
-
-        const result = await pool.query(updateQuery, values);
+        // Utilizza il metodo del DatabaseService per aggiornare l'aeromobile
+        const updatedAircraft = await dbService.updateAircraft(parseInt(id), {
+            registration: registration || aircraft.registration,
+            aircraft_type: aircraft_type || aircraft.aircraft_type,
+            manufacturer: manufacturer || aircraft.manufacturer,
+            model: model || aircraft.model,
+            seat_capacity: seat_capacity || aircraft.seat_capacity,
+            business_class_seats: business_class_seats || aircraft.business_class_seats,
+            economy_class_seats: economy_class_seats || aircraft.economy_class_seats,
+            manufacturing_year: manufacturing_year || aircraft.manufacturing_year,
+            status: status || aircraft.status,
+            airline_id: aircraft.airline_id
+        });
 
         res.json({
             message: 'Aereo aggiornato con successo',
-            aircraft: result.rows[0]
+            aircraft: updatedAircraft
         });
     } catch (error) {
         console.error('[ERROR] Error updating aircraft:', error);
@@ -293,23 +283,12 @@ router.delete('/:id', authenticateToken, verifyAirlineUser, async (req: AuthRequ
             return res.status(403).json({ error: 'Non puoi eliminare questo aereo' });
         }
 
-        // Controlla se ci sono voli associati
-        const flightsCheck = await pool.query(
-            'SELECT COUNT(*) as count FROM flights WHERE aircraft_id = $1',
-            [id]
-        );
-
-        if (parseInt(flightsCheck.rows[0].count) > 0) {
-            return res.status(400).json({
-                error: 'Impossibile eliminare: esistono voli associati a questo aereo'
-            });
-        }
-
-        const result = await pool.query('DELETE FROM aircrafts WHERE id = $1 RETURNING *', [id]);
+        // Utilizza il metodo del DatabaseService per eliminare l'aeromobile
+        const deletedAircraft = await dbService.deleteAircraft(parseInt(id));
 
         res.json({
             message: 'Aereo eliminato con successo',
-            aircraft: result.rows[0]
+            aircraft: deletedAircraft
         });
     } catch (error) {
         console.error('[ERROR] Error deleting aircraft:', error);
@@ -366,10 +345,8 @@ router.patch('/:id/status', authenticateToken, verifyAirlineUser, async (req: Au
             return res.status(403).json({ error: 'Non autorizzato a modificare questo aeromobile' });
         }
 
-        const result = await pool.query(
-            'UPDATE aircrafts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-            [status, aircraftId]
-        );
+        // Utilizza il metodo del DatabaseService per aggiornare lo status
+        const updatedAircraft = await dbService.updateAircraftStatus(aircraftId, status);
 
         console.log('[INFO] Aircraft status updated:', {
             id: aircraftId,
@@ -377,9 +354,15 @@ router.patch('/:id/status', authenticateToken, verifyAirlineUser, async (req: Au
             airline_id: req.airlineId
         });
 
-        res.json(result.rows[0]);
+        res.json(updatedAircraft);
     } catch (error) {
         console.error('[ERROR] Error updating aircraft status:', error);
+        if (error instanceof Error && error.message.includes('non trovato')) {
+            return res.status(404).json({ error: error.message });
+        }
+        if (error instanceof Error && error.message.includes('Non autorizzato')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({
             error: 'Errore durante l\'aggiornamento dello stato',
             message: error instanceof Error ? error.message : 'Unknown error'

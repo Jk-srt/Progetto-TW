@@ -374,6 +374,64 @@ export class DatabaseService {
         return result.rows[0];
     }
 
+    async updateAircraft(id: number, aircraft: Partial<Omit<Aircraft, 'id' | 'created_at' | 'updated_at'>>): Promise<Aircraft> {
+        const fields: string[] = [];
+        const values: any[] = [];
+        let paramCount = 1;
+
+        // Costruisci dinamicamente la query UPDATE
+        Object.entries(aircraft).forEach(([key, value]) => {
+            if (value !== undefined && key !== 'id' && key !== 'created_at' && key !== 'updated_at') {
+                fields.push(`${key} = $${paramCount}`);
+                values.push(value);
+                paramCount++;
+            }
+        });
+
+        if (fields.length === 0) {
+            throw new Error('Nessun campo da aggiornare');
+        }
+
+        fields.push(`updated_at = NOW()`);
+        values.push(id);
+
+        const query = `
+            UPDATE aircrafts 
+            SET ${fields.join(', ')}
+            WHERE id = $${paramCount}
+            RETURNING *
+        `;
+
+        const result = await this.pool.query(query, values);
+        return result.rows[0];
+    }
+
+    async updateAircraftStatus(id: number, status: 'active' | 'maintenance' | 'retired'): Promise<Aircraft> {
+        const query = `
+            UPDATE aircrafts 
+            SET status = $1, updated_at = NOW()
+            WHERE id = $2
+            RETURNING *
+        `;
+        const result = await this.pool.query(query, [status, id]);
+        return result.rows[0];
+    }
+
+    async deleteAircraft(id: number): Promise<void> {
+        // Prima controlla se l'aeromobile è utilizzato in voli attivi
+        const flightCheck = await this.pool.query(`
+            SELECT COUNT(*) as count 
+            FROM flights 
+            WHERE aircraft_id = $1 AND status IN ('scheduled', 'delayed')
+        `, [id]);
+
+        if (parseInt(flightCheck.rows[0].count) > 0) {
+            throw new Error('Impossibile eliminare l\'aeromobile: ha voli attivi programmati');
+        }
+
+        await this.pool.query('DELETE FROM aircrafts WHERE id = $1', [id]);
+    }
+
     // Rotte
     async getAllRoutes(): Promise<Route[]> {
         const query = `
