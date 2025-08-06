@@ -461,7 +461,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   goBackToFlights(): void {
-    this.router.navigate(['/flights']);
+    this.router.navigate(['/']);
   }
 
   onSubmit(): void {

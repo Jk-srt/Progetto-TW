@@ -77,6 +77,18 @@
       color: #2c3e50;
       font-size: 2rem;
       font-weight: 600;
+
+      .admin-mode {
+        color: #d32f2f;
+        font-size: 1.4rem;
+      }
+    }
+
+    .admin-subtitle {
+      margin: 0 0 0.5rem 0;
+      color: #666;
+      font-style: italic;
+      font-size: 0.95rem;
     }
 
     .user-info {
@@ -228,6 +240,22 @@
           strong {
             color: #007bff;
             font-size: 1.1rem;
+          }
+        }
+
+        &.airline-name {
+          .airline-badge-small {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
         }
 
