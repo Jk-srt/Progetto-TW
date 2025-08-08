@@ -8,6 +8,9 @@ import path from 'path';
 // Carica le variabili d'ambiente
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
+// Import WebSocket service (lazy import to avoid circular dependency)
+let seatWebSocketService: any;
+
 const router = Router();
 
 // Inizializza pool di connessioni database
@@ -368,6 +371,237 @@ router.get('/booking/:bookingId', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Errore nel recupero dei posti prenotati'
+    });
+  }
+});
+
+// Endpoint per rinnovare prenotazione temporanea
+router.post('/renew-reservation', authenticateOptional, preventAirlineBooking, async (req: Request, res: Response) => {
+  try {
+    const { seat_ids, session_id } = req.body;
+    const userId = (req as any).userId;
+
+    if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'IDs dei posti obbligatori'
+      });
+    }
+
+    if (!session_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID obbligatorio'
+      });
+    }
+
+    console.log(`🔄 Renewing reservation for seats: ${seat_ids}, session: ${session_id}`);
+
+    // Verifica che tutti i posti siano ancora riservati dalla stessa sessione
+    const checkQuery = `
+      SELECT id, status, temporary_reservation_expires, reserved_by_session 
+      FROM aircraft_seats 
+      WHERE id = ANY($1)
+    `;
+    
+    const checkResult = await pool.query(checkQuery, [seat_ids]);
+    
+    // Controlla che tutti i posti siano ancora riservati dalla stessa sessione
+    for (const seat of checkResult.rows) {
+      if (seat.status !== 'temporarily_reserved' || seat.reserved_by_session !== session_id) {
+        return res.status(400).json({
+          success: false,
+          message: `Il posto ${seat.id} non è più riservato per la tua sessione`
+        });
+      }
+    }
+
+    // Rinnova la prenotazione per altri 15 minuti
+    const newExpiry = new Date(Date.now() + 15 * 60 * 1000); // +15 minuti
+    
+    const renewQuery = `
+      UPDATE aircraft_seats 
+      SET temporary_reservation_expires = $1
+      WHERE id = ANY($2) AND reserved_by_session = $3
+    `;
+    
+    const renewResult = await pool.query(renewQuery, [newExpiry, seat_ids, session_id]);
+    
+    if (renewResult.rowCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nessun posto è stato rinnovato'
+      });
+    }
+
+    console.log(`✅ Renewed ${renewResult.rowCount} seat reservations until ${newExpiry}`);
+
+    // Notify clients about reservation renewal via WebSocket
+    try {
+      if (!seatWebSocketService) {
+        seatWebSocketService = require('../app').seatWebSocketService;
+      }
+      if (seatWebSocketService) {
+        // Get flight ID for the seats
+        const flightQuery = `
+          SELECT DISTINCT f.id as flight_id
+          FROM aircraft_seats s
+          JOIN aircrafts a ON s.aircraft_id = a.id
+          JOIN flights f ON a.id = f.aircraft_id
+          WHERE s.id = ANY($1)
+        `;
+        const flightResult = await pool.query(flightQuery, [seat_ids]);
+        
+        if (flightResult.rows.length > 0) {
+          const flightId = flightResult.rows[0].flight_id;
+          seatWebSocketService.broadcastReservationUpdate(flightId, session_id, seat_ids, newExpiry);
+        }
+      }
+    } catch (wsError) {
+      console.error('WebSocket notification error:', wsError);
+      // Don't fail the request for WebSocket errors
+    }
+
+    res.json({
+      success: true,
+      message: `Prenotazione rinnovata per ${renewResult.rowCount} posti`,
+      expires_at: newExpiry,
+      renewed_seats: renewResult.rowCount
+    });
+
+  } catch (error) {
+    console.error('Errore nel rinnovo prenotazione:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel rinnovo della prenotazione'
+    });
+  }
+});
+
+// Endpoint per rilasciare prenotazioni scadute
+router.post('/release-expired', authenticateOptional, async (req: Request, res: Response) => {
+  try {
+    const { seat_ids, session_id } = req.body;
+
+    if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'IDs dei posti obbligatori'
+      });
+    }
+
+    console.log(`🗑️ Releasing expired reservations for seats: ${seat_ids}, session: ${session_id}`);
+
+    // Rilascia i posti scaduti
+    const releaseQuery = `
+      UPDATE aircraft_seats 
+      SET 
+        status = 'available',
+        temporary_reservation_expires = NULL,
+        reserved_by_session = NULL,
+        reserved_by_user = NULL
+      WHERE id = ANY($1) 
+        AND status = 'temporarily_reserved'
+        AND (
+          temporary_reservation_expires < NOW() 
+          OR (reserved_by_session = $2 AND temporary_reservation_expires IS NOT NULL)
+        )
+    `;
+    
+    const releaseResult = await pool.query(releaseQuery, [seat_ids, session_id]);
+    
+    console.log(`✅ Released ${releaseResult.rowCount} expired seat reservations`);
+
+    // Notify clients about seat release via WebSocket
+    try {
+      if (!seatWebSocketService) {
+        seatWebSocketService = require('../app').seatWebSocketService;
+      }
+      if (seatWebSocketService) {
+        // Get flight ID for the seats
+        const flightQuery = `
+          SELECT DISTINCT f.id as flight_id
+          FROM aircraft_seats s
+          JOIN aircrafts a ON s.aircraft_id = a.id
+          JOIN flights f ON a.id = f.aircraft_id
+          WHERE s.id = ANY($1)
+        `;
+        const flightResult = await pool.query(flightQuery, [seat_ids]);
+        
+        if (flightResult.rows.length > 0) {
+          const flightId = flightResult.rows[0].flight_id;
+          // Broadcast seat updates for each released seat
+          seat_ids.forEach((seatId: number) => {
+            seatWebSocketService.broadcastSeatUpdate(flightId, {
+              type: 'seat_update',
+              flightId,
+              seatId,
+              status: 'available'
+            });
+          });
+        }
+      }
+    } catch (wsError) {
+      console.error('WebSocket notification error:', wsError);
+      // Don't fail the request for WebSocket errors
+    }
+
+    res.json({
+      success: true,
+      message: `Rilasciati ${releaseResult.rowCount} posti scaduti`,
+      released_seats: releaseResult.rowCount
+    });
+
+  } catch (error) {
+    console.error('Errore nel rilascio prenotazioni scadute:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel rilascio delle prenotazioni scadute'
+    });
+  }
+});
+
+// Endpoint per ottenere aggiornamenti sui posti in tempo reale
+router.get('/flight/:flightId/updates', async (req: Request, res: Response) => {
+  try {
+    const flightId = parseInt(req.params.flightId);
+    
+    if (!flightId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID volo obbligatorio'
+      });
+    }
+
+    // Ottieni gli aggiornamenti recenti sui posti (ultimi 30 secondi)
+    const updatesQuery = `
+      SELECT 
+        s.id as seat_id,
+        s.status,
+        s.reserved_by_session,
+        s.temporary_reservation_expires,
+        s.updated_at
+      FROM aircraft_seats s
+      JOIN aircrafts a ON s.aircraft_id = a.id
+      JOIN flights f ON a.id = f.aircraft_id
+      WHERE f.id = $1 
+        AND s.updated_at > NOW() - INTERVAL '30 seconds'
+      ORDER BY s.updated_at DESC
+    `;
+    
+    const result = await pool.query(updatesQuery, [flightId]);
+    
+    res.json({
+      success: true,
+      updates: result.rows,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Errore nel recupero aggiornamenti posti:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero degli aggiornamenti'
     });
   }
 });

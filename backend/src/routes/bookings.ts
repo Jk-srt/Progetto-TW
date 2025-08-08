@@ -31,24 +31,44 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         } = req.body;
 
         // Validazione dati di input
+        console.log('🔍 Validating input data...');
+        console.log('flight_id:', flight_id);
+        console.log('passengers:', passengers);
+        console.log('passengers.length:', passengers?.length);
+        console.log('total_price:', total_price);
+        
         if (!flight_id || !passengers || !Array.isArray(passengers) || passengers.length === 0) {
+            console.log('❌ Input validation failed');
             return res.status(400).json({ 
                 success: false,
                 message: 'Dati di prenotazione non validi' 
             });
         }
 
-        // Genera codice prenotazione unico (max 10 caratteri)
-        const booking_reference = 'BK' + Date.now().toString().slice(-6) + Math.random().toString(36).substr(2, 2).toUpperCase();
+        console.log('✅ Input validation passed');
+
+        // Funzione per generare codice prenotazione unico (max 10 caratteri per DB)
+        let bookingCounter = 0;
+        const generateBookingReference = () => {
+            const timestamp = Date.now().toString().slice(-4); // Solo 4 cifre
+            const randomPart = Math.random().toString(36).substr(2, 2).toUpperCase(); // Solo 2 caratteri
+            const counter = (++bookingCounter).toString().padStart(2, '0'); // 2 cifre
+            const bookingRef = `BK${timestamp}${randomPart}${counter}`; // BK + 4 + 2 + 2 = 10 caratteri esatti
+            console.log(`🔖 Generated booking reference: ${bookingRef} (length: ${bookingRef.length})`);
+            return bookingRef;
+        };
 
         // Verifica che il volo esista
+        console.log('🔍 Checking if flight exists...');
         const flight = await dbService.getFlightById(flight_id);
         if (!flight) {
+            console.log('❌ Flight not found');
             return res.status(404).json({ 
                 success: false,
                 message: 'Volo non trovato' 
             });
         }
+        console.log('✅ Flight found:', flight.flight_number);
 
         // Verifica disponibilità posti
         const passenger_count = passengers.length;
@@ -60,10 +80,18 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         }
 
         // Crea le prenotazioni (una per ogni posto, come richiede la struttura DB)
+        console.log('🔄 Starting booking creation loop...');
         const createdBookings = [];
 
-        for (const passenger of passengers) {
+        for (const [index, passenger] of passengers.entries()) {
+            console.log(`\n🎫 Processing passenger ${index + 1}/${passengers.length}:`, {
+                seat_id: passenger.seat_id,
+                firstName: passenger.firstName,
+                lastName: passenger.lastName
+            });
+            
             if (!passenger.seat_id) {
+                console.log('❌ Missing seat_id for passenger');
                 return res.status(400).json({ 
                     success: false,
                     message: 'Ogni passeggero deve avere un posto assegnato' 
@@ -71,30 +99,50 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
             }
 
             // Verifica che il posto non sia già prenotato
+            console.log('🔍 Checking if seat is already booked...');
             const existingBooking = await pool.query(
                 'SELECT id FROM bookings WHERE flight_id = $1 AND seat_id = $2',
                 [flight_id, passenger.seat_id]
             );
 
             if (existingBooking.rows.length > 0) {
+                console.log('❌ Seat already booked');
                 return res.status(400).json({
                     success: false,
                     message: `Il posto ${passenger.seat_id} è già stato prenotato per questo volo.`
                 });
             }
+            console.log('✅ Seat is available');
 
             // Verifica che l'utente abbia una riserva temporanea valida per questo posto
+            console.log('🔍 Checking temporary reservation...');
+            console.log('🔍 Looking for reservation with:', { userId, flight_id, seat_id: passenger.seat_id });
+            
             const tempReservation = await pool.query(
-                'SELECT id FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2 AND seat_id = $3 AND expires_at > NOW()',
+                'SELECT id, user_id, expires_at FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2 AND seat_id = $3 AND expires_at > NOW()',
                 [userId, flight_id, passenger.seat_id]
             );
+            
+            console.log('🔍 Found reservations:', tempReservation.rows.length);
+            if (tempReservation.rows.length > 0) {
+                console.log('🔍 Reservation details:', tempReservation.rows[0]);
+            }
+
+            // Verifica anche tutte le prenotazioni per questo utente e volo
+            const allUserReservations = await pool.query(
+                'SELECT seat_id, expires_at FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2',
+                [userId, flight_id]
+            );
+            console.log('🔍 All user reservations for this flight:', allUserReservations.rows);
 
             if (tempReservation.rows.length === 0) {
+                console.log('❌ No valid temporary reservation found');
                 return res.status(400).json({
                     success: false,
                     message: `Il posto ${passenger.seat_id} non è più riservato per te. La riserva potrebbe essere scaduta.`
                 });
             }
+            console.log('✅ Valid temporary reservation found');
 
             // Verifica che il posto sia effettivamente disponibile
             const seatCheck = await pool.query(
@@ -130,6 +178,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                     seatPrice = (flight as any).economy_price || (flight as any).price || 0;
             }
 
+            // Genera codice prenotazione unico per questa specifica prenotazione
+            const uniqueBookingReference = generateBookingReference();
+
             // Inserisce la prenotazione nella struttura esistente
             const bookingResult = await pool.query(
                 `INSERT INTO bookings 
@@ -140,7 +191,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                     userId,
                     flight_id,
                     passenger.seat_id,
-                    booking_reference,
+                    uniqueBookingReference,
                     seatClass || 'economy',
                     seatPrice,
                     'confirmed',
@@ -173,11 +224,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         await dbService.updateFlightSeats(flight_id, -passenger_count);
 
         const totalPrice = createdBookings.reduce((sum, booking) => sum + parseFloat(booking.price), 0);
+        const bookingReferences = createdBookings.map(booking => booking.booking_reference);
 
         res.json({
             success: true,
             message: 'Prenotazione creata con successo',
-            booking_reference,
+            booking_references: bookingReferences,
             bookings: createdBookings,
             total_price: totalPrice,
             passenger_count

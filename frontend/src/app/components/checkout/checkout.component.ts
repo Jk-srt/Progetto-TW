@@ -34,32 +34,8 @@ interface PassengerForm {
   imports: [CommonModule, ReactiveFormsModule],
   template: `
     <div class="checkout-container">
-      <!-- Timer di scadenza prenotazione -->
-      <div class="reservation-timer" *ngIf="timeRemaining > 0">
-        <div class="timer-alert">
-          <i class="timer-icon">⏰</i>
-          <strong>Attenzione!</strong> La tua prenotazione scadrà tra: 
-          <span class="countdown">{{ formatTime(timeRemaining) }}</span>
-        </div>
-        <div class="timer-bar">
-          <div class="timer-fill" [style.width.%]="getTimerPercentage()"></div>
-        </div>
-      </div>
-
-      <!-- Timer scaduto -->
-      <div class="timer-expired" *ngIf="timeRemaining <= 0">
-        <div class="expired-alert">
-          <i class="expired-icon">❌</i>
-          <strong>Prenotazione scaduta!</strong>
-          <p>Il tempo per completare la prenotazione è scaduto. I posti selezionati sono stati rilasciati.</p>
-          <button class="btn btn-primary" (click)="goBackToFlights()">
-            Torna alla ricerca voli
-          </button>
-        </div>
-      </div>
-
       <!-- Contenuto principale del checkout -->
-      <div class="checkout-content" *ngIf="timeRemaining > 0">
+      <div class="checkout-content">
         <!-- Header con dettagli volo -->
         <div class="flight-summary">
           <h1>Finalizza la tua prenotazione</h1>
@@ -268,10 +244,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   isLoadingUserData = false;
   currentUser: User | null = null;
   
-  // Timer
-  timeRemaining = 900; // 15 minuti in secondi
-  initialTime = 900;
-  timerSubscription?: Subscription;
+  // Subscription per il cleanup
+  userSubscription?: Subscription;
   userSubscription?: Subscription;
   private baseUrl = `${environment.apiUrl}`;
 
@@ -304,13 +278,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
 
     this.loadFlightDetails();
-    this.startTimer();
   }
 
   ngOnDestroy(): void {
-    if (this.timerSubscription) {
-      this.timerSubscription.unsubscribe();
-    }
     if (this.userSubscription) {
       this.userSubscription.unsubscribe();
     }
@@ -321,35 +291,35 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     
     // Crea un form per ogni posto selezionato
     this.checkoutData?.selectedSeats.forEach((seat, index) => {
-      // Auto-compilazione per il primo passeggero SOLO se l'utente è autenticato (non ospite)
+      // Auto-compilazione per tutti i passeggeri se l'utente è autenticato
       const isMainPassenger = index === 0;
       const userData = this.authService.getUserInfoForAutoFill(); // Usa il nuovo metodo che restituisce null per ospiti
       
       const passengerForm = this.fb.group({
         firstName: [
-          (isMainPassenger && userData?.first_name) ? userData.first_name : '', 
+          userData?.first_name || '', 
           Validators.required
         ],
         lastName: [
-          (isMainPassenger && userData?.last_name) ? userData.last_name : '', 
+          userData?.last_name || '', 
           Validators.required
         ],
         dateOfBirth: [
-          (isMainPassenger && userData?.date_of_birth) ? userData.date_of_birth : '', 
+          userData?.date_of_birth || '', 
           Validators.required
         ],
         documentType: ['', Validators.required],
         documentNumber: ['', Validators.required],
         nationality: [
-          (isMainPassenger && userData?.nationality) ? userData.nationality : '', 
+          userData?.nationality || '', 
           Validators.required
         ],
         email: [
-          (isMainPassenger && userData?.email) ? userData.email : '',
+          userData?.email || '',
           isMainPassenger ? [Validators.required, Validators.email] : []
         ],
         phone: [
-          (isMainPassenger && userData?.phone) ? userData.phone : '',
+          userData?.phone || '',
           isMainPassenger ? [Validators.required] : []
         ]
       });
@@ -363,10 +333,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
     // Mostra un messaggio se i dati sono stati auto-compilati
     if (this.currentUser && this.checkoutData?.selectedSeats && this.checkoutData.selectedSeats.length > 0) {
+      const seatCount = this.checkoutData.selectedSeats.length;
+      const message = seatCount > 1 
+        ? `Abbiamo compilato automaticamente i tuoi dati per tutti i ${seatCount} passeggeri. Puoi modificarli se necessario.`
+        : 'Abbiamo compilato automaticamente i tuoi dati personali. Puoi modificarli se necessario.';
+      
       this.notificationService.showInfo(
         'Dati auto-compilati', 
-        'Abbiamo compilato automaticamente i tuoi dati personali. Puoi modificarli se necessario.',
-        3000
+        message,
+        4000
       );
     }
   }
@@ -377,26 +352,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       // Implementa la chiamata API per ottenere i dettagli del volo
       console.log('Loading flight details for ID:', this.checkoutData.flightId);
     }
-  }
-
-  private startTimer(): void {
-    this.timerSubscription = interval(1000).subscribe(() => {
-      this.timeRemaining--;
-      
-      if (this.timeRemaining <= 0) {
-        this.handleTimerExpired();
-      }
-    });
-  }
-
-  private handleTimerExpired(): void {
-    if (this.timerSubscription) {
-      this.timerSubscription.unsubscribe();
-    }
-    
-    // Rilascia automaticamente i posti selezionati
-    this.seatService.clearSelection();
-    alert('Il tempo per completare la prenotazione è scaduto. I posti sono stati rilasciati.');
   }
 
   get passengersFormArray(): FormArray {
@@ -413,15 +368,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const flight = this.checkoutData.flight;
     
     // Usa i prezzi specifici per classe dal sistema route pricing + flight surcharge
+    // Converte sempre i prezzi in numeri per evitare concatenazioni
     switch (seat.seat_class) {
       case 'economy':
-        return flight.economy_price || flight.price || 0;
+        return parseFloat(flight.economy_price) || parseFloat(flight.price) || 0;
       case 'business':
-        return flight.business_price || (flight.price * 1.5) || 0;
+        return parseFloat(flight.business_price) || (parseFloat(flight.price) * 1.5) || 0;
       case 'first':
-        return flight.first_price || (flight.price * 2) || 0;
+        return parseFloat(flight.first_price) || (parseFloat(flight.price) * 2) || 0;
       default:
-        return flight.economy_price || flight.price || 0;
+        return parseFloat(flight.economy_price) || parseFloat(flight.price) || 0;
     }
   }
 
@@ -431,16 +387,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     return this.checkoutData.selectedSeats.reduce((total, seat) => {
       return total + this.getSeatPrice(seat);
     }, 0);
-  }
-
-  formatTime(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }
-
-  getTimerPercentage(): number {
-    return (this.timeRemaining / this.initialTime) * 100;
   }
 
   formatDateTime(dateTime: string): string {
@@ -454,6 +400,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
   }
 
+  hasMultiplePassengers(): boolean {
+    return (this.checkoutData?.selectedSeats?.length || 0) > 1;
+  }
+
   goBackToSeats(): void {
     if (this.checkoutData?.flightId) {
       this.router.navigate(['/flights', this.checkoutData.flightId, 'seats']);
@@ -465,7 +415,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
-    if (this.checkoutForm.valid && this.timeRemaining > 0) {
+    if (this.checkoutForm.valid) {
       this.isProcessing = true;
       
       const formData = this.checkoutForm.value;
@@ -500,14 +450,50 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   private processBooking(bookingData: any): void {
     console.log('Processing booking:', bookingData);
+    console.log('Total price calculated:', this.getTotalPrice());
+    console.log('Selected seats:', this.checkoutData?.selectedSeats);
+    console.log('Flight data:', this.checkoutData?.flight);
+    
+    // Debug dettagliato per ogni posto selezionato
+    this.checkoutData?.selectedSeats?.forEach((seat, index) => {
+      console.log(`Seat ${index + 1}:`, {
+        seat_number: seat.seat_number,
+        seat_class: seat.seat_class,
+        seat_id: seat.seat_id,
+        calculated_price: this.getSeatPrice(seat)
+      });
+    });
+    
+    // Debug flight pricing
+    if (this.checkoutData?.flight) {
+      console.log('Flight pricing details:', {
+        economy_price: this.checkoutData.flight.economy_price,
+        business_price: this.checkoutData.flight.business_price,
+        first_price: this.checkoutData.flight.first_price,
+        price: this.checkoutData.flight.price
+      });
+    }
     
     // Prepara i dati per l'API backend
+    const mainPassenger = bookingData.passengers[0];
+    
+    // Validazione aggiuntiva per dati critici
+    if (!mainPassenger.email || !mainPassenger.phone) {
+      this.isProcessing = false;
+      this.notificationService.showError(
+        'Dati mancanti',
+        'Email e telefono sono obbligatori per completare la prenotazione.'
+      );
+      return;
+    }
+    
     const apiBookingData = {
       flight_id: bookingData.flightId,
       passengers: bookingData.passengers.map((passenger: any, index: number) => ({
-        passenger_name: `${passenger.firstName} ${passenger.lastName}`,
-        passenger_email: passenger.email || bookingData.passengers[0].email,
-        passenger_phone: passenger.phone || bookingData.passengers[0].phone,
+        firstName: passenger.firstName,
+        lastName: passenger.lastName,
+        email: passenger.email || mainPassenger.email,
+        phone: passenger.phone || mainPassenger.phone,
         document_type: passenger.documentType,
         document_number: passenger.documentNumber,
         date_of_birth: passenger.dateOfBirth,
@@ -518,6 +504,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       payment_method: 'credit_card',
       payment_status: 'completed'
     };
+
+    console.log('API booking data:', apiBookingData);
 
     // Ottieni l'email del primo passeggero per la notifica
     const mainPassengerEmail = bookingData.passengers[0]?.email;
@@ -532,11 +520,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.isProcessing = false;
           console.log('Booking response received:', response);
           
-          // Controlla sia response.success che response.booking_reference per compatibilità
-          if (response.success || response.booking_reference) {
+          // Controlla sia response.success che response.booking_references per compatibilità
+          if (response.success || response.booking_references) {
+            // Gestisce sia singolo che multiplo booking reference
+            const bookingRef = response.booking_references?.length > 0 
+              ? response.booking_references[0] 
+              : response.booking_reference || `BK${Date.now()}`;
+            
             // Mostra notifica di successo con email
             this.notificationService.showBookingSuccess(
-              response.booking_reference || `BK${Date.now()}`,
+              bookingRef,
               mainPassengerEmail
             );
             
@@ -566,22 +559,54 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           // Gestisci diversi tipi di errore
           let errorMessage = 'Si è verificato un errore durante la prenotazione. Riprova più tardi.';
           let errorTitle = 'Errore nella prenotazione';
+          let shouldReturnToSeatSelection = false;
           
           if (error.status === 400 && error.error?.message) {
             // Errori di validazione/business logic dal backend
             errorMessage = error.error.message;
-            if (error.error.message.includes('già prenotato') || error.error.message.includes('già stato prenotato')) {
-              errorTitle = 'Posto non disponibile';
-              errorMessage = 'Il posto selezionato è già stato prenotato da un altro utente. Seleziona un altro posto.';
-              // Torna alla selezione posti dopo l'errore
-              setTimeout(() => {
-                this.router.navigate(['/seat-selection'], { 
+            
+            // Controlla se l'errore è relativo a posti non più riservati
+            if (error.error.message.includes('non è più riservato') || 
+                error.error.message.includes('riserva') || 
+                error.error.message.includes('scaduta')) {
+              
+              errorTitle = '⏰ Prenotazione Scaduta';
+              errorMessage = 'La prenotazione temporanea dei posti è scaduta. I posti sono stati rilasciati e potrebbero essere stati prenotati da altri utenti.';
+              shouldReturnToSeatSelection = true;
+              
+              // Pulisce la selezione scaduta
+              this.seatService.clearSelection();
+              
+            } else if (error.error.message.includes('già prenotato') || 
+                       error.error.message.includes('già stato prenotato') ||
+                       error.error.message.includes('non disponibile')) {
+              
+              errorTitle = '🚫 Posto Non Disponibile';
+              errorMessage = 'Uno o più posti selezionati sono stati prenotati da altri utenti mentre completavi la prenotazione. Seleziona posti diversi.';
+              shouldReturnToSeatSelection = true;
+              
+              // Pulisce la selezione obsoleta
+              this.seatService.clearSelection();
+            }
+          }
+          
+          // Mostra notifica di errore
+          this.notificationService.showError(errorTitle, errorMessage);
+          
+          // Se necessario, torna alla selezione posti
+          if (shouldReturnToSeatSelection) {
+            setTimeout(() => {
+              if (this.checkoutData?.flightId) {
+                this.router.navigate(['/flights', this.checkoutData.flightId, 'seats'], {
                   queryParams: { 
-                    flightId: this.checkoutData?.flight?.id 
+                    error: 'reservation_expired',
+                    message: 'Seleziona nuovi posti disponibili'
                   }
                 });
-              }, 3000);
-            }
+              } else {
+                this.router.navigate(['/flights']);
+              }
+            }, 3000);
           } else if (error.status === 500) {
             errorTitle = 'Errore interno del server';
             errorMessage = 'Si è verificato un problema interno. Il nostro team è stato notificato. Riprova tra qualche minuto.';
@@ -591,7 +616,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             errorMessage = error.message;
           }
           
-          this.notificationService.showError(errorTitle, errorMessage);
+          // Mostra sempre la notifica di errore
+          if (!shouldReturnToSeatSelection) {
+            this.notificationService.showError(errorTitle, errorMessage);
+          }
         }
       });
   }

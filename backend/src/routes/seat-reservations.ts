@@ -70,18 +70,8 @@ router.post('/reserve', async (req: express.Request, res: express.Response) => {
             });
         }
 
-        // Rimuovi eventuali riserve precedenti dell'utente/sessione per questo volo
-        if (userId) {
-            await pool.query(
-                'DELETE FROM temporary_seat_reservations WHERE user_id = $1 AND flight_id = $2',
-                [userId, flight_id]
-            );
-        } else {
-            await pool.query(
-                'DELETE FROM temporary_seat_reservations WHERE session_id = $1 AND flight_id = $2 AND user_id IS NULL',
-                [session_id, flight_id]
-            );
-        }
+        // NON rimuovere le prenotazioni esistenti - aggiungi solo quelle nuove
+        // Le prenotazioni esistenti dello stesso utente verranno gestite nel ciclo
 
         const reservedSeats = [];
         const conflictSeats = [];
@@ -117,14 +107,19 @@ router.post('/reserve', async (req: express.Request, res: express.Response) => {
                             expires_at: reservation.expires_at
                         });
                         continue;
+                    } else {
+                        // È già riservato dallo stesso utente/sessione, considera come successo
+                        reservedSeats.push(reservation);
+                        console.log(`✅ Seat ${seat_id} already reserved by same ${userId ? `user ${userId}` : `session ${session_id}`}`);
+                        continue;
                     }
                 }
 
-                // Crea la riserva temporanea
+                // Crea la riserva temporanea con durata molto lunga (24 ore)
                 const reservationResult = await pool.query(
                     `INSERT INTO temporary_seat_reservations 
                     (user_id, flight_id, seat_id, session_id, expires_at) 
-                    VALUES ($1, $2, $3, $4, NOW() + INTERVAL '15 minutes') 
+                    VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours') 
                     RETURNING *`,
                     [userId, flight_id, seat_id, session_id || '']
                 );
@@ -183,22 +178,21 @@ router.patch('/extend', authenticateToken, async (req: AuthRequest, res: express
         // Verifica che l'utente abbia riserve attive per questo volo
         const activeReservations = await pool.query(
             `SELECT * FROM temporary_seat_reservations 
-             WHERE user_id = $1 AND flight_id = $2 AND expires_at > NOW()
-             AND (created_at + INTERVAL '20 minutes') > NOW()`, // Max 20 minuti totali
+             WHERE user_id = $1 AND flight_id = $2 AND expires_at > NOW()`,
             [userId, flight_id]
         );
 
         if (activeReservations.rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Nessuna riserva attiva trovata o tempo massimo raggiunto'
+                message: 'Nessuna riserva attiva trovata'
             });
         }
 
-        // Estendi di 5 minuti
+        // Estendi di 5 minuti senza limiti
         const extendResult = await pool.query(
             `UPDATE temporary_seat_reservations 
-             SET expires_at = LEAST(expires_at + INTERVAL '5 minutes', created_at + INTERVAL '20 minutes')
+             SET expires_at = expires_at + INTERVAL '5 minutes'
              WHERE user_id = $1 AND flight_id = $2 AND expires_at > NOW()
              RETURNING *`,
             [userId, flight_id]

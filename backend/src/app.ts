@@ -9,6 +9,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import {readFile} from "node:fs/promises";
 import { DatabaseService } from './models/database';
+import { createServer } from 'http';
+import SeatWebSocketService from './websocket/seatSocket';
 
 // Load environment variables from workspace root .env FIRST
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -38,6 +40,10 @@ if (process.env.NODE_ENV === 'development') {
 process.on('uncaughtException', err => console.error('[UNCAUGHT EXCEPTION]', err));
 
 const app = express();
+const server = createServer(app);
+
+// Initialize WebSocket service
+export const seatWebSocketService = new SeatWebSocketService(server);
 
 // Constants
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -122,7 +128,7 @@ app.use(cors({
     origin: ['http://localhost:4200', 'http://127.0.0.1:4200', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-session-id']
 }));
 app.use(helmet());
 app.use(morgan('combined'));
@@ -327,8 +333,9 @@ async function startServer() {
         await createAdminIfNotExists();
         await ensureAdminExists();
         
-        app.listen(PORT, '0.0.0.0', () => {
+        server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server in ascolto su http://0.0.0.0:${PORT}`);
+            console.log(`🔌 WebSocket server su ws://0.0.0.0:${PORT}/ws`);
             console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
             console.log(`📋 API documentation: http://0.0.0.0:${PORT}/`);
         });

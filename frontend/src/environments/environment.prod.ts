@@ -1,4 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: '/api'
+  apiUrl: 'http://localhost:3000/api',
+  wsUrl: 'ws://localhost:3000/ws'
 };
