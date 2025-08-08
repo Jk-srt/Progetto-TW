@@ -139,6 +139,267 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// Nuovo endpoint per ricerca avanzata con connessioni/scali
+router.get('/connections', async (req, res) => {
+  try {
+    const { departure_city, arrival_city, departure_date, max_connections = 1 } = req.query;
+    
+    if (!departure_city || !arrival_city || !departure_date) {
+      return res.status(400).json({ 
+        error: 'departure_city, arrival_city e departure_date sono obbligatori' 
+      });
+    }
+
+    const connections = [];
+    
+    // 1. Cerca voli diretti
+    const directQuery = `
+      SELECT 
+        fwa.id,
+        fwa.flight_number,
+        fwa.departure_time,
+        fwa.arrival_time,
+        fwa.price as flight_surcharge,
+        fwa.total_seats,
+        fwa.available_seats,
+        fwa.status,
+        fwa.departure_airport_name as departure_airport,
+        fwa.departure_code,
+        fwa.departure_city,
+        fwa.arrival_airport_name as arrival_airport,
+        fwa.arrival_code,
+        fwa.arrival_city,
+        airlines.name as airline_name,
+        airlines.iata_code as airline_code,
+        fwa.route_name,
+        -- Calcola prezzi finali per ogni classe
+        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
+        CASE 
+          WHEN rp_first.base_price IS NULL THEN 0 
+          ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
+        END as first_price,
+        'direct' as connection_type
+      FROM flights_with_airports fwa
+      LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+      WHERE fwa.status = 'scheduled'
+        AND fwa.departure_city ILIKE $1
+        AND fwa.arrival_city ILIKE $2
+        AND DATE(fwa.departure_time) = $3
+      ORDER BY fwa.departure_time ASC
+    `;
+    
+    const directResult = await pool.query(directQuery, [
+      `%${departure_city}%`,
+      `%${arrival_city}%`,
+      departure_date
+    ]);
+    
+    // Aggiungi voli diretti ai risultati
+    connections.push(...directResult.rows);
+
+    // 2. Se richiesto, cerca voli con 1 scalo
+    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10) {
+      const connectionQuery = `
+        WITH connection_flights AS (
+          -- Prima tratta
+          SELECT 
+            f1.id as first_flight_id,
+            f1.flight_number as first_flight_number,
+            f1.departure_time as first_departure_time,
+            f1.arrival_time as first_arrival_time,
+            f1.departure_city as origin_city,
+            f1.departure_code as origin_code,
+            f1.departure_airport_name as origin_airport,
+            f1.arrival_city as connection_city,
+            f1.arrival_code as connection_code,
+            f1.arrival_airport_name as connection_airport,
+            f1.airline_id as first_airline_id,
+            airlines1.name as first_airline_name,
+            COALESCE(rp1_economy.base_price, 0) + COALESCE(f1.price, 0) as first_economy_price,
+            COALESCE(rp1_business.base_price, 0) + COALESCE(f1.price, 0) as first_business_price,
+            CASE 
+              WHEN rp1_first.base_price IS NULL THEN 0 
+              ELSE rp1_first.base_price + COALESCE(f1.price, 0) 
+            END as first_first_price,
+            f1.available_seats as first_available_seats,
+            -- Seconda tratta
+            f2.id as second_flight_id,
+            f2.flight_number as second_flight_number,
+            f2.departure_time as second_departure_time,
+            f2.arrival_time as second_arrival_time,
+            f2.arrival_city as destination_city,
+            f2.arrival_code as destination_code,
+            f2.arrival_airport_name as destination_airport,
+            f2.airline_id as second_airline_id,
+            airlines2.name as second_airline_name,
+            COALESCE(rp2_economy.base_price, 0) + COALESCE(f2.price, 0) as second_economy_price,
+            COALESCE(rp2_business.base_price, 0) + COALESCE(f2.price, 0) as second_business_price,
+            CASE 
+              WHEN rp2_first.base_price IS NULL THEN 0 
+              ELSE rp2_first.base_price + COALESCE(f2.price, 0) 
+            END as second_first_price,
+            f2.available_seats as second_available_seats,
+            -- Calcolo tempi di connessione
+            EXTRACT(EPOCH FROM (f2.departure_time - f1.arrival_time)) / 60 as connection_minutes
+          FROM flights_with_airports f1
+          JOIN flights_with_airports f2 ON (
+            -- Stesso aeroporto di connessione
+            f1.arrival_city = f2.departure_city
+            -- Connessione valida: almeno 2 ore ma meno di 24 ore
+            AND f2.departure_time > f1.arrival_time + INTERVAL '2 hours'
+            AND f2.departure_time < f1.arrival_time + INTERVAL '24 hours'
+            -- Stesso giorno o giorno successivo
+            AND DATE(f1.departure_time) = DATE($3::date)
+          )
+          LEFT JOIN airlines airlines1 ON f1.airline_id = airlines1.id
+          LEFT JOIN airlines airlines2 ON f2.airline_id = airlines2.id
+          LEFT JOIN route_pricing rp1_economy ON f1.route_id = rp1_economy.route_id AND rp1_economy.seat_class = 'economy'
+          LEFT JOIN route_pricing rp1_business ON f1.route_id = rp1_business.route_id AND rp1_business.seat_class = 'business'
+          LEFT JOIN route_pricing rp1_first ON f1.route_id = rp1_first.route_id AND rp1_first.seat_class = 'first'
+          LEFT JOIN route_pricing rp2_economy ON f2.route_id = rp2_economy.route_id AND rp2_economy.seat_class = 'economy'
+          LEFT JOIN route_pricing rp2_business ON f2.route_id = rp2_business.route_id AND rp2_business.seat_class = 'business'
+          LEFT JOIN route_pricing rp2_first ON f2.route_id = rp2_first.route_id AND rp2_first.seat_class = 'first'
+          WHERE f1.status = 'scheduled' 
+            AND f2.status = 'scheduled'
+            AND f1.departure_city ILIKE $1
+            AND f2.arrival_city ILIKE $2
+            AND f1.arrival_city != $1  -- Il punto di connessione non può essere uguale alla partenza
+            AND f2.departure_city != $2 -- Il punto di connessione non può essere uguale alla destinazione
+        )
+        SELECT 
+          first_flight_id,
+          first_flight_number,
+          first_departure_time,
+          first_arrival_time,
+          origin_city as departure_city,
+          origin_code as departure_code,
+          origin_airport as departure_airport,
+          first_airline_name as first_airline_name,
+          first_economy_price,
+          first_business_price,
+          first_first_price,
+          first_available_seats,
+          
+          second_flight_id,
+          second_flight_number,
+          second_departure_time,
+          second_arrival_time,
+          destination_city as arrival_city,
+          destination_code as arrival_code,
+          destination_airport as arrival_airport,
+          second_airline_name as second_airline_name,
+          second_economy_price,
+          second_business_price,
+          second_first_price,
+          second_available_seats,
+          
+          connection_city,
+          connection_code,
+          connection_airport,
+          connection_minutes,
+          
+          -- Calcoli totali
+          (first_economy_price + second_economy_price) as total_economy_price,
+          (first_business_price + second_business_price) as total_business_price,
+          (first_first_price + second_first_price) as total_first_price,
+          EXTRACT(EPOCH FROM (second_arrival_time - first_departure_time)) / 60 as total_duration_minutes,
+          'connection' as connection_type
+          
+        FROM connection_flights
+        WHERE connection_minutes >= 120  -- Minimo 2 ore di scalo
+          AND connection_minutes <= 1440 -- Massimo 24 ore di scalo
+        ORDER BY total_economy_price ASC, total_duration_minutes ASC
+        LIMIT 20
+      `;
+      
+      const connectionResult = await pool.query(connectionQuery, [
+        `%${departure_city}%`,
+        `%${arrival_city}%`,
+        departure_date
+      ]);
+      
+      // Trasforma i risultati delle connessioni nel formato corretto
+      const formattedConnections = connectionResult.rows.map(row => ({
+        connection_type: 'connection',
+        first_flight: {
+          id: row.first_flight_id,
+          flight_number: row.first_flight_number,
+          departure_time: row.first_departure_time,
+          arrival_time: row.first_arrival_time,
+          departure_city: row.departure_city,
+          departure_code: row.departure_code,
+          departure_airport: row.departure_airport,
+          arrival_city: row.connection_city,
+          arrival_code: row.connection_code,
+          arrival_airport: row.connection_airport,
+          airline_name: row.first_airline_name,
+          economy_price: row.first_economy_price,
+          business_price: row.first_business_price,
+          first_price: row.first_first_price,
+          available_seats: row.first_available_seats
+        },
+        second_flight: {
+          id: row.second_flight_id,
+          flight_number: row.second_flight_number,
+          departure_time: row.second_departure_time,
+          arrival_time: row.second_arrival_time,
+          departure_city: row.connection_city,
+          departure_code: row.connection_code,
+          departure_airport: row.connection_airport,
+          arrival_city: row.arrival_city,
+          arrival_code: row.arrival_code,
+          arrival_airport: row.arrival_airport,
+          airline_name: row.second_airline_name,
+          economy_price: row.second_economy_price,
+          business_price: row.second_business_price,
+          first_price: row.second_first_price,
+          available_seats: row.second_available_seats
+        },
+        connection_info: {
+          city: row.connection_city,
+          code: row.connection_code,
+          airport: row.connection_airport,
+          connection_minutes: row.connection_minutes
+        },
+        totals: {
+          economy_price: row.total_economy_price,
+          business_price: row.total_business_price,
+          first_price: row.total_first_price,
+          duration_minutes: row.total_duration_minutes,
+          available_seats: Math.min(row.first_available_seats, row.second_available_seats)
+        }
+      }));
+      
+      connections.push(...formattedConnections);
+    }
+
+    // Ordina tutti i risultati per prezzo
+    connections.sort((a, b) => {
+      const priceA = a.connection_type === 'direct' ? a.economy_price : a.totals.economy_price;
+      const priceB = b.connection_type === 'direct' ? b.economy_price : b.totals.economy_price;
+      return priceA - priceB;
+    });
+
+    res.json({
+      departure_city,
+      arrival_city,
+      departure_date,
+      total_options: connections.length,
+      direct_flights: connections.filter(c => c.connection_type === 'direct').length,
+      connection_flights: connections.filter(c => c.connection_type === 'connection').length,
+      flights: connections
+    });
+
+  } catch (err) {
+    console.error('Error searching flight connections:', err);
+    res.status(500).json({ error: 'Errore nella ricerca delle connessioni voli' });
+  }
+});
+
 // Route per ottenere statistiche voli
 router.get('/stats', async (req, res) => {
   try {
