@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Full Application",
+			"type": "shell",
+			"command": "docker-compose up",
+			"group": "build",
+			"isBackground": true,
+			"args": [],
+			"problemMatcher": []
+		}
+	]
+}
