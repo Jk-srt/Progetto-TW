@@ -1,10 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GlobalFlightsService } from '../services/global-flights.service';
+import { FlightConnectionService, FlightConnection } from '../services/flight-connection.service';
 import { FlightsGridComponent } from './flights-grid/flights-grid.component';
 import { WelcomeSectionComponent } from './welcome-section/welcome-section.component';
 import { StatsSectionComponent, StatCard } from './stats-section/stats-section.component';
 import { FlightSearchComponent, FlightSearchCriteria } from './flight-search/flight-search.component';
+import { FlightResultsComponent } from './flight-results/flight-results.component';
 
 @Component({
   selector: 'app-home',
@@ -14,7 +16,8 @@ import { FlightSearchComponent, FlightSearchCriteria } from './flight-search/fli
     FlightsGridComponent,
     WelcomeSectionComponent,
     StatsSectionComponent,
-    FlightSearchComponent
+    FlightSearchComponent,
+    FlightResultsComponent
   ],
   template: `
     <div class="home-container">
@@ -22,13 +25,22 @@ import { FlightSearchComponent, FlightSearchCriteria } from './flight-search/fli
       <app-welcome-section></app-welcome-section>
 
       <!-- Ricerca voli -->
-      <app-flight-search (searchRequested)="onFlightSearch($event)"></app-flight-search>
+      <app-flight-search 
+        (searchRequested)="onFlightSearch($event)"
+        (resetRequested)="resetSearch()"></app-flight-search>
+
+      <!-- Risultati ricerca voli con scali -->
+      <app-flight-results 
+        [connections]="searchResults" 
+        [isLoading]="isSearching"
+        (flightSelected)="onFlightSelected($event)"
+        *ngIf="hasSearched"></app-flight-results>
 
       <!-- Statistiche rapide -->
-      <app-stats-section [stats]="stats"></app-stats-section>
+      <app-stats-section [stats]="stats" *ngIf="!hasSearched"></app-stats-section>
 
-      <!-- Sezione voli -->
-      <div class="flights-section">
+      <!-- Sezione voli (mostra solo se non si sta facendo una ricerca specifica) -->
+      <div class="flights-section" *ngIf="!hasSearched">
         <div class="section-header">
           <h2>Voli Disponibili</h2>
           <p class="flights-count">{{getTodaysFlightsCount()}} voli oggi di {{flights.length}} totali</p>
@@ -45,9 +57,14 @@ export class HomeComponent implements OnInit {
   stats: StatCard[] = [];
   isInitialized = false;
   
+  // Nuove proprietà per la ricerca con scali
+  searchResults: FlightConnection[] = [];
+  isSearching = false;
+  hasSearched = false;
+  
   globalFlights = inject(GlobalFlightsService);
 
-  constructor() {
+  constructor(private flightConnectionService: FlightConnectionService) {
     console.log('🏠 HomeComponent: Constructor called');
   }
 
@@ -116,19 +133,69 @@ export class HomeComponent implements OnInit {
   }
 
   onFlightSearch(criteria: FlightSearchCriteria): void {
-    console.log('Ricerca voli con criteri:', criteria);
+    console.log('🔍 Ricerca voli con criteri:', criteria);
     
-    // Filtra i voli in base ai criteri di ricerca
+    this.hasSearched = true;
+    this.isSearching = true;
+    this.searchResults = [];
+
+    // Converti i criteri di ricerca nel formato richiesto dal servizio
+    const searchRequest = {
+      departure_city: this.extractCityFromAirport(criteria.departure),
+      arrival_city: this.extractCityFromAirport(criteria.arrival), 
+      departure_date: criteria.departureDate,
+      return_date: criteria.returnDate,
+      passengers: criteria.passengers,
+      max_connections: 1 // Permetti fino a 1 scalo
+    };
+
+    this.flightConnectionService.searchFlights(searchRequest).subscribe({
+      next: (connections: FlightConnection[]) => {
+        console.log('✅ Ricerca completata:', connections.length, 'opzioni trovate');
+        this.searchResults = connections;
+        this.isSearching = false;
+      },
+      error: (error) => {
+        console.error('❌ Errore nella ricerca voli:', error);
+        this.isSearching = false;
+        // Fallback alla ricerca locale
+        this.performLocalSearch(criteria);
+      }
+    });
+  }
+
+  /**
+   * Estrae il nome della città dal formato "Roma Fiumicino (FCO)"
+   */
+  private extractCityFromAirport(airportString: string): string {
+    if (!airportString) return '';
+    
+    // Se il formato è "Roma Fiumicino (FCO)", estrai "Roma"
+    const match = airportString.match(/^([^(]+)/);
+    if (match) {
+      return match[1].trim().split(' ')[0]; // Prendi solo la prima parola (città)
+    }
+    
+    return airportString;
+  }
+
+  /**
+   * Fallback per la ricerca locale quando l'API non funziona
+   */
+  private performLocalSearch(criteria: FlightSearchCriteria): void {
+    console.log('🔄 Fallback alla ricerca locale');
+    
+    // Filtra i voli in base ai criteri di ricerca (ricerca legacy)
     this.filteredFlights = this.flights.filter(flight => {
       let matches = true;
 
       // Filtra per aeroporto di partenza
-      if (criteria.departure && flight.departure_airport !== criteria.departure) {
+      if (criteria.departure && !flight.departure_airport?.includes(this.extractCityFromAirport(criteria.departure))) {
         matches = false;
       }
 
       // Filtra per aeroporto di arrivo
-      if (criteria.arrival && flight.arrival_airport !== criteria.arrival) {
+      if (criteria.arrival && !flight.arrival_airport?.includes(this.extractCityFromAirport(criteria.arrival))) {
         matches = false;
       }
 
@@ -143,6 +210,64 @@ export class HomeComponent implements OnInit {
       return matches;
     });
 
-    console.log(`Trovati ${this.filteredFlights.length} voli che corrispondono ai criteri`);
+    // Converti i voli filtrati in FlightConnection per compatibilità
+    this.searchResults = this.filteredFlights.map(flight => ({
+      id: flight.id?.toString() || 'unknown',
+      outboundFlight: flight,
+      totalDuration: this.calculateFlightDuration(flight),
+      totalPrice: this.getFlightPrice(flight),
+      isDirectFlight: true,
+      isConnectionFlight: false
+    }));
+
+    console.log(`📝 Trovati ${this.searchResults.length} voli nella ricerca locale`);
+  }
+
+  private calculateFlightDuration(flight: any): number {
+    if (!flight.departure_time || !flight.arrival_time) return 0;
+    
+    const departure = new Date(flight.departure_time);
+    const arrival = new Date(flight.arrival_time);
+    return (arrival.getTime() - departure.getTime()) / (1000 * 60); // in minuti
+  }
+
+  private getFlightPrice(flight: any): number {
+    const prices = [];
+    
+    if (flight.economy_price && flight.economy_price > 0) {
+      prices.push(flight.economy_price);
+    }
+    if (flight.business_price && flight.business_price > 0) {
+      prices.push(flight.business_price);
+    }
+    if (flight.first_price && flight.first_price > 0) {
+      prices.push(flight.first_price);
+    }
+    
+    return prices.length > 0 ? Math.min(...prices) : 0;
+  }
+
+  onFlightSelected(connection: FlightConnection): void {
+    console.log('✈️ Volo selezionato:', connection);
+    
+    if (connection.isDirectFlight) {
+      // Naviga alla selezione posti per volo diretto
+      // TODO: Implementare navigazione
+      alert(`Volo diretto selezionato: ${connection.outboundFlight.flight_number}`);
+    } else if (connection.isConnectionFlight) {
+      // Naviga alla prenotazione multi-segmento
+      // TODO: Implementare navigazione
+      alert(`Volo con scalo selezionato: ${connection.outboundFlight.flight_number} + ${connection.connectionFlight?.flight_number}`);
+    }
+  }
+
+  /**
+   * Reset della ricerca per tornare alla vista iniziale
+   */
+  resetSearch(): void {
+    this.hasSearched = false;
+    this.isSearching = false;
+    this.searchResults = [];
+    this.filteredFlights = this.flights; // Ripristina tutti i voli
   }
 }

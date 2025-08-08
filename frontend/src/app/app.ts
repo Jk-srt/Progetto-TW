@@ -18,15 +18,12 @@ import { NotificationsComponent } from './components/notifications.component';
           <!-- Navigation Menu -->
           <div class="nav-links">
             <a routerLink="/" class="nav-link" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
-              🏠 Home
-            </a>
-            <a routerLink="/flights" class="nav-link" routerLinkActive="active">
               ✈️ Voli
             </a>
 
             <!-- Links for authenticated users -->
             <div *ngIf="isLoggedIn" class="auth-links">
-              <a routerLink="/bookings" class="nav-link" routerLinkActive="active">
+              <a *ngIf="currentUser?.role !== 'admin'" routerLink="/bookings" class="nav-link" routerLinkActive="active">
                 📋 Prenotazioni
               </a>
               <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/routes" class="nav-link" routerLinkActive="active">

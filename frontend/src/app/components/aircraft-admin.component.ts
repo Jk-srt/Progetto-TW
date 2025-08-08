@@ -39,7 +39,8 @@ import { AircraftAdminService, Aircraft, AircraftFormData } from '../services/ai
       <!-- Header -->
       <div class="admin-header">
         <div class="header-info">
-          <h1>🛩️ Gestione Aeromobili</h1>
+          <h1>🛩️ Gestione Aeromobili<span *ngIf="isAdmin" class="admin-mode"> - Modalità Admin</span></h1>
+          <p *ngIf="isAdmin" class="admin-subtitle">Stai visualizzando tutti gli aeromobili di tutte le compagnie</p>
           <div class="user-info" *ngIf="currentUser">
             <span class="airline-badge">{{currentUser.airline_name || currentUser.first_name}}</span>
             <span class="role-badge">{{getRoleLabel(currentUser.role)}}</span>
@@ -107,6 +108,7 @@ import { AircraftAdminService, Aircraft, AircraftFormData } from '../services/ai
           <thead>
             <tr>
               <th>Registrazione</th>
+              <th *ngIf="isAdmin">Compagnia</th>
               <th>Tipo/Modello</th>
               <th>Capacità</th>
               <th>Anno</th>
@@ -119,6 +121,9 @@ import { AircraftAdminService, Aircraft, AircraftFormData } from '../services/ai
             <tr *ngFor="let aircraft of filteredAircrafts; trackBy: trackByAircraftId">
               <td class="registration">
                 <strong>{{aircraft.registration}}</strong>
+              </td>
+              <td *ngIf="isAdmin" class="airline-name">
+                <div class="airline-badge-small">{{aircraft.airline_name || 'N/D'}}</div>
               </td>
               <td class="aircraft-info">
                 <div class="aircraft-type">{{aircraft.aircraft_type}}</div>
@@ -404,7 +409,13 @@ export class AircraftAdminComponent implements OnInit {
 
   loadAircrafts() {
     this.isLoading = true;
-    this.aircraftAdminService.getMyAircrafts().subscribe({
+    
+    // Se è un admin, carica tutti gli aeromobili, altrimenti solo quelli della propria compagnia
+    const aircraftObservable = this.isAdmin ? 
+      this.aircraftAdminService.getAircrafts() : 
+      this.aircraftAdminService.getMyAircrafts();
+    
+    aircraftObservable.subscribe({
       next: (aircrafts) => {
         this.aircrafts = aircrafts;
         this.applyFilters();

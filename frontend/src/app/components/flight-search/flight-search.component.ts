@@ -87,6 +87,12 @@ export interface FlightSearchCriteria {
               🔍 Cerca Voli
             </button>
           </div>
+          
+          <div class="form-group">
+            <button type="button" class="reset-btn" (click)="resetSearch()">
+              🔄 Nuova Ricerca
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -199,6 +205,25 @@ export interface FlightSearchCriteria {
       transform: none;
     }
 
+    .reset-btn {
+      padding: 12px 24px;
+      background: transparent;
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      height: fit-content;
+    }
+
+    .reset-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.8);
+      transform: translateY(-2px);
+    }
+
     @media (max-width: 768px) {
       .form-row {
         grid-template-columns: 1fr;
@@ -214,6 +239,7 @@ export interface FlightSearchCriteria {
 })
 export class FlightSearchComponent {
   @Output() searchRequested = new EventEmitter<FlightSearchCriteria>();
+  @Output() resetRequested = new EventEmitter<void>();
 
   today = new Date().toISOString().split('T')[0];
 
@@ -240,5 +266,17 @@ export class FlightSearchComponent {
       console.log('Ricerca voli con criteri:', this.searchCriteria);
       this.searchRequested.emit(this.searchCriteria);
     }
+  }
+
+  resetSearch(): void {
+    this.searchCriteria = {
+      departure: '',
+      arrival: '',
+      departureDate: '',
+      returnDate: '',
+      passengers: 1,
+      roundTrip: false
+    };
+    this.resetRequested.emit();
   }
 }

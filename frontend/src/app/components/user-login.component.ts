@@ -198,7 +198,7 @@ export class UserLoginComponent {
                 this.router.navigate(['/flight-admin']);
                 break;
               case 'user':
-                this.router.navigate(['/flights']);
+                this.router.navigate(['/']);
                 break;
               default:
                 this.router.navigate(['/']);

@@ -288,6 +288,9 @@ import { User } from '../models/user.model';
                   (change)="onDepartureTimeChange()">
                 <div *ngIf="flightForm.get('departure_time')?.invalid && flightForm.get('departure_time')?.touched" 
                      class="error">Campo obbligatorio</div>
+                <small class="info-text">
+                  🕐 Seleziona data e ora di partenza (orario locale)
+                </small>
               </div>
 
               <div class="form-group">
@@ -301,7 +304,7 @@ import { User } from '../models/user.model';
                 <div *ngIf="flightForm.get('arrival_time')?.invalid && flightForm.get('arrival_time')?.touched" 
                      class="error">Campo obbligatorio</div>
                 <small class="info-text">
-                  ℹ️ Calcolato automaticamente dalla rotta e orario di partenza
+                  ✅ Calcolato automaticamente dalla rotta e orario di partenza
                 </small>
               </div>
             </div>
@@ -712,10 +715,11 @@ export class FlightAdminComponent implements OnInit {
     this.isEditing = true;
     this.editingFlightId = flight.id;
     
+    // 🔧 FIX: Usa il fuso orario locale invece di UTC per evitare spostamenti di date
     const departureTime = flight.departure_time ? 
-      new Date(flight.departure_time).toISOString().slice(0, 16) : '';
+      this.formatDateTimeForInput(flight.departure_time) : '';
     const arrivalTime = flight.arrival_time ? 
-      new Date(flight.arrival_time).toISOString().slice(0, 16) : '';
+      this.formatDateTimeForInput(flight.arrival_time) : '';
     
     this.flightForm.patchValue({
       flight_number: flight.flight_number || '',
@@ -757,8 +761,8 @@ export class FlightAdminComponent implements OnInit {
         airline_id: flight.airline_id || 0,
         aircraft_id: flight.aircraft_id || 0,
         route_id: flight.route_id || 0,
-        departure_time: flight.departure_time ? new Date(flight.departure_time).toISOString().slice(0, 16) : '',
-        arrival_time: flight.arrival_time ? new Date(flight.arrival_time).toISOString().slice(0, 16) : '',
+        departure_time: flight.departure_time ? this.formatDateTimeForBackend(flight.departure_time) : '',
+        arrival_time: flight.arrival_time ? this.formatDateTimeForBackend(flight.arrival_time) : '',
         price: flight.price || 0,
         total_seats: flight.total_seats || 0,
         available_seats: 0, // Quando un volo è completato, tutti i posti sono occupati
@@ -799,8 +803,8 @@ export class FlightAdminComponent implements OnInit {
         airline_id: flight.airline_id || 0,
         aircraft_id: flight.aircraft_id || 0,
         route_id: flight.route_id || 0,
-        departure_time: flight.departure_time ? new Date(flight.departure_time).toISOString().slice(0, 16) : '',
-        arrival_time: flight.arrival_time ? new Date(flight.arrival_time).toISOString().slice(0, 16) : '',
+        departure_time: flight.departure_time ? this.formatDateTimeForBackend(flight.departure_time) : '',
+        arrival_time: flight.arrival_time ? this.formatDateTimeForBackend(flight.arrival_time) : '',
         price: flight.price || 0,
         total_seats: flight.total_seats || 0,
         available_seats: flight.available_seats || 0,
@@ -880,8 +884,8 @@ export class FlightAdminComponent implements OnInit {
       airline_id: this.selectedFlightForDelay.airline_id || 0,
       aircraft_id: this.selectedFlightForDelay.aircraft_id || 0,
       route_id: this.selectedFlightForDelay.route_id || 0,
-      departure_time: newDeparture.toISOString().slice(0, 16),
-      arrival_time: newArrival.toISOString().slice(0, 16),
+      departure_time: this.formatDateTimeForBackend(newDeparture),
+      arrival_time: this.formatDateTimeForBackend(newArrival),
       price: this.selectedFlightForDelay.price || 0,
       total_seats: this.selectedFlightForDelay.total_seats || 0,
       available_seats: this.selectedFlightForDelay.available_seats || 0,
@@ -1008,7 +1012,7 @@ export class FlightAdminComponent implements OnInit {
 
   onRouteChange() {
     // Calcola automaticamente l'orario di arrivo quando cambia la rotta
-    console.log('onRouteChange called');
+    console.log('🛣️ onRouteChange called');
     setTimeout(() => {
       this.calculateArrivalTime();
       // Imposta automaticamente il prezzo dalla rotta
@@ -1018,7 +1022,7 @@ export class FlightAdminComponent implements OnInit {
 
   onDepartureTimeChange() {
     // Calcola automaticamente l'orario di arrivo quando cambia l'orario di partenza
-    console.log('onDepartureTimeChange called');
+    console.log('🕐 onDepartureTimeChange called');
     setTimeout(() => {
       this.calculateArrivalTime();
     }, 100); // Piccolo delay per assicurare che il valore sia stato aggiornato nel form
@@ -1028,25 +1032,26 @@ export class FlightAdminComponent implements OnInit {
     const routeId = this.flightForm.get('route_id')?.value;
     const departureTime = this.flightForm.get('departure_time')?.value;
 
-    console.log('calculateArrivalTime called with routeId:', routeId, 'departureTime:', departureTime);
+    console.log('🧮 calculateArrivalTime called with routeId:', routeId, 'departureTime:', departureTime);
 
     if (!routeId || !departureTime) {
       // Se manca la rotta o l'orario di partenza, pulisci l'orario di arrivo
       this.flightForm.patchValue({ arrival_time: '' });
+      console.log('❌ Missing route or departure time, clearing arrival time');
       return;
     }
 
     // Trova la rotta selezionata
     const selectedRoute = this.routes.find(route => route.id == routeId);
-    console.log('selectedRoute found:', selectedRoute);
+    console.log('🔍 selectedRoute found:', selectedRoute);
     
     if (!selectedRoute) {
-      console.warn('Rotta non trovata per ID:', routeId);
+      console.warn('⚠️ Rotta non trovata per ID:', routeId);
       return;
     }
 
     if (!selectedRoute.estimated_duration) {
-      console.warn('Durata stimata non trovata per la rotta:', selectedRoute);
+      console.warn('⚠️ Durata stimata non trovata per la rotta:', selectedRoute);
       // Usa una durata di default di 2 ore se non specificata
       selectedRoute.estimated_duration = '02:00:00';
     }
@@ -1054,10 +1059,10 @@ export class FlightAdminComponent implements OnInit {
     try {
       // Calcola l'orario di arrivo
       const arrivalTime = this.addDurationToDateTime(departureTime, selectedRoute.estimated_duration);
-      console.log('Calculated arrival time:', arrivalTime);
+      console.log('✅ Calculated arrival time:', arrivalTime);
       this.flightForm.patchValue({ arrival_time: arrivalTime });
     } catch (error) {
-      console.error('Errore nel calcolo dell\'orario di arrivo:', error);
+      console.error('❌ Errore nel calcolo dell\'orario di arrivo:', error);
     }
   }
 
@@ -1089,8 +1094,11 @@ export class FlightAdminComponent implements OnInit {
     }
 
     try {
+      // 🔧 FIX: Gestione corretta del fuso orario locale
+      // Il campo datetime-local restituisce una stringa senza informazioni timezone
+      // quindi dobbiamo trattarla come ora locale
       const departureDate = new Date(dateTimeString);
-      console.log('Departure date parsed:', departureDate);
+      console.log('🕐 Departure date parsed (local time):', departureDate);
       
       // Parse della durata nel formato "HH:MM:SS" o "HH:MM"
       const durationParts = duration.split(':');
@@ -1098,7 +1106,7 @@ export class FlightAdminComponent implements OnInit {
       const minutes = parseInt(durationParts[1] || '0', 10);
       const seconds = parseInt(durationParts[2] || '0', 10);
 
-      console.log('Duration parsed:', { hours, minutes, seconds });
+      console.log('⏱️ Duration parsed:', { hours, minutes, seconds });
 
       // Aggiungi la durata alla data di partenza
       const arrivalDate = new Date(departureDate.getTime() + 
@@ -1107,14 +1115,20 @@ export class FlightAdminComponent implements OnInit {
         (seconds * 1000)
       );
 
-      console.log('Arrival date calculated:', arrivalDate);
+      console.log('🛬 Arrival date calculated (local time):', arrivalDate);
 
-      // Converti nel formato datetime-local
-      const result = arrivalDate.toISOString().slice(0, 16);
-      console.log('Final result:', result);
+      // 🔧 FIX: Converti direttamente senza passare per stringhe ISO
+      const year = arrivalDate.getFullYear();
+      const month = String(arrivalDate.getMonth() + 1).padStart(2, '0');
+      const day = String(arrivalDate.getDate()).padStart(2, '0');
+      const hours24 = String(arrivalDate.getHours()).padStart(2, '0');
+      const minutes60 = String(arrivalDate.getMinutes()).padStart(2, '0');
+      
+      const result = `${year}-${month}-${day}T${hours24}:${minutes60}`;
+      console.log('✅ Final result:', result);
       return result;
     } catch (error) {
-      console.error('Errore nel parsing della durata:', error);
+      console.error('❌ Errore nel parsing della durata:', error);
       return '';
     }
   }
@@ -1156,6 +1170,48 @@ export class FlightAdminComponent implements OnInit {
       });
     } catch (error) {
       return 'Data non valida';
+    }
+  }
+
+  // 🔧 FIX: Nuovo metodo per convertire le date al formato corretto per datetime-local
+  private formatDateTimeForInput(dateString: string): string {
+    if (!dateString) {
+      return '';
+    }
+    try {
+      const date = new Date(dateString);
+      // Invece di toISOString() che converte in UTC, usiamo il fuso orario locale
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (error) {
+      console.error('Errore nella conversione della data:', error);
+      return '';
+    }
+  }
+
+  // 🔧 FIX: Metodo per convertire le date per l'invio al backend
+  private formatDateTimeForBackend(dateString: string | Date): string {
+    if (!dateString) {
+      return '';
+    }
+    try {
+      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      // Per il backend, usiamo ISO string troncata mantenendo l'ora locale
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (error) {
+      console.error('Errore nella conversione della data per il backend:', error);
+      return '';
     }
   }
 
