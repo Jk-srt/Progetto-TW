@@ -73,7 +73,7 @@ import { Flight } from '../models/flight.model';
       </div>
 
       <!-- Filtri -->
-      <div class="filters-section" *ngIf="flights.length > 0">
+      <div class="filters-section">
         <div class="filters">
           <div class="filter-group">
             <label>Origine</label>
@@ -261,9 +261,9 @@ export class FlightsViewComponent implements OnInit {
   };
 
   // Per i dropdown dei filtri
-  originCities: string[] = [];
-  destinationCities: string[] = [];
-  airlines: string[] = [];
+  originCities: string[] = ['Roma', 'Milano', 'Parigi', 'Londra', 'Madrid', 'Amsterdam'];
+  destinationCities: string[] = ['Roma', 'Milano', 'Parigi', 'Londra', 'Madrid', 'Amsterdam'];
+  airlines: string[] = ['Alitalia', 'Lufthansa', 'Air France', 'British Airways'];
 
   // Utente corrente
   currentUser: any = null;

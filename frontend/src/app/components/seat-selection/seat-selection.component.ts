@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SeatService } from '../../services/seat.service';
 import { FlightService } from '../../services/flight.service';
+import { MultiSegmentBookingService } from '../../services/multi-segment-booking.service';
 import { FlightSeatMap, SeatSelectionState } from '../../models/seat.model';
 import { Flight } from '../../models/flight.model';
 
@@ -15,9 +16,25 @@ import { Flight } from '../../models/flight.model';
   template: `
     <div class="seat-selection-container">
       <div class="flight-info" *ngIf="flight">
-        <h2>Selezione Posti - Volo {{ flight.flight_number }}</h2>
-        <p>{{ flight.departure_airport }} → {{ flight.arrival_airport }}</p>
-        <p>{{ flight.departure_time | date:'medium' }}</p>
+        <div *ngIf="!isMultiSegment">
+          <h2>Selezione Posti - Volo {{ flight.flight_number }}</h2>
+          <p>{{ flight.departure_airport }} → {{ flight.arrival_airport }}</p>
+          <p>{{ flight.departure_time | date:'medium' }}</p>
+        </div>
+        <div *ngIf="isMultiSegment" class="multi-segment-header">
+          <h2>🔗 Selezione Posti Multi-Segmento</h2>
+          <div class="segment-progress">
+            <span class="current-segment">Segmento {{ currentSegmentIndex + 1 }} di {{ totalSegments }}</span>
+            <div class="progress-bar">
+              <div class="progress-fill" [style.width.%]="((currentSegmentIndex + 1) / totalSegments) * 100"></div>
+            </div>
+          </div>
+          <div class="current-flight-info">
+            <h3>Volo {{ flight.flight_number }}</h3>
+            <p>{{ flight.departure_airport }} → {{ flight.arrival_airport }}</p>
+            <p>{{ flight.departure_time | date:'medium' }}</p>
+          </div>
+        </div>
       </div>
 
       <!-- Avviso per compagnie aeree -->
@@ -255,7 +272,7 @@ import { Flight } from '../../models/flight.model';
             class="btn btn-primary" 
             (click)="proceedToPassengerInfo()"
             [disabled]="selectionState.selectedSeats.length === 0">
-            Continua con i Dati Passeggeri
+            {{ getNextButtonText() }}
           </button>
         </div>
       </div>
@@ -292,16 +309,51 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   // Vista: mostra elementi decorativi dell'aereo (default: nascosti per chiarezza)
   showDecorations = false;
 
+  // Proprietà per supportare multi-segmento
+  isMultiSegment = false;
+  currentSegmentIndex = 0;
+  totalSegments = 0;
+  connection: any = null;
+  allSegments: any[] = [];
+  returnPath = '';
+
   private subscriptions: Subscription[] = [];
 
   constructor(
     private seatService: SeatService, 
     private flightService: FlightService,
+    private multiSegmentBookingService: MultiSegmentBookingService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
 
   ngOnInit(): void {
+    // Ottieni i dati del navigation state se disponibili
+    const navigation = this.router.getCurrentNavigation();
+    if (navigation?.extras.state) {
+      const state = navigation.extras.state;
+      this.isMultiSegment = state['isMultiSegment'] || false;
+      this.currentSegmentIndex = state['currentSegmentIndex'] || 0;
+      this.totalSegments = state['totalSegments'] || 0;
+      this.connection = state['connection'];
+      this.allSegments = state['allSegments'] || [];
+      this.returnPath = state['returnPath'] || '/';
+    }
+
+    // Controlla se è un volo con scalo tramite query params
+    this.route.queryParams.subscribe(queryParams => {
+      if (queryParams['isConnectionFlight'] === 'true') {
+        this.isMultiSegment = true;
+        if (queryParams['step'] === '1of2') {
+          this.currentSegmentIndex = 0;
+          this.totalSegments = 2;
+        } else if (queryParams['step'] === '2of2') {
+          this.currentSegmentIndex = 1;
+          this.totalSegments = 2;
+        }
+      }
+    });
+
     // Ottieni l'ID del volo dai parametri della route
     this.route.params.subscribe(params => {
       this.flightId = Number(params['id']);
@@ -507,18 +559,174 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   }
 
   proceedToPassengerInfo(): void {
-    // Carica i dettagli del volo prima di navigare
-    this.loadFlightDetails().then(flight => {
-      // Naviga alla pagina di checkout con i dati del volo e posti selezionati
-      this.router.navigate(['/checkout'], {
-        state: {
+    console.log('🚀 proceedToPassengerInfo chiamato');
+    
+    // Controlla se è un volo con scalo usando sessionStorage
+    const connectionFlight = sessionStorage.getItem('connectionFlight');
+    const currentStep = sessionStorage.getItem('currentConnectionStep');
+    
+    console.log('📋 Debug sessionStorage:', {
+      connectionFlight: connectionFlight ? 'presente' : 'assente',
+      currentStep: currentStep
+    });
+    
+    if (connectionFlight && currentStep) {
+      const connection = JSON.parse(connectionFlight);
+      
+      if (currentStep === '1') {
+        // Primo volo completato, salva i dati e vai al secondo volo
+        console.log('🔗 Primo volo completato, salvando i dati e procedendo al secondo volo');
+        
+        // Salva i dati del primo volo
+        const firstFlightData = {
           flightId: this.flightId,
           selectedSeats: this.selectionState.selectedSeats,
-          sessionId: this.selectionState.sessionId,
-          flight: flight
+          sessionId: this.selectionState.sessionId
+        };
+        sessionStorage.setItem('firstFlightBooking', JSON.stringify(firstFlightData));
+        sessionStorage.setItem('currentConnectionStep', '2');
+        
+        // Naviga al secondo volo
+        // Importante: puliamo la selezione locale per evitare che i posti del primo volo
+        // compaiano anche nel secondo passaggio
+        try {
+          // Non rilasciare le prenotazioni del primo volo: servono fino al checkout
+          this.seatService.resetLocalSelection();
+        } catch (e) {
+          console.warn('Impossibile pulire la selezione prima del secondo segmento:', e);
         }
+
+        this.router.navigate(['/flights', connection.connectionFlight.id, 'seats'], {
+          queryParams: { isConnectionFlight: 'true', step: '2of2' }
+        });
+      } else if (currentStep === '2') {
+        // Secondo volo completato, procedi al checkout con entrambi i voli
+        console.log('🔗 Secondo volo completato, procedendo al checkout');
+        
+        const firstFlightData = JSON.parse(sessionStorage.getItem('firstFlightBooking') || '{}');
+        console.log('📁 Dati primo volo salvati:', firstFlightData);
+        console.log('📁 Dati secondo volo attuali:', {
+          flightId: this.flightId,
+          selectedSeats: this.selectionState.selectedSeats,
+          sessionId: this.selectionState.sessionId
+        });
+        
+        // Carica i dettagli di entrambi i voli
+        Promise.all([
+          this.loadFlightDetailsById(firstFlightData.flightId),
+          this.loadFlightDetails()
+        ]).then(([firstFlight, secondFlight]) => {
+          console.log('✈️ Dettagli voli caricati:', { firstFlight, secondFlight });
+          
+          // Assicuriamoci che i posti del secondo volo appartengano a questo flightId
+          const secondFlightSeats = (this.selectionState.selectedSeats || []).filter(s => (s as any).flight_id === this.flightId);
+
+          this.router.navigate(['/checkout'], {
+            state: {
+              isConnectionFlight: true,
+              firstFlight: {
+                flightId: firstFlightData.flightId,
+                selectedSeats: firstFlightData.selectedSeats,
+                sessionId: firstFlightData.sessionId,
+                flight: firstFlight
+              },
+              secondFlight: {
+                flightId: this.flightId,
+                selectedSeats: secondFlightSeats,
+                sessionId: this.selectionState.sessionId,
+                flight: secondFlight
+              },
+              connection: connection
+            }
+          });
+          
+          // Pulisci i dati della sessione
+          sessionStorage.removeItem('connectionFlight');
+          sessionStorage.removeItem('currentConnectionStep');
+          sessionStorage.removeItem('firstFlightBooking');
+        }).catch(error => {
+          console.error('Errore nel caricamento dei dettagli voli:', error);
+        });
+      }
+    } else if (this.isMultiSegment) {
+      // Flusso multi-segmento esistente (per compatibilità)
+      this.handleMultiSegmentProgress();
+    } else {
+      // Per voli diretti, procedi al checkout normale
+      this.loadFlightDetails().then(flight => {
+        this.router.navigate(['/checkout'], {
+          state: {
+            flightId: this.flightId,
+            selectedSeats: this.selectionState.selectedSeats,
+            sessionId: this.selectionState.sessionId,
+            flight: flight
+          }
+        });
       });
-    });
+    }
+  }
+
+  private handleMultiSegmentProgress(): void {
+    // Salva i posti selezionati per questo segmento nel servizio
+    this.multiSegmentBookingService.completeSegment(
+      this.currentSegmentIndex, 
+      this.selectionState.selectedSeats
+    );
+
+    console.log(`🔄 Segmento ${this.currentSegmentIndex + 1} completato con ${this.selectionState.selectedSeats.length} posti`);
+
+    // Prova a passare al segmento successivo
+    const hasNextSegment = this.multiSegmentBookingService.moveToNextSegment();
+    
+    if (hasNextSegment) {
+      // Vai al segmento successivo
+      const currentBooking = this.multiSegmentBookingService.getCurrentBooking();
+      if (currentBooking) {
+        const nextSegment = currentBooking.segments[currentBooking.currentSegmentIndex];
+        
+        console.log(`🔄 Passaggio al segmento ${currentBooking.currentSegmentIndex + 1}: ${nextSegment.flightNumber}`);
+        
+        // Naviga alla selezione posti del prossimo segmento
+        this.router.navigate(['/flights', nextSegment.flightId, 'seats'], {
+          state: {
+            isMultiSegment: true,
+            currentSegmentIndex: currentBooking.currentSegmentIndex,
+            totalSegments: currentBooking.segments.length,
+            returnPath: '/multi-segment-booking'
+          }
+        });
+      }
+    } else {
+      // Tutti i segmenti completati, procedi al checkout multi-segmento
+      console.log('🎯 Tutti i segmenti completati, navigazione al checkout multi-segmento');
+      
+      const checkoutData = this.multiSegmentBookingService.getCheckoutData();
+      if (checkoutData) {
+        this.router.navigate(['/checkout'], {
+          state: checkoutData
+        });
+      }
+    }
+  }
+
+  private calculateTotalPrice(): number {
+    return this.allSegments.reduce((total, segment) => {
+      const segmentPrice = segment.price || 0;
+      const seatsPrice = segment.selectedSeats?.reduce((seatTotal: number, seat: any) => seatTotal + (seat.price || 0), 0) || 0;
+      return total + segmentPrice + seatsPrice;
+    }, 0);
+  }
+
+  getNextButtonText(): string {
+    if (!this.isMultiSegment) {
+      return 'Continua con i Dati Passeggeri';
+    }
+
+    if (this.currentSegmentIndex < this.totalSegments - 1) {
+      return `Prossimo Segmento (${this.currentSegmentIndex + 2}/${this.totalSegments})`;
+    } else {
+      return 'Completa Prenotazione Multi-Segmento';
+    }
   }
 
   private loadFlightDetails(): Promise<any> {
@@ -533,6 +741,22 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
       const sub = this.flightService.getFlightById(this.flightId.toString()).subscribe({
         next: (flight) => {
           this.flight = flight;
+          resolve(flight);
+        },
+        error: (error) => {
+          console.error('Errore nel caricamento dettagli volo:', error);
+          reject(error);
+        }
+      });
+      this.subscriptions.push(sub);
+    });
+  }
+
+  private loadFlightDetailsById(flightId: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // Carica i dettagli del volo dal backend
+      const sub = this.flightService.getFlightById(flightId.toString()).subscribe({
+        next: (flight) => {
           resolve(flight);
         },
         error: (error) => {

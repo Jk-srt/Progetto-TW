@@ -6,6 +6,123 @@
   min-height: 100vh;
 }
 
+/* Multi-segment specific styles */
+.multi-segment-info {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.connection-details {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.segment {
+  flex: 1;
+  min-width: 200px;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.segment h4 {
+  margin: 0 0 0.5rem 0;
+  color: #667eea;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.segment .route {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.segment .flight-number {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.stopover {
+  background: #ffc107;
+  color: #333;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.total-duration {
+  text-align: center;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  color: #333;
+}
+
+.multi-segment-seats {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.segments-summary {
+  margin-top: 1rem;
+}
+
+.segment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.segment-item:last-child {
+  border-bottom: none;
+}
+
+.segment-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.segment-flight {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.segment-price {
+  font-weight: 600;
+  color: #28a745;
+}
+
+@media (max-width: 768px) {
+  .connection-details {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .segment {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .stopover {
+    order: 2;
+  }
+}
+
 /* Timer di prenotazione */
 .reservation-timer {
   background: linear-gradient(135deg, #ff6b6b, #ffa500);
