@@ -38,7 +38,7 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
       <div class="bookings-content">
         <!-- Loading state -->
         <div *ngIf="isLoading" class="loading-state">
-          <div class="loading-spinner">⏳</div>
+          <div class="loading-spinner" aria-label="Caricamento" role="status"></div>
           <p>Caricamento prenotazioni...</p>
         </div>
 
@@ -289,9 +289,19 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
       color: #666;
     }
 
+    /* Spinner rotondo animato */
     .loading-spinner {
-      font-size: 3rem;
-      margin-bottom: 1rem;
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1rem;
+      border-radius: 50%;
+      border: 4px solid rgba(102, 126, 234, 0.2); /* #667eea tenue */
+      border-top-color: #667eea;
+      animation: bookings-spin 1s linear infinite;
+    }
+
+    @keyframes bookings-spin {
+      to { transform: rotate(360deg); }
     }
 
     .empty-state, .login-required {

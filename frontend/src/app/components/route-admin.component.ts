@@ -709,20 +709,28 @@ export class RouteAdminComponent implements OnInit {
     }
     
     const formValue = this.routeForm.value;
+    // DEBUG: Stato form e valori prima dell'invio
+    console.group('[RouteAdmin] Save Route');
+    console.debug('Mode:', this.isEditing ? 'edit' : 'create', 'CurrentRouteId:', this.currentRouteId);
+    console.debug('Form value (raw):', JSON.parse(JSON.stringify(formValue)));
     
     // Se l'utente è una compagnia aerea, aggiungi l'airline_id dalla localStorage
     const userStr = localStorage.getItem('user');
     const airlineId = localStorage.getItem('airlineId');
     if (userStr) {
       const user = JSON.parse(userStr);
+      console.debug('Current user role:', user.role, 'airlineId in storage:', airlineId);
       if (user.role === 'airline' && airlineId) {
         formValue.airline_id = Number(airlineId);
+        console.debug('Applied airline_id to payload:', formValue.airline_id);
       }
     }
     
     // Verifica che aeroporto di partenza e arrivo siano diversi
     if (formValue.departure_airport_id === formValue.arrival_airport_id) {
       alert('Aeroporto di partenza e arrivo devono essere diversi!');
+      console.warn('[RouteAdmin] Same departure and arrival airport selected. Aborting save.');
+      console.groupEnd();
       return;
     }
     
@@ -741,26 +749,46 @@ export class RouteAdminComponent implements OnInit {
       }
     }
     
-    if (this.isEditing && this.currentRouteId) {
+  if (this.isEditing && this.currentRouteId) {
+    console.debug('Updating route with ID:', this.currentRouteId, 'Payload:', JSON.parse(JSON.stringify(formValue)));
+      // Per le compagnie aeree, assicura che airline_id sia sempre presente anche in aggiornamento
+      if (!formValue.airline_id) {
+        const airlineIdUpdate = localStorage.getItem('airlineId');
+        if (airlineIdUpdate) {
+          formValue.airline_id = Number(airlineIdUpdate);
+      console.debug('Filled missing airline_id for update from storage:', formValue.airline_id);
+        }
+      }
       this.routeService.updateRoute(this.currentRouteId, formValue).subscribe({
         next: () => {
-          this.loadRoutes(); 
+      console.info('[RouteAdmin] Update successful');
+      this.loadRoutes(); 
           this.closeModal();
+      console.groupEnd();
         },
         error: (error) => {
-          console.error('Errore aggiornamento:', error);
+      console.error('[RouteAdmin] Update error:', error);
+      try { console.error('Server error payload:', error?.error); } catch {}
+      console.error('HTTP status:', error?.status, 'URL:', error?.url);
           alert(error.error?.error || 'Errore nell\'aggiornamento della rotta');
+      console.groupEnd();
         }
       });
     } else {
+    console.debug('Creating route with payload:', JSON.parse(JSON.stringify(formValue)));
       this.routeService.createRoute(formValue).subscribe({
         next: () => {
-          this.loadRoutes(); 
+      console.info('[RouteAdmin] Create successful');
+      this.loadRoutes(); 
           this.closeModal();
+      console.groupEnd();
         },
         error: (error) => {
-          console.error('Errore creazione:', error);
+      console.error('[RouteAdmin] Create error:', error);
+      try { console.error('Server error payload:', error?.error); } catch {}
+      console.error('HTTP status:', error?.status, 'URL:', error?.url);
           alert(error.error?.error || error.error?.detail || 'Errore nella creazione della rotta');
+      console.groupEnd();
         }
       });
     }

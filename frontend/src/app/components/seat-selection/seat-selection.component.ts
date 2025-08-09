@@ -37,7 +37,7 @@ import { Flight } from '../../models/flight.model';
         </div>
       </div>
 
-      <!-- Legenda -->
+  <!-- Legenda -->
       <div class="seat-legend">
         <div class="legend-item">
           <div class="seat-icon available"></div>
@@ -61,10 +61,18 @@ import { Flight } from '../../models/flight.model';
         </div>
       </div>
 
+      <!-- Controlli vista -->
+      <div class="view-toggle" *ngIf="seatMap.length > 0">
+        <label class="toggle">
+          <input type="checkbox" [(ngModel)]="showDecorations" />
+          <span>Mostra dettagli aereo</span>
+        </label>
+      </div>
+
       <!-- Mappa posti -->
-      <div class="aircraft-container" *ngIf="seatMap.length > 0">
+      <div class="aircraft-container" [class.compact]="!showDecorations" *ngIf="seatMap.length > 0">
         <!-- Parte anteriore dell'aereo -->
-        <div class="aircraft-nose">
+        <div class="aircraft-nose" *ngIf="showDecorations">
           <div class="nose-cone">
             <div class="nose-tip"></div>
             <div class="nose-body">
@@ -95,7 +103,7 @@ import { Flight } from '../../models/flight.model';
         </div>
         
         <!-- Fusoliera dell'aereo -->
-        <div class="aircraft-fuselage">
+  <div class="aircraft-fuselage">
           <div class="fuselage-left">
             <div class="fuselage-details">
               <div class="rivet-line"></div>
@@ -202,7 +210,7 @@ import { Flight } from '../../models/flight.model';
         </div>
         
         <!-- Coda dell'aereo -->
-        <div class="aircraft-tail">
+  <div class="aircraft-tail" *ngIf="showDecorations">
           <div class="tail-section">
             <div class="tail-fin">
               <div class="airline-logo">{{ flight?.airline_name || 'AIRLINE' }}</div>
@@ -211,13 +219,13 @@ import { Flight } from '../../models/flight.model';
         </div>
         
         <!-- Motori -->
-        <div class="aircraft-engines">
+  <div class="aircraft-engines" *ngIf="showDecorations">
           <div class="engine left-engine"></div>
           <div class="engine right-engine"></div>
         </div>
         
         <!-- Ali -->
-        <div class="aircraft-wings">
+  <div class="aircraft-wings" *ngIf="showDecorations">
           <div class="wing left-wing">
             <div class="winglet left-winglet"></div>
           </div>
@@ -281,6 +289,8 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   loading = false;
   hasBusinessClass = false;
   isAirlineUser = false;
+  // Vista: mostra elementi decorativi dell'aereo (default: nascosti per chiarezza)
+  showDecorations = false;
 
   private subscriptions: Subscription[] = [];
 

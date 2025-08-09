@@ -235,6 +235,9 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Accesso negato: ruolo non autorizzato' });
     }
     const { id } = req.params;
+  // DEBUG: log iniziale update
+  console.log('[Routes][PUT] Update route request', { id, role: payload.role, userId: payload.id });
+  console.log('[Routes][PUT] Body received:', req.body);
     const {
       route_name,
       departure_airport_id,
@@ -272,14 +275,14 @@ router.put('/:id', async (req, res) => {
 
     const query = `
       UPDATE routes SET 
-        route_name = $1,
-        departure_airport_id = $2,
-        arrival_airport_id = $3,
-        airline_id = $4,
-        distance_km = $5,
-        estimated_duration = $6,
-        default_price = $7,
-        status = $8,
+        route_name = COALESCE($1, route_name),
+        departure_airport_id = COALESCE($2, departure_airport_id),
+        arrival_airport_id = COALESCE($3, arrival_airport_id),
+        airline_id = COALESCE($4, airline_id),
+        distance_km = COALESCE($5, distance_km),
+        estimated_duration = COALESCE($6, estimated_duration),
+        default_price = COALESCE($7, default_price),
+        status = COALESCE($8, status),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $9
       RETURNING *
@@ -290,7 +293,8 @@ router.put('/:id', async (req, res) => {
       distance_km, estimated_duration, default_price, status, id
     ];
     
-    const result = await pool.query(query, values);
+  const result = await pool.query(query, values);
+  console.log('[Routes][PUT] Update executed. Row count:', result.rowCount);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Rotta non trovata' });
@@ -301,7 +305,7 @@ router.put('/:id', async (req, res) => {
       route: result.rows[0] 
     });
   } catch (err) {
-    console.error('Error updating route:', err);
+  console.error('Error updating route:', err);
     res.status(400).json({ error: 'Errore nell\'aggiornamento della rotta' });
   }
 });
