@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { GlobalFlightsService } from '../services/global-flights.service';
 import { FlightConnectionService, FlightConnection } from '../services/flight-connection.service';
 import { FlightsGridComponent } from './flights-grid/flights-grid.component';
@@ -64,7 +65,10 @@ export class HomeComponent implements OnInit {
   
   globalFlights = inject(GlobalFlightsService);
 
-  constructor(private flightConnectionService: FlightConnectionService) {
+  constructor(
+    private flightConnectionService: FlightConnectionService,
+    private router: Router
+  ) {
     console.log('🏠 HomeComponent: Constructor called');
   }
 
@@ -249,16 +253,24 @@ export class HomeComponent implements OnInit {
   }
 
   onFlightSelected(connection: FlightConnection): void {
-    console.log('✈️ Volo selezionato:', connection);
+    const timestamp = new Date().toISOString();
+    console.log('✈️ [' + timestamp + '] Volo selezionato:', connection);
+    console.log('🔍 isDirectFlight:', connection.isDirectFlight);
+    console.log('🔍 Flight ID:', connection.outboundFlight?.id);
     
     if (connection.isDirectFlight) {
       // Naviga alla selezione posti per volo diretto
-      // TODO: Implementare navigazione
-      alert(`Volo diretto selezionato: ${connection.outboundFlight.flight_number}`);
+      console.log('🎯 [NAVIGATION] Navigazione alla selezione posti per volo ID:', connection.outboundFlight.id);
+      const navigationPromise = this.router.navigate(['/flights', connection.outboundFlight.id, 'seats']);
+      navigationPromise.then(
+        (success) => console.log('✅ [SUCCESS] Navigazione riuscita:', success),
+        (error) => console.error('❌ [ERROR] Errore navigazione:', error)
+      );
     } else if (connection.isConnectionFlight) {
-      // Naviga alla prenotazione multi-segmento
-      // TODO: Implementare navigazione
-      alert(`Volo con scalo selezionato: ${connection.outboundFlight.flight_number} + ${connection.connectionFlight?.flight_number}`);
+      // Naviga alla prenotazione multi-segmento per voli con scalo
+      console.log('🔗 [INFO] Volo con scalo selezionato - implementazione futura');
+      console.log('Flight 1:', connection.outboundFlight.flight_number);
+      console.log('Flight 2:', connection.connectionFlight?.flight_number);
     }
   }
 
