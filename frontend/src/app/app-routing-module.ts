@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './components/home.component';
+import { FlightsViewComponent } from './components/flights-view.component';
 import { UserLoginComponent } from './components/user-login.component';
 import { UserRegisterComponent } from './components/user-register.component';
 import { ProfileComponent } from './components/profile.component';
@@ -14,6 +15,7 @@ import { CheckoutComponent } from './components/checkout/checkout.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
+  { path: 'flights', component: FlightsViewComponent }, // Pagina voli con filtri e ricerca
   { path: 'flights/:id/seats', component: SeatSelectionComponent }, // Selezione posti per un volo specifico
   { path: 'checkout', component: CheckoutComponent }, // Pagina di checkout per finalizzare prenotazione
   { path: 'login', component: UserLoginComponent }, // Login unificato per tutti i tipi di utente
