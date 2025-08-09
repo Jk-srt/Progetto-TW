@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { GlobalFlightsService } from '../services/global-flights.service';
 import { FlightConnectionService, FlightConnection } from '../services/flight-connection.service';
+import { MultiSegmentBookingService } from '../services/multi-segment-booking.service';
 import { FlightsGridComponent } from './flights-grid/flights-grid.component';
 import { WelcomeSectionComponent } from './welcome-section/welcome-section.component';
 import { StatsSectionComponent, StatCard } from './stats-section/stats-section.component';
@@ -67,6 +68,7 @@ export class HomeComponent implements OnInit {
 
   constructor(
     private flightConnectionService: FlightConnectionService,
+    private multiSegmentBookingService: MultiSegmentBookingService,
     private router: Router
   ) {
     console.log('🏠 HomeComponent: Constructor called');
@@ -266,11 +268,25 @@ export class HomeComponent implements OnInit {
         (success) => console.log('✅ [SUCCESS] Navigazione riuscita:', success),
         (error) => console.error('❌ [ERROR] Errore navigazione:', error)
       );
-    } else if (connection.isConnectionFlight) {
-      // Naviga alla prenotazione multi-segmento per voli con scalo
-      console.log('🔗 [INFO] Volo con scalo selezionato - implementazione futura');
+    } else if (connection.isConnectionFlight && connection.connectionFlight) {
+      // Per voli con scalo, inizia con la selezione posti del primo volo
+      console.log('🔗 [INFO] Selezione volo con scalo - iniziando con il primo volo');
       console.log('Flight 1:', connection.outboundFlight.flight_number);
-      console.log('Flight 2:', connection.connectionFlight?.flight_number);
+      console.log('Flight 2:', connection.connectionFlight.flight_number);
+      
+      // Salva la connessione per dopo
+      sessionStorage.setItem('connectionFlight', JSON.stringify(connection));
+      sessionStorage.setItem('currentConnectionStep', '1');
+      
+      // Naviga al primo volo per la selezione posti
+      const navigationPromise = this.router.navigate(['/flights', connection.outboundFlight.id, 'seats'], {
+        queryParams: { isConnectionFlight: 'true', step: '1of2' }
+      });
+      
+      navigationPromise.then(
+        (success) => console.log('✅ [SUCCESS] Navigazione al primo volo riuscita:', success),
+        (error) => console.error('❌ [ERROR] Errore navigazione primo volo:', error)
+      );
     }
   }
 

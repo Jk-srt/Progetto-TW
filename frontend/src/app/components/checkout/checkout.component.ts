@@ -11,10 +11,32 @@ import { FlightSeatMap, SeatSelectionState } from '../../models/seat.model';
 import { environment } from '@environments/environment';
 
 interface CheckoutData {
-  flightId: number;
-  selectedSeats: FlightSeatMap[];
-  sessionId: string;
+  flightId?: number;
+  selectedSeats?: FlightSeatMap[];
+  sessionId?: string;
   flight?: any;
+  
+  // Supporto per voli multi-segmento
+  isMultiSegment?: boolean;
+  connection?: any;
+  segments?: any[];
+  flightIds?: number[];
+  totalPrice?: number;
+  
+  // Supporto per voli con scalo semplici
+  isConnectionFlight?: boolean;
+  firstFlight?: {
+    flightId: number;
+    selectedSeats: FlightSeatMap[];
+    sessionId: string;
+    flight: any;
+  };
+  secondFlight?: {
+    flightId: number;
+    selectedSeats: FlightSeatMap[];
+    sessionId: string;
+    flight: any;
+  };
 }
 
 interface PassengerForm {
@@ -39,7 +61,9 @@ interface PassengerForm {
         <!-- Header con dettagli volo -->
         <div class="flight-summary">
           <h1>Finalizza la tua prenotazione</h1>
-          <div class="flight-info" *ngIf="checkoutData?.flight">
+          
+          <!-- Volo singolo -->
+          <div class="flight-info" *ngIf="checkoutData?.flight && !checkoutData?.isMultiSegment && !checkoutData?.isConnectionFlight">
             <div class="flight-header">
               <h2>{{ checkoutData?.flight?.flight_number }} - {{ checkoutData?.flight?.airline_name }}</h2>
               <span class="flight-price">€{{ getTotalPrice() }}</span>
@@ -60,14 +84,125 @@ interface PassengerForm {
             </div>
           </div>
 
+          <!-- Volo con scalo (semplice) -->
+          <div class="connection-flight-info" *ngIf="checkoutData?.isConnectionFlight && checkoutData?.firstFlight && checkoutData?.secondFlight">
+            <div class="flight-header">
+              <h2>🔗 Volo con Scalo</h2>
+              <span class="flight-price">€{{ getTotalPrice() }}</span>
+            </div>
+            <div class="connection-details">
+              <div class="segment">
+                <h4>Primo Volo</h4>
+                <div class="route">
+                  <span class="departure">
+                    {{ checkoutData?.firstFlight?.flight?.departure_code }} {{ checkoutData?.firstFlight?.flight?.departure_city }}
+                  </span>
+                  <span class="arrow">→</span>
+                  <span class="arrival">
+                    {{ checkoutData?.firstFlight?.flight?.arrival_code }} {{ checkoutData?.firstFlight?.flight?.arrival_city }}
+                  </span>
+                </div>
+                <div class="flight-number">{{ checkoutData?.firstFlight?.flight?.flight_number }}</div>
+                <div class="datetime">{{ formatDateTime(checkoutData?.firstFlight?.flight?.departure_time) }}</div>
+              </div>
+              <div class="stopover">🔄 SCALO</div>
+              <div class="segment">
+                <h4>Secondo Volo</h4>
+                <div class="route">
+                  <span class="departure">
+                    {{ checkoutData?.secondFlight?.flight?.departure_code }} {{ checkoutData?.secondFlight?.flight?.departure_city }}
+                  </span>
+                  <span class="arrow">→</span>
+                  <span class="arrival">
+                    {{ checkoutData?.secondFlight?.flight?.arrival_code }} {{ checkoutData?.secondFlight?.flight?.arrival_city }}
+                  </span>
+                </div>
+                <div class="flight-number">{{ checkoutData?.secondFlight?.flight?.flight_number }}</div>
+                <div class="datetime">{{ formatDateTime(checkoutData?.secondFlight?.flight?.departure_time) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Volo multi-segmento -->
+          <div class="multi-segment-info" *ngIf="checkoutData?.isMultiSegment && checkoutData?.connection">
+            <div class="flight-header">
+              <h2>🔗 Volo con Scalo</h2>
+              <span class="flight-price">€{{ getTotalPrice() }}</span>
+            </div>
+            <div class="connection-details">
+              <div class="segment">
+                <h4>Segmento 1</h4>
+                <div class="route">
+                  <span class="departure">{{ outboundDepartureCity }}</span>
+                  <span class="arrow">→</span>
+                  <span class="arrival">{{ outboundArrivalCity }}</span>
+                </div>
+                <div class="flight-number">Volo: {{ outboundFlightNumber }}</div>
+              </div>
+              <div class="stopover">🔄 SCALO</div>
+              <div class="segment">
+                <h4>Segmento 2</h4>
+                <div class="route">
+                  <span class="departure">{{ connectionDepartureCity }}</span>
+                  <span class="arrow">→</span>
+                  <span class="arrival">{{ connectionArrivalCity }}</span>
+                </div>
+                <div class="flight-number">Volo: {{ connectionFlightNumber }}</div>
+              </div>
+            </div>
+            <div class="total-duration">
+              <strong>Durata totale: {{ totalConnectionDuration }}</strong>
+            </div>
+          </div>
+
           <!-- Posti selezionati -->
-          <div class="selected-seats">
+          <div class="selected-seats" *ngIf="!checkoutData?.isMultiSegment && !checkoutData?.isConnectionFlight">
             <h3>Posti selezionati ({{ checkoutData?.selectedSeats?.length || 0 }})</h3>
             <div class="seats-list">
               <div class="seat-item" *ngFor="let seat of checkoutData?.selectedSeats">
                 <span class="seat-number">{{ seat.seat_number }}</span>
                 <span class="seat-class">{{ seat.seat_class | titlecase }}</span>
                 <span class="seat-price">€{{ getSeatPrice(seat) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Posti per volo con scalo -->
+          <div class="connection-seats" *ngIf="checkoutData?.isConnectionFlight">
+            <h3>Posti selezionati</h3>
+            <div class="connection-segments">
+              <div class="segment-seats">
+                <h4>Primo Volo - {{ checkoutData?.firstFlight?.flight?.flight_number }}</h4>
+                <div class="seats-list">
+                  <div class="seat-item" *ngFor="let seat of checkoutData?.firstFlight?.selectedSeats">
+                    <span class="seat-number">{{ seat.seat_number }}</span>
+                    <span class="seat-class">{{ seat.seat_class | titlecase }}</span>
+                    <span class="seat-price">€{{ getSeatPrice(seat, checkoutData?.firstFlight?.flight) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="segment-seats">
+                <h4>Secondo Volo - {{ checkoutData?.secondFlight?.flight?.flight_number }}</h4>
+                <div class="seats-list">
+                  <div class="seat-item" *ngFor="let seat of checkoutData?.secondFlight?.selectedSeats">
+                    <span class="seat-number">{{ seat.seat_number }}</span>
+                    <span class="seat-class">{{ seat.seat_class | titlecase }}</span>
+                    <span class="seat-price">€{{ getSeatPrice(seat, checkoutData?.secondFlight?.flight) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Info per voli multi-segmento -->
+          <div class="multi-segment-seats" *ngIf="checkoutData?.isMultiSegment">
+            <h3>Prenotazione Multi-Segmento</h3>
+            <p>I posti per entrambi i segmenti sono stati prenotati automaticamente.</p>
+            <div class="segments-summary" *ngIf="checkoutData?.segments">
+              <div class="segment-item" *ngFor="let segment of checkoutData?.segments; let i = index">
+                <span class="segment-label">Segmento {{ i + 1 }}:</span>
+                <span class="segment-flight">{{ segment.flightNumber }}</span>
+                <span class="segment-price">€{{ segment.price }}</span>
               </div>
             </div>
           </div>
@@ -270,6 +405,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Normalizza: se abbiamo entrambe le tratte, marchia come volo con scalo
+    if (this.checkoutData.firstFlight && this.checkoutData.secondFlight) {
+      this.checkoutData.isConnectionFlight = true;
+    }
+
     // Sottoscrizione ai dati dell'utente corrente
     this.userSubscription = this.authService.currentUser$.subscribe(user => {
       this.currentUser = user;
@@ -288,8 +428,20 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   private initializeForm(): void {
     const passengersArray: FormGroup[] = [];
     
-    // Crea un form per ogni posto selezionato
-    this.checkoutData?.selectedSeats.forEach((seat, index) => {
+    // Determina il numero di passeggeri basato sui dati disponibili
+    let numberOfPassengers = 1;
+    if (this.checkoutData?.isConnectionFlight) {
+      // Per voli con scalo, usa il numero di posti del primo volo
+      numberOfPassengers = this.checkoutData.firstFlight?.selectedSeats?.length || 1;
+    } else if (this.checkoutData?.selectedSeats && Array.isArray(this.checkoutData.selectedSeats) && this.checkoutData.selectedSeats.length > 0) {
+      numberOfPassengers = this.checkoutData.selectedSeats.length;
+    } else if (this.checkoutData?.isMultiSegment) {
+      // Per voli multi-segmento, assumiamo 1 passeggero per ora
+      numberOfPassengers = 1;
+    }
+    
+    // Crea un form per ogni passeggero
+    for (let index = 0; index < numberOfPassengers; index++) {
       // Auto-compilazione per tutti i passeggeri se l'utente è autenticato
       const isMainPassenger = index === 0;
       const userData = this.authService.getUserInfoForAutoFill(); // Usa il nuovo metodo che restituisce null per ospiti
@@ -324,18 +476,19 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       });
       
       passengersArray.push(passengerForm);
-    });
+    }
 
     this.checkoutForm = this.fb.group({
       passengers: this.fb.array(passengersArray)
     });
 
     // Mostra un messaggio se i dati sono stati auto-compilati
-    if (this.currentUser && this.checkoutData?.selectedSeats && this.checkoutData.selectedSeats.length > 0) {
-      const seatCount = this.checkoutData.selectedSeats.length;
-      const message = seatCount > 1 
-        ? `Abbiamo compilato automaticamente i tuoi dati per tutti i ${seatCount} passeggeri. Puoi modificarli se necessario.`
-        : 'Abbiamo compilato automaticamente i tuoi dati personali. Puoi modificarli se necessario.';
+    if (this.currentUser) {
+      const message = this.checkoutData?.isMultiSegment 
+        ? 'Abbiamo compilato automaticamente i tuoi dati per la prenotazione multi-segmento. Puoi modificarli se necessario.'
+        : numberOfPassengers > 1 
+          ? `Abbiamo compilato automaticamente i tuoi dati per tutti i ${numberOfPassengers} passeggeri. Puoi modificarli se necessario.`
+          : 'Abbiamo compilato automaticamente i tuoi dati personali. Puoi modificarli se necessario.';
       
       this.notificationService.showInfo(
         'Dati auto-compilati', 
@@ -354,17 +507,46 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   get passengersFormArray(): FormArray {
-    return this.checkoutForm.get('passengers') as FormArray;
+    return this.checkoutForm?.get('passengers') as FormArray || this.fb.array([]);
+  }
+
+  // Metodi getter per accesso sicuro ai dati della connessione
+  get outboundDepartureCity(): string {
+    return this.checkoutData?.connection?.outboundFlight?.departure_city || '';
+  }
+
+  get outboundArrivalCity(): string {
+    return this.checkoutData?.connection?.outboundFlight?.arrival_city || '';
+  }
+
+  get outboundFlightNumber(): string {
+    return this.checkoutData?.connection?.outboundFlight?.flight_number || '';
+  }
+
+  get connectionDepartureCity(): string {
+    return this.checkoutData?.connection?.connectionFlight?.departure_city || '';
+  }
+
+  get connectionArrivalCity(): string {
+    return this.checkoutData?.connection?.connectionFlight?.arrival_city || '';
+  }
+
+  get connectionFlightNumber(): string {
+    return this.checkoutData?.connection?.connectionFlight?.flight_number || '';
+  }
+
+  get totalConnectionDuration(): string {
+    return this.checkoutData?.connection?.totalDuration || '';
   }
 
   getPassengerControl(index: number, controlName: string) {
     return this.passengersFormArray.at(index).get(controlName);
   }
 
-  getSeatPrice(seat: FlightSeatMap): number {
-    if (!this.checkoutData?.flight) return 0;
-    
-    const flight = this.checkoutData.flight;
+  getSeatPrice(seat: FlightSeatMap, flightData?: any): number {
+    // Per voli con scalo, usa il flightData passato come parametro
+    const flight = flightData || this.checkoutData?.flight;
+    if (!flight) return 0;
     
     // Usa i prezzi specifici per classe dal sistema route pricing + flight surcharge
     // Converte sempre i prezzi in numeri per evitare concatenazioni
@@ -381,6 +563,33 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   getTotalPrice(): number {
+    // Se è un volo multi-segmento e abbiamo il prezzo totale
+    if (this.checkoutData?.isMultiSegment && this.checkoutData?.totalPrice) {
+      return this.checkoutData.totalPrice;
+    }
+    
+    // Se è un volo con scalo, calcola il prezzo di entrambi i voli
+    if (this.checkoutData?.isConnectionFlight) {
+      let total = 0;
+      
+      // Primo volo
+      if (this.checkoutData.firstFlight?.selectedSeats && this.checkoutData.firstFlight?.flight) {
+        total += this.checkoutData.firstFlight.selectedSeats.reduce((sum, seat) => {
+          return sum + this.getSeatPrice(seat, this.checkoutData!.firstFlight!.flight);
+        }, 0);
+      }
+      
+      // Secondo volo
+      if (this.checkoutData.secondFlight?.selectedSeats && this.checkoutData.secondFlight?.flight) {
+        total += this.checkoutData.secondFlight.selectedSeats.reduce((sum, seat) => {
+          return sum + this.getSeatPrice(seat, this.checkoutData!.secondFlight!.flight);
+        }, 0);
+      }
+      
+      return total;
+    }
+    
+    // Altrimenti calcola dai posti selezionati
     if (!this.checkoutData?.selectedSeats) return 0;
     
     return this.checkoutData.selectedSeats.reduce((total, seat) => {
@@ -418,18 +627,47 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       this.isProcessing = true;
       
       const formData = this.checkoutForm.value;
-      const bookingData = {
-        flightId: this.checkoutData?.flightId,
-        seats: this.checkoutData?.selectedSeats,
-        passengers: formData.passengers,
-        totalPrice: this.getTotalPrice(),
-        sessionId: this.checkoutData?.sessionId
-      };
 
-      // Simula elaborazione pagamento
-      setTimeout(() => {
-        this.processBooking(bookingData);
-      }, 2000);
+      // Se volo con scalo, usa sempre il flusso dedicato
+      if (this.checkoutData?.isConnectionFlight) {
+        const b1 = this.checkoutData.firstFlight;
+        const b2 = this.checkoutData.secondFlight;
+        if (!b1 || !b2) {
+          this.isProcessing = false;
+          this.notificationService.showError('Dati mancanti', 'Dati del volo con scalo incompleti. Torna alla selezione posti.');
+          return;
+        }
+        const booking1 = {
+          flightId: b1.flightId,
+          seats: b1.selectedSeats || [],
+          passengers: formData.passengers,
+          totalPrice: (b1.selectedSeats || []).reduce((sum: number, seat: any) => sum + this.getSeatPrice(seat, b1.flight), 0),
+          sessionId: b1.sessionId
+        };
+        const booking2 = {
+          flightId: b2.flightId,
+          seats: b2.selectedSeats || [],
+          passengers: formData.passengers,
+          totalPrice: (b2.selectedSeats || []).reduce((sum: number, seat: any) => sum + this.getSeatPrice(seat, b2.flight), 0),
+          sessionId: b2.sessionId
+        };
+        setTimeout(() => this.processConnectionBooking(booking1, booking2), 500);
+        return; // Evita il flusso singolo
+      }
+  {
+        const bookingData = {
+          flightId: this.checkoutData?.flightId,
+          seats: this.checkoutData?.selectedSeats || [],
+          passengers: formData.passengers,
+          totalPrice: this.getTotalPrice(),
+          sessionId: this.checkoutData?.sessionId
+        };
+
+        // Simula elaborazione pagamento
+        setTimeout(() => {
+          this.processBooking(bookingData);
+        }, 1000);
+  }
     } else {
       // Marca tutti i campi come touched per mostrare gli errori
       this.markFormGroupTouched(this.checkoutForm);
@@ -488,7 +726,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     
     const apiBookingData = {
       flight_id: bookingData.flightId,
-      passengers: bookingData.passengers.map((passenger: any, index: number) => ({
+      passengers: (bookingData.passengers || []).map((passenger: any, index: number) => ({
         firstName: passenger.firstName,
         lastName: passenger.lastName,
         email: passenger.email || mainPassenger.email,
@@ -497,7 +735,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         document_number: passenger.documentNumber,
         date_of_birth: passenger.dateOfBirth,
         nationality: passenger.nationality,
-        seat_id: bookingData.seats[index]?.seat_id || null
+        seat_id: (bookingData.seats && bookingData.seats[index]) ? bookingData.seats[index].seat_id : null
       })),
       total_price: bookingData.totalPrice,
       payment_method: 'credit_card',
@@ -533,7 +771,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             );
             
             // Aggiorna lo stato dei posti (li marca come prenotati)
-            this.updateSeatsStatus(bookingData.seats);
+            this.updateSeatsStatus(bookingData.seats || []);
             
             // Pulisce la selezione
             this.seatService.clearSelection();
@@ -623,6 +861,88 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       });
   }
 
+  // Prenotazioni in sequenza per voli con scalo
+  private processConnectionBooking(booking1: any, booking2: any): void {
+    console.log('Processing connection booking:', { booking1, booking2 });
+
+    const mainPassenger = (booking1.passengers || [])[0];
+    if (!mainPassenger?.email || !mainPassenger?.phone) {
+      this.isProcessing = false;
+      this.notificationService.showError('Dati mancanti', 'Email e telefono sono obbligatori per completare la prenotazione.');
+      return;
+    }
+
+    const headers = this.getAuthHeaders();
+
+    const toApiPayload = (booking: any) => ({
+      flight_id: booking.flightId,
+      passengers: (booking.passengers || []).map((p: any, i: number) => ({
+        firstName: p.firstName,
+        lastName: p.lastName,
+        email: p.email || mainPassenger.email,
+        phone: p.phone || mainPassenger.phone,
+        document_type: p.documentType,
+        document_number: p.documentNumber,
+        date_of_birth: p.dateOfBirth,
+        nationality: p.nationality,
+        seat_id: (booking.seats && booking.seats[i]) ? booking.seats[i].seat_id : null
+      })),
+      total_price: booking.totalPrice,
+      payment_method: 'credit_card',
+      payment_status: 'completed'
+    });
+
+    const payload1 = toApiPayload(booking1);
+    const payload2 = toApiPayload(booking2);
+
+    // Prima prenotazione
+    this.http.post<any>(`${this.baseUrl}/bookings`, payload1, { headers }).subscribe({
+      next: (resp1) => {
+        if (!(resp1.success || resp1.booking_references)) {
+          throw new Error(resp1.message || 'Prenotazione primo volo fallita');
+        }
+        const ref1 = resp1.booking_references?.[0] || resp1.booking_reference;
+        console.log('First segment booking successful:', ref1);
+
+        // Seconda prenotazione
+        this.http.post<any>(`${this.baseUrl}/bookings`, payload2, { headers }).subscribe({
+          next: (resp2) => {
+            this.isProcessing = false;
+            if (!(resp2.success || resp2.booking_references)) {
+              this.notificationService.showError('Errore', resp2.message || 'Prenotazione secondo volo fallita');
+              return;
+            }
+            const ref2 = resp2.booking_references?.[0] || resp2.booking_reference;
+            console.log('Second segment booking successful:', ref2);
+
+            // Notifica combinata
+            const mainPassengerEmail = mainPassenger.email;
+            this.notificationService.showBookingSuccess(ref1, mainPassengerEmail);
+            this.notificationService.showBookingSuccess(ref2, mainPassengerEmail);
+
+            // Aggiorna lo stato posti per entrambi i voli
+            this.updateSeatsStatus(booking1.seats || []);
+            this.updateSeatsStatus(booking2.seats || []);
+
+            // Pulisci selezione e naviga
+            this.seatService.clearSelection();
+            setTimeout(() => this.router.navigate(['/bookings']), 3000);
+          },
+          error: (error2) => {
+            console.error('Second segment booking error:', error2);
+            this.isProcessing = false;
+            this.notificationService.showError('Errore secondo volo', error2.error?.message || error2.message || 'Prenotazione secondo volo fallita');
+          }
+        });
+      },
+      error: (error1) => {
+        console.error('First segment booking error:', error1);
+        this.isProcessing = false;
+        this.notificationService.showError('Errore primo volo', error1.error?.message || error1.message || 'Prenotazione primo volo fallita');
+      }
+    });
+  }
+
   private getAuthHeaders(): HttpHeaders {
     const token = this.authService.getToken();
     return new HttpHeaders({
@@ -632,19 +952,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private updateSeatsStatus(seats: FlightSeatMap[]): void {
-    // Aggiorna lo stato dei posti nel servizio globale
-    seats.forEach(seat => {
-      // Chiamata API per marcare il posto come prenotato
-      this.http.put(`${this.baseUrl}/seats/${seat.seat_id}/book`, {}, {
-        headers: this.getAuthHeaders()
-      }).subscribe({
-        next: (response) => {
-          console.log(`Seat ${seat.seat_number} marked as booked`);
-        },
-        error: (error) => {
-          console.error(`Error updating seat ${seat.seat_number}:`, error);
-        }
-      });
-    });
+    // Nessuna chiamata API necessaria: il backend marca già i posti come "occupied" durante /bookings
+    try {
+      console.log('Skipping client-side seat update; backend already marked seats as occupied:',
+        seats.map(s => s.seat_number).join(', ')
+      );
+    } catch {}
   }
 }

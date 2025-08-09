@@ -12,11 +12,13 @@ import { RouteAdminComponent } from './components/route-admin.component';
 import { AircraftAdminComponent } from './components/aircraft-admin.component';
 import { SeatSelectionComponent } from './components/seat-selection/seat-selection.component';
 import { CheckoutComponent } from './components/checkout/checkout.component';
+import { MultiSegmentSeatsComponent } from './components/multi-segment-seats/multi-segment-seats.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'flights', component: FlightsViewComponent }, // Pagina voli con filtri e ricerca
   { path: 'flights/:id/seats', component: SeatSelectionComponent }, // Selezione posti per un volo specifico
+  { path: 'multi-segment-booking', component: MultiSegmentSeatsComponent }, // Prenotazione voli con scalo
   { path: 'checkout', component: CheckoutComponent }, // Pagina di checkout per finalizzare prenotazione
   { path: 'login', component: UserLoginComponent }, // Login unificato per tutti i tipi di utente
   { path: 'admin', component: AdminDashboardComponent }, // Pannello amministratore

@@ -196,7 +196,11 @@ export class SeatService {
     if (seatIds) data.seat_ids = seatIds;
     
     const headers = this.getHeaders();
-    return this.http.post(`${environment.apiUrl}/seat-reservations/release`, data, { headers });
+    // Backend expects DELETE /api/seat-reservations/release with body
+    return this.http.request('DELETE', `${environment.apiUrl}/seat-reservations/release`, {
+      headers,
+      body: data
+    });
   }
 
   /**
@@ -352,6 +356,21 @@ export class SeatService {
     this.seatSelectionState.next({
       selectedSeats: [],
       sessionId: this.sessionId,
+      passengers: []
+    });
+    this.countdownSubscription?.unsubscribe();
+    this.countdownSubject.next(0);
+  }
+
+  /**
+   * Svuota SOLO lo stato locale di selezione senza rilasciare le prenotazioni lato backend.
+   * Utile quando si passa dal primo al secondo segmento di un volo con scalo.
+   */
+  resetLocalSelection(): void {
+    const current = this.seatSelectionState.value;
+    this.seatSelectionState.next({
+      selectedSeats: [],
+      sessionId: current.sessionId || this.sessionId,
       passengers: []
     });
     this.countdownSubscription?.unsubscribe();
