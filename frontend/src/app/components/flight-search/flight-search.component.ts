@@ -23,17 +23,6 @@ export interface FlightSearchCriteria {
       </div>
 
       <div class="search-form">
-        <div class="trip-type">
-          <label class="radio-option">
-            <input type="radio" name="tripType" [value]="false" [(ngModel)]="searchCriteria.roundTrip">
-            <span>Solo andata</span>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="tripType" [value]="true" [(ngModel)]="searchCriteria.roundTrip">
-            <span>Andata e ritorno</span>
-          </label>
-        </div>
-
         <div class="form-row">
           <div class="form-group">
             <label for="departure">Da</label>
@@ -64,11 +53,6 @@ export interface FlightSearchCriteria {
           <div class="form-group">
             <label for="departureDate">Data partenza</label>
             <input type="date" id="departureDate" [(ngModel)]="searchCriteria.departureDate" [min]="today">
-          </div>
-
-          <div class="form-group" *ngIf="searchCriteria.roundTrip">
-            <label for="returnDate">Data ritorno</label>
-            <input type="date" id="returnDate" [(ngModel)]="searchCriteria.returnDate" [min]="searchCriteria.departureDate">
           </div>
 
           <div class="form-group">
@@ -122,26 +106,6 @@ export interface FlightSearchCriteria {
       margin: 0;
       opacity: 0.9;
       font-size: 1.1rem;
-    }
-
-    .trip-type {
-      display: flex;
-      justify-content: center;
-      gap: 2rem;
-      margin-bottom: 2rem;
-    }
-
-    .radio-option {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-
-    .radio-option input[type="radio"] {
-      width: 18px;
-      height: 18px;
     }
 
     .form-row {
@@ -228,12 +192,6 @@ export interface FlightSearchCriteria {
       .form-row {
         grid-template-columns: 1fr;
       }
-      
-      .trip-type {
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-      }
     }
   `]
 })
@@ -263,7 +221,11 @@ export class FlightSearchComponent {
 
   searchFlights(): void {
     if (this.isFormValid()) {
-      console.log('Ricerca voli con criteri:', this.searchCriteria);
+      // Assicura che sia sempre solo andata
+      this.searchCriteria.roundTrip = false;
+      this.searchCriteria.returnDate = '';
+      
+      console.log('Ricerca voli (solo andata) con criteri:', this.searchCriteria);
       this.searchRequested.emit(this.searchCriteria);
     }
   }
