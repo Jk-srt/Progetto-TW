@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Flight } from '../../models/flight.model';
 import { AirportService } from '../../services/airport.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-flight-card',
@@ -58,7 +59,7 @@ import { AirportService } from '../../services/airport.service';
             </div>
           </div>
           <button 
-            *ngIf="!isFlightUnavailable()"
+            *ngIf="!isFlightUnavailable() && !isAirlineUser"
             (click)="bookFlight()"
             style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem;"
             onmouseover="this.style.background='#5a67d8'"
@@ -80,13 +81,19 @@ import { AirportService } from '../../services/airport.service';
 export class FlightCardComponent implements OnInit {
   @Input() flight!: any;
   private airportCodes: { [key: string]: string } = {};
+  isAirlineUser = false;
 
   constructor(
     private router: Router,
-    private airportService: AirportService
+  private airportService: AirportService,
+  private authService: AuthService
   ) {}
 
   ngOnInit(): void {
+  // Rileva ruolo utente (nascondi prenotazione se airline)
+  const user = this.authService.getCurrentUser();
+  this.isAirlineUser = user?.role === 'airline';
+  this.authService.currentUser$.subscribe(u => this.isAirlineUser = (u?.role === 'airline'));
     // Carica i codici degli aeroporti per questo volo
     this.loadAirportCodes();
   }

@@ -1,6 +1,8 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, Output, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AirportService } from '../../services/airport.service';
+import { Airport } from '../../models/flight.model';
 
 export interface FlightSearchCriteria {
   departure: string;
@@ -28,12 +30,9 @@ export interface FlightSearchCriteria {
             <label for="departure">Da</label>
             <select id="departure" [(ngModel)]="searchCriteria.departure">
               <option value="">Seleziona partenza</option>
-              <option value="Roma Fiumicino">Roma Fiumicino (FCO)</option>
-              <option value="Milano Malpensa">Milano Malpensa (MXP)</option>
-              <option value="Francoforte">Francoforte (FRA)</option>
-              <option value="Parigi CDG">Parigi CDG (CDG)</option>
-              <option value="Londra Heathrow">Londra Heathrow (LHR)</option>
-              <option value="Amsterdam">Amsterdam (AMS)</option>
+              <option *ngFor="let a of airports" [value]="formatAirportValue(a)">
+                {{ formatAirportLabel(a) }}
+              </option>
             </select>
           </div>
 
@@ -41,12 +40,9 @@ export interface FlightSearchCriteria {
             <label for="arrival">A</label>
             <select id="arrival" [(ngModel)]="searchCriteria.arrival">
               <option value="">Seleziona destinazione</option>
-              <option value="Roma Fiumicino">Roma Fiumicino (FCO)</option>
-              <option value="Milano Malpensa">Milano Malpensa (MXP)</option>
-              <option value="Francoforte">Francoforte (FRA)</option>
-              <option value="Parigi CDG">Parigi CDG (CDG)</option>
-              <option value="Londra Heathrow">Londra Heathrow (LHR)</option>
-              <option value="Amsterdam">Amsterdam (AMS)</option>
+              <option *ngFor="let a of airports" [value]="formatAirportValue(a)">
+                {{ formatAirportLabel(a) }}
+              </option>
             </select>
           </div>
 
@@ -195,11 +191,12 @@ export interface FlightSearchCriteria {
     }
   `]
 })
-export class FlightSearchComponent {
+export class FlightSearchComponent implements OnInit {
   @Output() searchRequested = new EventEmitter<FlightSearchCriteria>();
   @Output() resetRequested = new EventEmitter<void>();
 
   today = new Date().toISOString().split('T')[0];
+  airports: Airport[] = [];
 
   searchCriteria: FlightSearchCriteria = {
     departure: '',
@@ -209,6 +206,19 @@ export class FlightSearchComponent {
     passengers: 1,
     roundTrip: false
   };
+
+  constructor(private airportService: AirportService) {}
+
+  ngOnInit(): void {
+    // Sottoscrizione all'elenco aeroporti centralizzato
+    this.airportService.getAirports().subscribe({
+      next: (airports) => this.airports = airports || [],
+      error: (err) => {
+        console.error('Errore nel caricamento degli aeroporti:', err);
+        this.airports = [];
+      }
+    });
+  }
 
   isFormValid(): boolean {
     return !!(
@@ -224,8 +234,8 @@ export class FlightSearchComponent {
       // Assicura che sia sempre solo andata
       this.searchCriteria.roundTrip = false;
       this.searchCriteria.returnDate = '';
-      
-      console.log('Ricerca voli (solo andata) con criteri:', this.searchCriteria);
+  // Log sintetico
+  console.log('Ricerca voli (solo andata):', this.searchCriteria);
       this.searchRequested.emit(this.searchCriteria);
     }
   }
@@ -240,5 +250,15 @@ export class FlightSearchComponent {
       roundTrip: false
     };
     this.resetRequested.emit();
+  }
+
+  // Helpers per visualizzare i campi aeroporto
+  formatAirportLabel(a: Airport): string {
+    return a ? `${a.name} (${a.iata_code})` : '';
+  }
+
+  formatAirportValue(a: Airport): string {
+    // Usiamo la label come value: Home component estrae il nome prima delle parentesi
+    return this.formatAirportLabel(a);
   }
 }

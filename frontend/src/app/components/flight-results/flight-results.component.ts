@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FlightConnection, FlightConnectionService } from '../../services/flight-connection.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-flight-results',
@@ -160,7 +161,7 @@ import { FlightConnection, FlightConnectionService } from '../../services/flight
                 {{getMinAvailableSeats(connection)}} posti disponibili
               </span>
             </div>
-            <button class="select-flight-btn" (click)="selectConnection(connection)">
+            <button class="select-flight-btn" (click)="selectConnection(connection)" *ngIf="!isAirlineUser">
               Seleziona Volo
             </button>
           </div>
@@ -195,7 +196,13 @@ export class FlightResultsComponent {
   activeFilter: 'all' | 'direct' | 'connection' = 'all';
   filteredConnections: FlightConnection[] = [];
 
-  constructor(private flightConnectionService: FlightConnectionService) {}
+  isAirlineUser = false;
+
+  constructor(private flightConnectionService: FlightConnectionService, private authService: AuthService) {
+    const user = this.authService.getCurrentUser();
+    this.isAirlineUser = user?.role === 'airline';
+    this.authService.currentUser$.subscribe(u => this.isAirlineUser = (u?.role === 'airline'));
+  }
 
   ngOnInit() {
     this.applyFilter();
