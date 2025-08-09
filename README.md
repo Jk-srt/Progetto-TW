@@ -2,7 +2,7 @@
 
 Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnologie moderne. Il progetto include un frontend Angular, un backend Node.js/TypeScript e un database PostgreSQL con integrazione cloud Neon.
 
-![TAW Flights](https://img.shields.io/badge/Version-3.0.0-blue.svg)
+![TAW Flights](https://img.shields.io/badge/Version-3.2.0-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3.0-blue.svg)
 ![Angular](https://img.shields.io/badge/Angular-17+-red.svg)
@@ -24,6 +24,15 @@ Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnol
 - **Sistema Prenotazioni**: Prenotazione voli con gestione posti e tracking
 - **Database Cloud**: Integrazione con Neon PostgreSQL per performance ottimali
 - **API RESTful Completa**: Endpoints per tutte le operazioni CRUD
+
+### 🆕 Nuove Funzionalità (v3.2) - UX Prenotazioni, Compagnie e Rotte
+- **Cancellazione Prenotazioni Utente**: ora puoi annullare una prenotazione se mancano più di 24 ore alla partenza; il posto viene liberato e i posti disponibili del volo si aggiornano automaticamente (UI con stato “Annullando…” e notifiche).
+- **Pagina Prenotazioni potenziata**: loader CSS accessibile e, per utenti compagnia, dashboard con tab Panoramica e Posti Prenotati, mappa posti per volo e distribuzione per classe con metriche (ricavi/occupazione).
+- **Ricerca voli semplificata**: rimosso andata/ritorno; la ricerca è solo andata per impostazione predefinita con aeroporti caricati dinamicamente da AirportService.
+- **Selezione voli diretti → posti**: se scegli un volo diretto dalla ricerca vieni portato direttamente alla selezione dei posti.
+- **Mappa posti compatta**: toggle “vista compatta” che nasconde elementi decorativi e migliora leggibilità (corsia, overflow, responsive).
+- **UI basata sui ruoli**: gli utenti “airline” non vedono azioni di prenotazione (“Prenota/Seleziona”).
+- **Gestione rotte per compagnie**: aggiornamento parziale robusto (COALESCE) e compilazione automatica di airline_id per utenti compagnia; logging diagnostico su frontend e backend per eventuali errori.
 
 ### 🆕 Nuove Funzionalità (v3.1) - Sistema Stato Voli Avanzato
 - **🚨 Gestione Stati Voli**: Sistema completo per gestire cancellazioni, ritardi e completamenti
