@@ -246,7 +246,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   
   // Subscription per il cleanup
   userSubscription?: Subscription;
-  userSubscription?: Subscription;
   private baseUrl = `${environment.apiUrl}`;
 
   constructor(

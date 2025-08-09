@@ -1,7 +1,8 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Flight } from '../../models/flight.model';
+import { AirportService } from '../../services/airport.service';
 
 @Component({
   selector: 'app-flight-card',
@@ -76,23 +77,49 @@ import { Flight } from '../../models/flight.model';
   `,
   styleUrl: './flight-card.component.scss'
 })
-export class FlightCardComponent {
+export class FlightCardComponent implements OnInit {
   @Input() flight!: any;
+  private airportCodes: { [key: string]: string } = {};
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private airportService: AirportService
+  ) {}
+
+  ngOnInit(): void {
+    // Carica i codici degli aeroporti per questo volo
+    this.loadAirportCodes();
+  }
+
+  private loadAirportCodes(): void {
+    if (this.flight.departure_airport) {
+      this.airportService.getIataCodeByName(this.flight.departure_airport).subscribe({
+        next: (code) => {
+          this.airportCodes[this.flight.departure_airport] = code;
+        },
+        error: (error) => {
+          console.error('Errore nel caricamento codice aeroporto partenza:', error);
+        }
+      });
+    }
+
+    if (this.flight.arrival_airport) {
+      this.airportService.getIataCodeByName(this.flight.arrival_airport).subscribe({
+        next: (code) => {
+          this.airportCodes[this.flight.arrival_airport] = code;
+        },
+        error: (error) => {
+          console.error('Errore nel caricamento codice aeroporto arrivo:', error);
+        }
+      });
+    }
+  }
 
   getAirportCode(airportName: string): string {
     if (!airportName) return 'N/A';
     
-    const codes: { [key: string]: string } = {
-      'Roma Fiumicino': 'FCO',
-      'Milano Malpensa': 'MXP', 
-      'Francoforte': 'FRA',
-      'Parigi CDG': 'CDG',
-      'Londra Heathrow': 'LHR',
-      'Amsterdam': 'AMS'
-    };
-    return codes[airportName] || airportName.substring(0, 3).toUpperCase();
+    // Restituisce il codice caricato dinamicamente o un fallback temporaneo
+    return this.airportCodes[airportName] || airportName.substring(0, 3).toUpperCase();
   }
 
   getStatusClass(status: string): string {

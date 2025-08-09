@@ -165,15 +165,16 @@ export class HomeComponent implements OnInit {
   }
 
   /**
-   * Estrae il nome della città dal formato "Roma Fiumicino (FCO)"
+   * Estrae il nome dell'aeroporto senza parentesi dal formato "Roma Fiumicino (FCO)"
+   * Ora invia il nome completo dell'aeroporto invece di solo la città
    */
   private extractCityFromAirport(airportString: string): string {
     if (!airportString) return '';
     
-    // Se il formato è "Roma Fiumicino (FCO)", estrai "Roma"
+    // Se il formato è "Roma Fiumicino (FCO)", estrai "Roma Fiumicino"
     const match = airportString.match(/^([^(]+)/);
     if (match) {
-      return match[1].trim().split(' ')[0]; // Prendi solo la prima parola (città)
+      return match[1].trim(); // Restituisce tutto prima della parentesi, non solo la prima parola
     }
     
     return airportString;

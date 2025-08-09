@@ -63,6 +63,32 @@ router.get('/search', async (req, res) => {
   try {
     const { departure_city, arrival_city, departure_date, return_date, passengers } = req.query;
     
+    // Mappatura per gestire nomi città in italiano/inglese e nomi aeroporti
+    const cityMapping: { [key: string]: string[] } = {
+      'Roma': ['Roma', 'Rome'],
+      'Rome': ['Roma', 'Rome'],
+      'Roma Fiumicino': ['Roma', 'Rome'],
+      'Leonardo da Vinci International Airport': ['Roma', 'Rome'],
+      'Milano': ['Milano', 'Milan'],
+      'Milan': ['Milano', 'Milan'],
+      'Milano Malpensa': ['Milano', 'Milan'],
+      'Parigi': ['Paris', 'Parigi'],
+      'Paris': ['Paris', 'Parigi'],
+      'Parigi CDG': ['Paris', 'Parigi'],
+      'Charles de Gaulle Airport': ['Paris', 'Parigi'],
+      'Londra': ['London', 'Londra'],
+      'London': ['London', 'Londra'],
+      'Londra Heathrow': ['London', 'Londra'],
+      'Heathrow Airport': ['London', 'Londra'],
+      'Amsterdam': ['Amsterdam'],
+      'Amsterdam Schiphol': ['Amsterdam'],
+      'Francoforte': ['Frankfurt', 'Francoforte'],
+      'Frankfurt': ['Frankfurt', 'Francoforte'],
+      'Barcellona': ['Barcelona', 'Barcellona'],
+      'Barcelona': ['Barcelona', 'Barcellona'],
+      'Barcellona El Prat': ['Barcelona', 'Barcellona']
+    };
+    
     let query = `
       SELECT 
         fwa.id,
@@ -105,16 +131,24 @@ router.get('/search', async (req, res) => {
     const params: any[] = [];
     let paramIndex = 1;
     
-    if (departure_city) {
-      query += ` AND fwa.departure_city ILIKE $${paramIndex}`;
-      params.push(`%${departure_city}%`);
-      paramIndex++;
+    if (departure_city && typeof departure_city === 'string') {
+      const departureCities = cityMapping[departure_city] || [departure_city];
+      const cityConditions = departureCities.map((city: string, index: number) => {
+        params.push(`%${city}%`);
+        return `fwa.departure_city ILIKE $${paramIndex + index}`;
+      }).join(' OR ');
+      query += ` AND (${cityConditions})`;
+      paramIndex += departureCities.length;
     }
     
-    if (arrival_city) {
-      query += ` AND fwa.arrival_city ILIKE $${paramIndex}`;
-      params.push(`%${arrival_city}%`);
-      paramIndex++;
+    if (arrival_city && typeof arrival_city === 'string') {
+      const arrivalCities = cityMapping[arrival_city] || [arrival_city];
+      const cityConditions = arrivalCities.map((city: string, index: number) => {
+        params.push(`%${city}%`);
+        return `fwa.arrival_city ILIKE $${paramIndex + index}`;
+      }).join(' OR ');
+      query += ` AND (${cityConditions})`;
+      paramIndex += arrivalCities.length;
     }
     
     if (departure_date) {
@@ -144,16 +178,42 @@ router.get('/connections', async (req, res) => {
   try {
     const { departure_city, arrival_city, departure_date, max_connections = 1 } = req.query;
     
-    if (!departure_city || !arrival_city || !departure_date) {
+    if (!departure_city || !arrival_city) {
       return res.status(400).json({ 
-        error: 'departure_city, arrival_city e departure_date sono obbligatori' 
+        error: 'departure_city e arrival_city sono obbligatori' 
       });
     }
 
+    // Usa la stessa mappatura dell'endpoint /search
+    const cityMapping: { [key: string]: string[] } = {
+      'Roma': ['Roma', 'Rome'],
+      'Rome': ['Roma', 'Rome'],
+      'Roma Fiumicino': ['Roma', 'Rome'],
+      'Leonardo da Vinci International Airport': ['Roma', 'Rome'],
+      'Milano': ['Milano', 'Milan'],
+      'Milan': ['Milano', 'Milan'],
+      'Milano Malpensa': ['Milano', 'Milan'],
+      'Parigi': ['Paris', 'Parigi'],
+      'Paris': ['Paris', 'Parigi'],
+      'Parigi CDG': ['Paris', 'Parigi'],
+      'Charles de Gaulle Airport': ['Paris', 'Parigi'],
+      'Londra': ['London', 'Londra'],
+      'London': ['London', 'Londra'],
+      'Londra Heathrow': ['London', 'Londra'],
+      'Heathrow Airport': ['London', 'Londra'],
+      'Amsterdam': ['Amsterdam'],
+      'Amsterdam Schiphol': ['Amsterdam'],
+      'Francoforte': ['Frankfurt', 'Francoforte'],
+      'Frankfurt': ['Frankfurt', 'Francoforte'],
+      'Barcellona': ['Barcelona', 'Barcellona'],
+      'Barcelona': ['Barcelona', 'Barcellona'],
+      'Barcellona El Prat': ['Barcelona', 'Barcellona']
+    };
+
     const connections = [];
     
-    // 1. Cerca voli diretti
-    const directQuery = `
+    // 1. Cerca voli diretti utilizzando la mappatura delle città
+    let directQuery = `
       SELECT 
         fwa.id,
         fwa.flight_number,
@@ -186,23 +246,44 @@ router.get('/connections', async (req, res) => {
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
       LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
       WHERE fwa.status = 'scheduled'
-        AND fwa.departure_city ILIKE $1
-        AND fwa.arrival_city ILIKE $2
-        AND DATE(fwa.departure_time) = $3
-      ORDER BY fwa.departure_time ASC
     `;
+
+    const directParams: any[] = [];
+    let directParamIndex = 1;
+
+    // Applica mappatura città di partenza
+    const departureCities = cityMapping[departure_city as string] || [departure_city as string];
+    const departureCityConditions = departureCities.map((city: string, index: number) => {
+      directParams.push(`%${city}%`);
+      return `fwa.departure_city ILIKE $${directParamIndex + index}`;
+    }).join(' OR ');
+    directQuery += ` AND (${departureCityConditions})`;
+    directParamIndex += departureCities.length;
+
+    // Applica mappatura città di arrivo
+    const arrivalCities = cityMapping[arrival_city as string] || [arrival_city as string];
+    const arrivalCityConditions = arrivalCities.map((city: string, index: number) => {
+      directParams.push(`%${city}%`);
+      return `fwa.arrival_city ILIKE $${directParamIndex + index}`;
+    }).join(' OR ');
+    directQuery += ` AND (${arrivalCityConditions})`;
+    directParamIndex += arrivalCities.length;
     
-    const directResult = await pool.query(directQuery, [
-      `%${departure_city}%`,
-      `%${arrival_city}%`,
-      departure_date
-    ]);
+    // Aggiungi filtro per data solo se fornita
+    if (departure_date) {
+      directQuery += ` AND DATE(fwa.departure_time) = $${directParamIndex}`;
+      directParams.push(departure_date as string);
+    }
+    
+    directQuery += ` ORDER BY fwa.departure_time ASC`;
+    
+    const directResult = await pool.query(directQuery, directParams);
     
     // Aggiungi voli diretti ai risultati
     connections.push(...directResult.rows);
 
-    // 2. Se richiesto, cerca voli con 1 scalo
-    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10) {
+    // 2. Se richiesto, cerca voli con 1 scalo (solo se la data è fornita)
+    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10 && departure_date) {
       const connectionQuery = `
         WITH connection_flights AS (
           -- Prima tratta
@@ -317,8 +398,8 @@ router.get('/connections', async (req, res) => {
       `;
       
       const connectionResult = await pool.query(connectionQuery, [
-        `%${departure_city}%`,
-        `%${arrival_city}%`,
+        `%${departureCities[0]}%`,  // Usa la prima città mappata per la partenza
+        `%${arrivalCities[0]}%`,    // Usa la prima città mappata per l'arrivo
         departure_date
       ]);
       
@@ -379,8 +460,8 @@ router.get('/connections', async (req, res) => {
 
     // Ordina tutti i risultati per prezzo
     connections.sort((a, b) => {
-      const priceA = a.connection_type === 'direct' ? a.economy_price : a.totals.economy_price;
-      const priceB = b.connection_type === 'direct' ? b.economy_price : b.totals.economy_price;
+      const priceA = a.connection_type === 'direct' ? (a.economy_price || 0) : (a.totals?.economy_price || 0);
+      const priceB = b.connection_type === 'direct' ? (b.economy_price || 0) : (b.totals?.economy_price || 0);
       return priceA - priceB;
     });
 
