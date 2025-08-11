@@ -141,6 +141,35 @@ app.use((req, res, next) => {
 
 // Backend API only - no static file serving
 
+// Flight completion scheduler: periodically mark flights as completed when arrival_time has passed
+function startFlightCompletionScheduler() {
+    const intervalMs = parseInt(process.env.FLIGHT_COMPLETION_INTERVAL_MS || '300000', 10); // default 5 min
+    const run = async () => {
+        try {
+            // Prefer the SQL helper function if available
+            await pool.query('SELECT mark_completed_flights();');
+        } catch (err) {
+            // Fallback: inline UPDATE if function doesn't exist
+            try {
+                await pool.query(`
+                    UPDATE flights
+                    SET status = 'completed',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE arrival_time IS NOT NULL
+                      AND arrival_time <= NOW()
+                      AND status NOT IN ('completed', 'cancelled');
+                `);
+            } catch (e) {
+                console.error('[ERROR] Flight completion scheduler fallback failed:', e);
+            }
+        }
+    };
+    // initial run and schedule
+    run();
+    setInterval(run, intervalMs);
+}
+startFlightCompletionScheduler();
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     console.log('[DEBUG] Health check endpoint called');
