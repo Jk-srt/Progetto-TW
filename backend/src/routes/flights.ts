@@ -282,8 +282,14 @@ router.get('/connections', async (req, res) => {
     // Aggiungi voli diretti ai risultati
     connections.push(...directResult.rows);
 
-    // 2. Se richiesto, cerca voli con 1 scalo (solo se la data è fornita)
-    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10 && departure_date) {
+    // 2. Se richiesto, cerca voli con 1 scalo (supporta anche ricerche senza data)
+    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10) {
+      // Quando la data non è fornita, limitiamo la ricerca alle prossime 48 ore
+      const useDateParam = !!departure_date;
+      const dateFilter = useDateParam 
+        ? `AND DATE(f1.departure_time) = DATE($3::date)`
+        : `AND DATE(f1.departure_time) BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '2 days')`;
+
       const connectionQuery = `
         WITH connection_flights AS (
           -- Prima tratta
@@ -333,8 +339,8 @@ router.get('/connections', async (req, res) => {
             -- Connessione valida: almeno 2 ore ma meno di 24 ore
             AND f2.departure_time > f1.arrival_time + INTERVAL '2 hours'
             AND f2.departure_time < f1.arrival_time + INTERVAL '24 hours'
-            -- Stesso giorno o giorno successivo
-            AND DATE(f1.departure_time) = DATE($3::date)
+            -- Finestra temporale
+            ${dateFilter}
           )
           LEFT JOIN airlines airlines1 ON f1.airline_id = airlines1.id
           LEFT JOIN airlines airlines2 ON f2.airline_id = airlines2.id
@@ -397,11 +403,14 @@ router.get('/connections', async (req, res) => {
         LIMIT 20
       `;
       
-      const connectionResult = await pool.query(connectionQuery, [
+      const connectionParams: any[] = [
         `%${departureCities[0]}%`,  // Usa la prima città mappata per la partenza
-        `%${arrivalCities[0]}%`,    // Usa la prima città mappata per l'arrivo
-        departure_date
-      ]);
+        `%${arrivalCities[0]}%`     // Usa la prima città mappata per l'arrivo
+      ];
+      if (useDateParam) {
+        connectionParams.push(departure_date);
+      }
+      const connectionResult = await pool.query(connectionQuery, connectionParams);
       
       // Trasforma i risultati delle connessioni nel formato corretto
       const formattedConnections = connectionResult.rows.map(row => ({

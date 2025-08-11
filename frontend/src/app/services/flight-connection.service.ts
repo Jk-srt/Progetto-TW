@@ -20,7 +20,7 @@ export interface FlightConnection {
 export interface FlightSearchRequest {
   departure_city: string;
   arrival_city: string;
-  departure_date: string;
+  departure_date?: string; // opzionale
   return_date?: string;
   passengers: number;
   max_connections?: number; // 0 = solo diretti, 1 = max 1 scalo
@@ -41,8 +41,11 @@ export class FlightConnectionService {
     let params = new HttpParams()
       .set('departure_city', searchRequest.departure_city)
       .set('arrival_city', searchRequest.arrival_city)
-      .set('departure_date', searchRequest.departure_date)
       .set('max_connections', (searchRequest.max_connections || 1).toString());
+
+    if (searchRequest.departure_date) {
+      params = params.set('departure_date', searchRequest.departure_date);
+    }
 
     if (searchRequest.return_date) {
       params = params.set('return_date', searchRequest.return_date);
@@ -75,8 +78,11 @@ export class FlightConnectionService {
     let params = new HttpParams()
       .set('departure_city', searchRequest.departure_city)
       .set('arrival_city', searchRequest.arrival_city)
-      .set('departure_date', searchRequest.departure_date)
       .set('passengers', searchRequest.passengers.toString());
+
+    if (searchRequest.departure_date) {
+      params = params.set('departure_date', searchRequest.departure_date);
+    }
 
     if (searchRequest.return_date) {
       params = params.set('return_date', searchRequest.return_date);
@@ -141,18 +147,24 @@ export class FlightConnectionService {
   ): Observable<FlightConnection[]> {
     
     // Cerca voli da origine a connessione
-    const firstLegParams = new HttpParams()
+    let firstLegParams = new HttpParams()
       .set('departure_city', originalRequest.departure_city)
       .set('arrival_city', connectionAirport)
-      .set('departure_date', originalRequest.departure_date)
       .set('passengers', originalRequest.passengers.toString());
 
+    if (originalRequest.departure_date) {
+      firstLegParams = firstLegParams.set('departure_date', originalRequest.departure_date);
+    }
+
     // Cerca voli da connessione a destinazione
-    const secondLegParams = new HttpParams()
+    let secondLegParams = new HttpParams()
       .set('departure_city', connectionAirport)
       .set('arrival_city', originalRequest.arrival_city)
-      .set('departure_date', originalRequest.departure_date)
       .set('passengers', originalRequest.passengers.toString());
+
+    if (originalRequest.departure_date) {
+      secondLegParams = secondLegParams.set('departure_date', originalRequest.departure_date);
+    }
 
     const firstLegSearch = this.http.get<Flight[]>(`${this.apiUrl}/search`, { params: firstLegParams });
     const secondLegSearch = this.http.get<Flight[]>(`${this.apiUrl}/search`, { params: secondLegParams });
