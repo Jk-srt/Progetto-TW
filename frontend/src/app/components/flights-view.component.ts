@@ -105,8 +105,6 @@ import { Flight } from '../models/flight.model';
               <option value="">Tutti gli stati</option>
               <option value="scheduled">Programmato</option>
               <option value="delayed">Ritardato</option>
-              <option value="cancelled">Cancellato</option>
-              <option value="completed">Completato</option>
             </select>
           </div>
 
@@ -308,8 +306,9 @@ export class FlightsViewComponent implements OnInit {
     this.loading = true;
     this.flightService.getFlights().subscribe({
       next: (flights) => {
-        this.flights = flights;
-        this.filteredFlights = [...flights];
+  // Mantieni solo i voli disponibili: posti > 0 e non cancellati/completati
+  this.flights = flights.filter(f => this.isFlightAvailable(f));
+  this.filteredFlights = [...this.flights];
         this.extractFilterOptions();
         this.loading = false;
       },
@@ -330,12 +329,14 @@ export class FlightsViewComponent implements OnInit {
   }
 
   applyFilters() {
-    this.filteredFlights = this.flights.filter(flight => {
-      return (!this.filters.origin || flight.departure_city === this.filters.origin) &&
-             (!this.filters.destination || flight.arrival_city === this.filters.destination) &&
-             (!this.filters.airline || flight.airline_name === this.filters.airline) &&
-             (!this.filters.status || flight.status === this.filters.status);
-    });
+    this.filteredFlights = this.flights
+      .filter(f => this.isFlightAvailable(f))
+      .filter(flight => {
+        return (!this.filters.origin || flight.departure_city === this.filters.origin) &&
+               (!this.filters.destination || flight.arrival_city === this.filters.destination) &&
+               (!this.filters.airline || flight.airline_name === this.filters.airline) &&
+               (!this.filters.status || flight.status === this.filters.status);
+      });
   }
 
   clearFilters() {
@@ -345,7 +346,14 @@ export class FlightsViewComponent implements OnInit {
       airline: '',
       status: ''
     };
-    this.filteredFlights = [...this.flights];
+    this.filteredFlights = this.flights.filter(f => this.isFlightAvailable(f));
+  }
+
+  private isFlightAvailable(flight: Flight): boolean {
+    const seatsOk = (flight.available_seats ?? 0) > 0;
+    const status = (flight.status as string) || '';
+    const notEnded = status !== 'cancelled' && status !== 'completed';
+    return seatsOk && notEnded;
   }
 
   hasActiveFilters(): boolean {

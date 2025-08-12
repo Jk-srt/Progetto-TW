@@ -81,8 +81,10 @@ export class HomeComponent implements OnInit {
     // Sottoscrizione ai flights globali
     this.globalFlights.flights$.subscribe((flights: any[]) => {
       console.log('🏠 HomeComponent: Received flights:', flights.length);
-      this.flights = flights;
-      this.filteredFlights = flights; // Inizialmente mostra tutti i voli
+      // Mostra solo voli disponibili nella zona voli
+      const available = flights.filter(f => this.isFlightAvailable(f));
+      this.flights = available;
+      this.filteredFlights = available; // Mostra solo disponibili
       this.updateStats();
     });
     
@@ -108,7 +110,7 @@ export class HomeComponent implements OnInit {
       return flightDate === todayString;
     });
 
-    this.stats = [
+  this.stats = [
       {
         icon: '🛫',
         number: todaysFlights.length,
@@ -116,15 +118,22 @@ export class HomeComponent implements OnInit {
       },
       {
         icon: '✈️',
-        number: this.flights.filter(f => f.status === 'scheduled').length,
+    number: this.flights.filter(f => f.status === 'scheduled').length,
         label: 'Voli Attivi'
       },
       {
         icon: '⏰',
-        number: this.flights.filter(f => f.status === 'scheduled').length,
+    number: this.flights.filter(f => f.status === 'scheduled').length,
         label: 'In Orario'
       }
     ];
+  }
+
+  private isFlightAvailable(f: any): boolean {
+    const seatsOk = (f?.available_seats ?? 0) > 0;
+    const status = (f?.status as string) || '';
+    const notEnded = status !== 'cancelled' && status !== 'completed';
+    return seatsOk && notEnded;
   }
 
   getTodaysFlightsCount(): number {

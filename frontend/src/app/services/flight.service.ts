@@ -15,7 +15,7 @@ export class FlightService {
 
   private mapBackendFlight(backendFlight: any): Flight {
     return {
-      id: backendFlight.id.toString(),
+      id: Number(backendFlight.id),
       flightNumber: backendFlight.flight_number,
       airline: backendFlight.airline_name || backendFlight.airline || 'N/A',
       origin: backendFlight.departure_airport,
