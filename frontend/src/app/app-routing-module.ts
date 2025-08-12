@@ -15,6 +15,7 @@ import { CheckoutComponent } from './components/checkout/checkout.component';
 import { MultiSegmentSeatsComponent } from './components/multi-segment-seats/multi-segment-seats.component';
 import { AirlineStatsComponent } from './components/airline-stats.component';
 import { airlineGuard } from './guards/airline.guard';
+import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -31,10 +32,10 @@ export const routes: Routes = [
   { path: 'settings', component: SettingsComponent },
   { path: 'flight-admin', component: FlightAdminComponent, canActivate: [airlineGuard] }, // Pannello compagnie aeree
   { path: 'admin/flights', component: FlightAdminComponent },
-  { path: 'routes', component: RouteAdminComponent },
-  { path: 'admin/routes', component: RouteAdminComponent },
-  { path: 'aircraft-admin', component: AircraftAdminComponent }, // Gestione aeromobili
-  { path: 'admin/aircrafts', component: AircraftAdminComponent },
+  { path: 'routes', component: RouteAdminComponent, canActivate: [adminGuard] },
+  { path: 'admin/routes', component: RouteAdminComponent, canActivate: [adminGuard] },
+  { path: 'aircraft-admin', component: AircraftAdminComponent, canActivate: [airlineGuard] }, // Gestione aeromobili
+  { path: 'admin/aircrafts', component: AircraftAdminComponent, canActivate: [adminGuard] },
   { path: 'airline-stats', component: AirlineStatsComponent, canActivate: [airlineGuard] },
   { path: '**', redirectTo: '' } // Redirect per tutte le altre rotte
 ];
