@@ -244,7 +244,7 @@ import { User } from '../models/user.model';
                 <select id="airline_id" formControlName="airline_id">
                   <option value="">Seleziona compagnia</option>
                   <option *ngFor="let airline of airlines" [value]="airline.id">
-                    {{airline.name}} ({{airline.iata_code}})
+                    {{airline.name}} ({{airline.iata_code}}){{airline.active === false ? ' - INATTIVA' : ''}}
                   </option>
                 </select>
                 <div *ngIf="flightForm.get('airline_id')?.invalid && flightForm.get('airline_id')?.touched" 

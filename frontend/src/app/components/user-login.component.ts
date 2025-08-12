@@ -189,6 +189,12 @@ export class UserLoginComponent {
             
             console.log('Login successful:', response);
             
+            // Forza cambio password per airline al primo accesso
+            if (response.user.role === 'airline' && response.user.must_change_password) {
+              this.router.navigate(['/settings'], { queryParams: { forcePassword: '1' } });
+              return;
+            }
+
             // Redirect based on user role
             switch (response.user.role) {
               case 'admin':

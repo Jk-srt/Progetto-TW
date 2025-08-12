@@ -96,6 +96,11 @@ export class FlightAdminService {
   }
 
   getAirlines(): Observable<Airline[]> {
+    // Se admin, usa endpoint completo (include anche inactive)
+    if (this.isAdmin()) {
+      const headers = this.getAuthHeaders();
+      return this.http.get<Airline[]>(`${this.API_URL}/data/airlines/all`, { headers });
+    }
     return this.http.get<Airline[]>(`${this.API_URL}/data/airlines`);
   }
 

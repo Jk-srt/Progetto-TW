@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Router, ActivatedRoute } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="settings-container">
       <div class="settings-header">
@@ -15,6 +16,24 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
       </div>
       
       <div class="settings-content">
+        <div class="settings-card" *ngIf="forcePasswordChange">
+          <h2>Cambio password obbligatorio</h2>
+          <div class="settings-section">
+            <p style="color:#b71c1c; font-weight:600;">Per continuare devi impostare una nuova password.</p>
+            <div class="form-group">
+              <label>Nuova password</label>
+              <input type="password" [(ngModel)]="newPassword" class="pw-input" />
+            </div>
+            <div class="form-group">
+              <label>Conferma password</label>
+              <input type="password" [(ngModel)]="confirmPassword" class="pw-input" />
+            </div>
+            <button class="action-button primary" (click)="submitForcedPassword()" [disabled]="isChangingPassword || !canSubmitPassword()">
+              {{ isChangingPassword ? 'Salvataggio...' : 'Salva nuova password' }}
+            </button>
+          </div>
+        </div>
+
         <div class="settings-card">
           <h2>Configurazione account</h2>
           <div class="settings-section">
@@ -75,9 +94,12 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
             <button class="action-button secondary">
               Scarica i miei dati
             </button>
-            <button class="action-button danger">
-              Elimina account
+            <button *ngIf="isPassengerUser()" class="action-button danger" (click)="confirmDeleteAccount()" [disabled]="isDeleting">
+              {{ isDeleting ? 'Eliminazione...' : 'Elimina account' }}
             </button>
+            <div *ngIf="!isPassengerUser()" class="info-text" style="font-size:0.85rem;color:#666;">
+              Eliminazione disponibile solo per account passeggero.
+            </div>
           </div>
         </div>
       </div>
@@ -356,10 +378,16 @@ export class SettingsComponent implements OnInit {
   language = 'it';
   userRole: string | null = null;
   currentUser: any = null;
+  isDeleting = false;
+  forcePasswordChange = false;
+  newPassword = '';
+  confirmPassword = '';
+  isChangingPassword = false;
 
   constructor(
     private router: Router,
-    private http: HttpClient
+  private http: HttpClient,
+  private route: ActivatedRoute
   ) {}
 
   ngOnInit() {
@@ -374,6 +402,12 @@ export class SettingsComponent implements OnInit {
         console.error('Error parsing token:', e);
       }
     }
+    // Controlla query param per cambio password forzato
+    this.route.queryParamMap.subscribe(params => {
+      if (params.get('forcePassword') === '1' && this.userRole === 'airline') {
+        this.forcePasswordChange = true;
+      }
+    });
   }
 
   isAirlineUser(): boolean {
@@ -392,5 +426,77 @@ export class SettingsComponent implements OnInit {
 
   navigateToHome() {
     this.router.navigate(['/']);
+  }
+
+  isPassengerUser(): boolean {
+    return this.userRole === 'user';
+  }
+
+  canSubmitPassword(): boolean {
+    return this.newPassword.length >= 6 && this.newPassword === this.confirmPassword;
+  }
+
+  submitForcedPassword() {
+    if (!this.canSubmitPassword() || this.isChangingPassword) return;
+    this.isChangingPassword = true;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Sessione scaduta, effettua di nuovo il login.');
+      return;
+    }
+    this.http.post('/api/auth/force-change-password', {
+      newPassword: this.newPassword
+    }, { headers: new HttpHeaders({ Authorization: `Bearer ${token}` }) }).subscribe({
+      next: (res: any) => {
+        this.isChangingPassword = false;
+        this.forcePasswordChange = false;
+        this.newPassword = '';
+        this.confirmPassword = '';
+        if (res.token) {
+          localStorage.setItem('token', res.token);
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+        alert('Password aggiornata con successo');
+      },
+      error: err => {
+        console.error('Errore cambio password forzato', err);
+        alert(err?.error?.message || 'Errore aggiornamento password');
+        this.isChangingPassword = false;
+      }
+    });
+  }
+
+  confirmDeleteAccount() {
+    if (this.isDeleting) return;
+    const proceed = confirm('Sei sicuro di voler eliminare definitivamente il tuo account? L\'operazione è irreversibile.');
+    if (!proceed) return;
+    this.deleteAccount();
+  }
+
+  private deleteAccount() {
+    this.isDeleting = true;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Token non trovato: effettua di nuovo l\'accesso.');
+      this.isDeleting = false;
+      return;
+    }
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+  this.http.delete('/api/users/delete', { headers }).subscribe({
+      next: (res: any) => {
+        console.log('Account eliminato', res);
+    // Pulisci tutto il localStorage rilevante
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+    alert('Account eliminato con successo. Verrai reindirizzato al login.');
+    this.router.navigate(['/login']);
+      },
+      error: (err) => {
+        console.error('Errore eliminazione account', err);
+        alert(err?.error?.message || 'Errore durante eliminazione account');
+        this.isDeleting = false;
+      }
+    });
   }
 }

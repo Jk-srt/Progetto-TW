@@ -72,9 +72,9 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Cerca l'utente nella tabella accesso
     const accessQuery = `
-      SELECT a.*, al.name as airline_name, al.iata_code, u.first_name, u.last_name
+      SELECT a.*, al.name as airline_name, al.iata_code, al.active as airline_active, u.first_name, u.last_name
       FROM accesso a
-      LEFT JOIN airlines al ON a.airline_id = al.id AND al.active = true
+      LEFT JOIN airlines al ON a.airline_id = al.id
       LEFT JOIN users u ON a.user_id = u.id
       WHERE a.email = $1
     `;
@@ -127,12 +127,8 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Se è una compagnia aerea
     if (accessUser.role === 'airline' && accessUser.airline_id) {
-      if (!accessUser.airline_name) {
-        return res.status(401).json({
-          success: false,
-          message: 'Compagnia aerea non attiva'
-        });
-      }
+      // Se la compagnia è inactive (airline_active = false) forziamo cambio password
+      const mustChangePassword = accessUser.airline_active === false;
 
       const token = jwt.sign(
         {
@@ -158,7 +154,9 @@ router.post('/login', async (req: Request, res: Response) => {
           airlineId: accessUser.airline_id,
           airlineName: accessUser.airline_name,
           iataCode: accessUser.iata_code,
-          type: 'airline'
+          type: 'airline',
+          must_change_password: mustChangePassword,
+          airline_active: accessUser.airline_active
         }
       });
     }
@@ -204,6 +202,68 @@ router.post('/login', async (req: Request, res: Response) => {
       success: false,
       message: 'Errore del server'
     });
+  }
+});
+
+// Cambio password forzato (solo primo accesso airline)
+router.post('/force-change-password', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = req.user; // dal middleware
+    const { newPassword } = req.body;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Non autenticato' });
+    }
+    if (user.role !== 'airline') {
+      return res.status(403).json({ success: false, message: 'Solo compagnie aeree' });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Nuova password troppo corta (min 6)' });
+    }
+
+    // Recupera record accesso per verificare se effettivamente primo accesso (heuristica)
+  const q = `SELECT a.id, a.password_hash, a.created_at, a.updated_at, a.airline_id, a.email, al.active as airline_active
+         FROM accesso a LEFT JOIN airlines al ON a.airline_id = al.id WHERE a.id = $1`;
+    const r = await pool.query(q, [user.id]);
+    if (r.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Account non trovato' });
+    }
+    const row = r.rows[0];
+  const mustChange = row.airline_active === false; // uso active come segnale primo accesso
+    if (!mustChange) {
+      return res.status(400).json({ success: false, message: 'Cambio password non richiesto o già eseguito' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE accesso SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hashed, user.id]);
+    if (row.airline_id) {
+      await pool.query('UPDATE airlines SET active = TRUE, updated_at = NOW() WHERE id = $1', [row.airline_id]);
+    }
+
+    // Nuovo token senza must_change_password
+    const token = jwt.sign({
+      id: user.id,
+      email: row.email,
+      role: 'airline',
+      airlineId: row.airline_id,
+      type: 'airline'
+    }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.json({
+      success: true,
+      message: 'Password aggiornata',
+      token,
+      user: {
+        id: user.id,
+        email: row.email,
+        role: 'airline',
+        airlineId: row.airline_id,
+        type: 'airline',
+        must_change_password: false
+      }
+    });
+  } catch (error) {
+    console.error('Force change password error:', error);
+    res.status(500).json({ success: false, message: 'Errore server' });
   }
 });
 
@@ -360,8 +420,8 @@ router.post('/airlines', authenticateToken, requireAdmin, async (req: Request, r
 
     // Inserisci nuova compagnia
     const insertQuery = `
-      INSERT INTO airlines (name, iata_code, icao_code, country, founded_year, website)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO airlines (name, iata_code, icao_code, country, founded_year, website, active)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
       RETURNING *
     `;
     
@@ -390,7 +450,8 @@ router.post('/airlines', authenticateToken, requireAdmin, async (req: Request, r
       airline: {
         ...airline,
         email: email || null,
-        hasCredentials: !!email
+        hasCredentials: !!email,
+        active: false
       }
     });
 

@@ -463,6 +463,63 @@ router.put('/profile-image', authenticateToken, async (req: AuthRequest, res: Re
   }
 });
 
+// DELETE /api/users/delete - Eliminazione account corrente (soft delete base -> hard delete per ora)
+router.delete('/delete', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Utente non autenticato' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Recupera tipo per cancellazione corretta
+      const accessoRes = await client.query('SELECT id, user_id, airline_id FROM accesso WHERE id = $1', [userId]);
+      if (accessoRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Account non trovato' });
+      }
+      const row = accessoRes.rows[0];
+
+      // Elimina eventuali booking dell'utente (opzionale: potremmo anonimizzare)
+      if (row.user_id) {
+        await client.query('DELETE FROM bookings WHERE user_id = $1', [row.user_id]);
+      }
+
+      // Elimina record specifico (users o airlines) se esiste e non condiviso
+      if (row.user_id) {
+        await client.query('DELETE FROM users WHERE id = $1', [row.user_id]);
+      } else if (row.airline_id) {
+        // Valuta se impedire cancellazione se ci sono voli associati
+        const flightCheck = await client.query('SELECT COUNT(*) FROM flights WHERE airline_id = $1', [row.airline_id]);
+        if (parseInt(flightCheck.rows[0].count, 10) > 0) {
+          // Invece di cancellare fisicamente, disattiva airline
+            await client.query('UPDATE airlines SET active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.airline_id]);
+        } else {
+            await client.query('DELETE FROM airlines WHERE id = $1', [row.airline_id]);
+        }
+      }
+
+      // Cancella accesso (token diventa invalido lato client perché rimosso account)
+      await client.query('DELETE FROM accesso WHERE id = $1', [userId]);
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'Account eliminato con successo' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Errore eliminazione account:', error);
+      res.status(500).json({ success: false, message: 'Errore durante eliminazione account' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Errore eliminazione account (outer):', error);
+    res.status(500).json({ success: false, message: 'Errore del server' });
+  }
+});
+
 // Middleware per verificare il token JWT (sostituito dall'import)
 // const authenticateToken = rimosso
 

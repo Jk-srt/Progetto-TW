@@ -625,6 +625,20 @@ router.get('/data/airlines', async (req, res) => {
   }
 });
 
+// Elenco completo compagnie (solo admin) includendo non attive
+router.get('/data/airlines/all', authenticateToken, async (req: any, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Solo admin' });
+    }
+    const result = await pool.query('SELECT id, name, iata_code, active FROM airlines ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching all airlines:', err);
+    res.status(500).json({ error: 'Errore nel recupero completo compagnie aeree' });
+  }
+});
+
 // Ottieni elenco aerei per i dropdown
 router.get('/data/aircrafts', async (req, res) => {
   try {
