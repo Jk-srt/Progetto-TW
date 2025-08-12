@@ -124,8 +124,8 @@ router.get('/search', async (req, res) => {
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
-      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
-      WHERE fwa.status = 'scheduled'
+  LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+  WHERE fwa.status IN ('scheduled','delayed')
     `;
     
     const params: any[] = [];
@@ -244,8 +244,8 @@ router.get('/connections', async (req, res) => {
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
-      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
-      WHERE fwa.status = 'scheduled'
+  LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+  WHERE fwa.status IN ('scheduled','delayed')
     `;
 
     const directParams: any[] = [];
@@ -282,8 +282,9 @@ router.get('/connections', async (req, res) => {
     // Aggiungi voli diretti ai risultati
     connections.push(...directResult.rows);
 
-    // 2. Se richiesto, cerca voli con 1 scalo (supporta anche ricerche senza data)
-    if (parseInt(max_connections as string) >= 1 && directResult.rows.length < 10) {
+  // 2. Se richiesto, cerca sempre voli con 1 scalo (anche se ci sono già molti diretti)
+  //    Rimosso il limite directResult.rows.length < 10 per mostrare sempre le opzioni con scalo
+  if (parseInt(max_connections as string) >= 1) {
       // Quando la data non è fornita, limitiamo la ricerca alle prossime 48 ore
       const useDateParam = !!departure_date;
       const dateFilter = useDateParam 
@@ -336,9 +337,9 @@ router.get('/connections', async (req, res) => {
           JOIN flights_with_airports f2 ON (
             -- Stesso aeroporto di connessione
             f1.arrival_city = f2.departure_city
-            -- Connessione valida: almeno 2 ore ma meno di 24 ore
+            -- Connessione valida: almeno 2 ore ma meno di 5 ore
             AND f2.departure_time > f1.arrival_time + INTERVAL '2 hours'
-            AND f2.departure_time < f1.arrival_time + INTERVAL '24 hours'
+            AND f2.departure_time < f1.arrival_time + INTERVAL '5 hours'
             -- Finestra temporale
             ${dateFilter}
           )
@@ -350,8 +351,8 @@ router.get('/connections', async (req, res) => {
           LEFT JOIN route_pricing rp2_economy ON f2.route_id = rp2_economy.route_id AND rp2_economy.seat_class = 'economy'
           LEFT JOIN route_pricing rp2_business ON f2.route_id = rp2_business.route_id AND rp2_business.seat_class = 'business'
           LEFT JOIN route_pricing rp2_first ON f2.route_id = rp2_first.route_id AND rp2_first.seat_class = 'first'
-          WHERE f1.status = 'scheduled' 
-            AND f2.status = 'scheduled'
+          WHERE f1.status IN ('scheduled','delayed') 
+            AND f2.status IN ('scheduled','delayed')
             AND f1.departure_city ILIKE $1
             AND f2.arrival_city ILIKE $2
             AND f1.arrival_city != $1  -- Il punto di connessione non può essere uguale alla partenza
@@ -398,7 +399,7 @@ router.get('/connections', async (req, res) => {
           
         FROM connection_flights
         WHERE connection_minutes >= 120  -- Minimo 2 ore di scalo
-          AND connection_minutes <= 1440 -- Massimo 24 ore di scalo
+          AND connection_minutes <= 300  -- Massimo 5 ore di scalo
         ORDER BY total_economy_price ASC, total_duration_minutes ASC
         LIMIT 20
       `;
