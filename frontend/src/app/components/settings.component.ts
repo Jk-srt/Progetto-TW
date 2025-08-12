@@ -454,7 +454,11 @@ export class SettingsComponent implements OnInit {
         this.confirmPassword = '';
         if (res.token) {
           localStorage.setItem('token', res.token);
-          localStorage.setItem('user', JSON.stringify(res.user));
+          // Forza flag must_change_password a false nel dato utente salvato
+          if (res.user) {
+            res.user.must_change_password = false;
+            localStorage.setItem('user', JSON.stringify(res.user));
+          }
         }
         alert('Password aggiornata con successo');
       },
