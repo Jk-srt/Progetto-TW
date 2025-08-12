@@ -13,6 +13,7 @@ import { AircraftAdminComponent } from './components/aircraft-admin.component';
 import { SeatSelectionComponent } from './components/seat-selection/seat-selection.component';
 import { CheckoutComponent } from './components/checkout/checkout.component';
 import { MultiSegmentSeatsComponent } from './components/multi-segment-seats/multi-segment-seats.component';
+import { AirlineStatsComponent } from './components/airline-stats.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -33,5 +34,6 @@ export const routes: Routes = [
   { path: 'admin/routes', component: RouteAdminComponent },
   { path: 'aircraft-admin', component: AircraftAdminComponent }, // Gestione aeromobili
   { path: 'admin/aircrafts', component: AircraftAdminComponent },
+  { path: 'airline-stats', component: AirlineStatsComponent },
   { path: '**', redirectTo: '' } // Redirect per tutte le altre rotte
 ];

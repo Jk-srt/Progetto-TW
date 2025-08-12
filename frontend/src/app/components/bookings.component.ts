@@ -228,9 +228,8 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                   </button>
                   <button *ngIf="booking.booking_status === 'confirmed' && canCancel(booking)" 
                           class="btn btn-danger" 
-                          [disabled]="cancellingIds.has(booking.booking_id)"
                           (click)="cancelBooking(booking)">
-                    {{ cancellingIds.has(booking.booking_id) ? 'Annullando…' : 'Annulla' }}
+                    Annulla
                   </button>
                 </div>
                 <!-- Azioni admin per compagnie aeree -->
@@ -1145,8 +1144,6 @@ export class BookingsComponent implements OnInit, OnDestroy {
   isLoggedIn = false;
   isAirlineAdmin = false;
   errorMessage: string | null = null;
-  // Track cancellazione in corso per disabilitare i bottoni
-  cancellingIds: Set<number> = new Set();
   
   private subscriptions: Subscription[] = [];
 
@@ -1313,35 +1310,12 @@ export class BookingsComponent implements OnInit, OnDestroy {
   }
 
   cancelBooking(booking: UserBooking): void {
-    if (!booking || !booking.booking_id) { return; }
-    if (!this.canCancel(booking)) { return; }
-
     if (confirm(`Sei sicuro di voler annullare la prenotazione ${booking.booking_reference}?`)) {
-      this.cancellingIds.add(booking.booking_id);
       this.notificationService.showInfo(
         'Cancellazione in corso',
         'La cancellazione della prenotazione è in elaborazione...'
       );
-      console.log('🗑️ Cancelling booking:', { id: booking.booking_id, ref: booking.booking_reference });
-
-      this.authService.cancelBooking(booking.booking_id).subscribe({
-        next: (res: any) => {
-          console.log('✅ Booking cancelled:', res);
-          // Aggiorna stato locale
-          booking.booking_status = 'cancelled';
-          this.notificationService.showSuccess(
-            'Prenotazione annullata',
-            res?.message || `Prenotazione ${booking.booking_reference} annullata con successo.`
-          );
-          this.cancellingIds.delete(booking.booking_id);
-        },
-        error: (error) => {
-          console.error('❌ Errore annullamento:', error);
-          const msg = error?.error?.message || 'Impossibile annullare la prenotazione. Riprova più tardi.';
-          this.notificationService.showError('Errore', msg);
-          this.cancellingIds.delete(booking.booking_id);
-        }
-      });
+      console.log('Cancelling booking:', booking.booking_reference);
     }
   }
 

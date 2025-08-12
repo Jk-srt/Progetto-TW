@@ -2,9 +2,9 @@
   margin-top: 2rem;
   
   .results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 2px solid #e2e8f0;
@@ -15,9 +15,37 @@
       font-weight: 600;
     }
     
-    .filter-tabs {
+    .controls {
       display: flex;
-      gap: 0.5rem;
+      gap: 1rem;
+      align-items: center;
+
+      .sort-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        label { color: #4a5568; font-weight: 600; }
+        select { 
+          padding: 0.4rem 0.6rem; 
+          border: 2px solid #e2e8f0; 
+          border-radius: 8px; 
+          background: white; 
+          color: #2d3748;
+        }
+        .order-btn { 
+          padding: 0.4rem 0.6rem; 
+          border: 2px solid #e2e8f0; 
+          border-radius: 8px; 
+          background: #f7fafc; 
+          cursor: pointer; 
+        }
+      }
+
+      .filter-tabs {
+        display: flex;
+        gap: 0.5rem;
+      }
       
       .tab {
         padding: 0.5rem 1rem;
@@ -40,7 +68,7 @@
           color: white;
         }
       }
-    }
+  }
   }
   
   .flights-list {
@@ -376,9 +404,8 @@
       align-items: stretch;
       gap: 1rem;
       
-      .filter-tabs {
-        justify-content: center;
-      }
+  .controls { flex-direction: column; }
+  .filter-tabs { justify-content: center; }
     }
     
     .connection-header {

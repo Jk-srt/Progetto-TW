@@ -149,7 +149,7 @@ export class HomeComponent implements OnInit {
     const searchRequest = {
       departure_city: this.extractCityFromAirport(criteria.departure),
       arrival_city: this.extractCityFromAirport(criteria.arrival), 
-      departure_date: criteria.departureDate || undefined,
+      departure_date: criteria.departureDate,
       return_date: criteria.returnDate,
       passengers: criteria.passengers,
       max_connections: 1 // Permetti fino a 1 scalo

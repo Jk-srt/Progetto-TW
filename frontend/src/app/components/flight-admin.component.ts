@@ -48,9 +48,12 @@ import { User } from '../models/user.model';
             <span class="role-badge">{{getRoleLabel(currentUser.role)}}</span>
           </div>
         </div>
-        <button class="nav-style-btn primary-btn" (click)="openCreateModal()">
-          ➕ Nuovo Volo
-        </button>
+        <div class="header-actions">
+          <button class="nav-style-btn" (click)="goToStats()">📊 Statistiche</button>
+          <button class="nav-style-btn primary-btn" (click)="openCreateModal()">
+            ➕ Nuovo Volo
+          </button>
+        </div>
       </div>
 
       <!-- Filtri -->
@@ -766,7 +769,7 @@ export class FlightAdminComponent implements OnInit {
         price: flight.price || 0,
         total_seats: flight.total_seats || 0,
         available_seats: 0, // Quando un volo è completato, tutti i posti sono occupati
-        status: 'completed' // Cambia lo stato in "completed"
+        status: 'completed' // Cambia lo stato in "completato"
       };
 
       this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
@@ -1323,5 +1326,9 @@ export class FlightAdminComponent implements OnInit {
 
   goToHome() {
     this.router.navigate(['/']);
+  }
+
+  goToStats() {
+    this.router.navigate(['/airline-stats']);
   }
 }

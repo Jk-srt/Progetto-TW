@@ -1,17 +1,31 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { FlightConnection, FlightConnectionService } from '../../services/flight-connection.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-flight-results',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="flight-results" *ngIf="connections.length > 0">
       <div class="results-header">
         <h3>{{connections.length}} opzioni di volo trovate</h3>
-        <div class="filter-tabs">
+        <div class="controls">
+          <div class="sort-controls">
+            <label for="sortKey">Ordina per</label>
+            <select id="sortKey" [(ngModel)]="sortKey" (change)="applyFilter()">
+              <option value="price">Costo</option>
+              <option value="duration">Durata</option>
+              <option value="stops">Numero scali</option>
+            </select>
+            <button class="order-btn" (click)="toggleOrder()" [attr.aria-label]="sortOrder === 'asc' ? 'Ordine crescente' : 'Ordine decrescente'">
+              {{ sortOrder === 'asc' ? '⬆️' : '⬇️' }}
+            </button>
+          </div>
+
+          <div class="filter-tabs">
           <button 
             class="tab" 
             [class.active]="activeFilter === 'all'"
@@ -30,6 +44,7 @@ import { AuthService } from '../../services/auth.service';
             (click)="setFilter('connection')">
             Con scalo ({{getConnectionFlightsCount()}})
           </button>
+          </div>
         </div>
       </div>
 
@@ -196,6 +211,10 @@ export class FlightResultsComponent {
   activeFilter: 'all' | 'direct' | 'connection' = 'all';
   filteredConnections: FlightConnection[] = [];
 
+  // Sorting
+  sortKey: 'price' | 'duration' | 'stops' = 'price';
+  sortOrder: 'asc' | 'desc' = 'asc';
+
   isAirlineUser = false;
 
   constructor(private flightConnectionService: FlightConnectionService, private authService: AuthService) {
@@ -217,7 +236,7 @@ export class FlightResultsComponent {
     this.applyFilter();
   }
 
-  private applyFilter() {
+  applyFilter() {
     switch (this.activeFilter) {
       case 'direct':
         this.filteredConnections = this.connections.filter(c => c.isDirectFlight);
@@ -228,6 +247,36 @@ export class FlightResultsComponent {
       default:
         this.filteredConnections = [...this.connections];
     }
+    this.applySort();
+  }
+
+  private applySort() {
+    const key = this.sortKey;
+    const order = this.sortOrder;
+    const dir = order === 'asc' ? 1 : -1;
+    const stopsCount = (c: FlightConnection) => (c.isDirectFlight ? 0 : 1);
+
+    this.filteredConnections.sort((a, b) => {
+      let va = 0;
+      let vb = 0;
+      if (key === 'price') {
+        va = a.totalPrice ?? 0;
+        vb = b.totalPrice ?? 0;
+      } else if (key === 'duration') {
+        va = a.totalDuration ?? 0;
+        vb = b.totalDuration ?? 0;
+      } else if (key === 'stops') {
+        va = stopsCount(a);
+        vb = stopsCount(b);
+      }
+      if (va === vb) return 0;
+      return va < vb ? -1 * dir : 1 * dir;
+    });
+  }
+
+  toggleOrder() {
+    this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+    this.applySort();
   }
 
   getDirectFlightsCount(): number {

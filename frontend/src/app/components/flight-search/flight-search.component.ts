@@ -47,8 +47,8 @@ export interface FlightSearchCriteria {
           </div>
 
           <div class="form-group">
-            <label for="departureDate">Data partenza (facoltativa)</label>
-            <input type="date" id="departureDate" [(ngModel)]="searchCriteria.departureDate" [min]="today" placeholder="Opzionale">
+            <label for="departureDate">Data partenza</label>
+            <input type="date" id="departureDate" [(ngModel)]="searchCriteria.departureDate" [min]="today">
           </div>
 
           <div class="form-group">
@@ -224,6 +224,7 @@ export class FlightSearchComponent implements OnInit {
     return !!(
       this.searchCriteria.departure &&
       this.searchCriteria.arrival &&
+      this.searchCriteria.departureDate &&
       this.searchCriteria.departure !== this.searchCriteria.arrival
     );
   }

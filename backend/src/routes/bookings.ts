@@ -389,8 +389,6 @@ router.delete('/:bookingId', authenticateToken, async (req: AuthRequest, res: ex
                 b.id,
                 b.booking_reference,
                 b.booking_status,
-                b.seat_id,
-                b.flight_id,
                 f.departure_time
             FROM bookings b
             JOIN flights f ON b.flight_id = f.id
@@ -438,28 +436,18 @@ router.delete('/:bookingId', authenticateToken, async (req: AuthRequest, res: ex
         
         await pool.query(updateQuery, [bookingId, userId]);
 
-        // Libera il posto se assegnato e aggiorna i posti disponibili del volo
-        if (booking.seat_id) {
-            console.log('🪑 Releasing seat for booking:', { seat_id: booking.seat_id });
-            await pool.query(
-                `UPDATE aircraft_seats 
-                 SET status = 'available' 
-                 WHERE id = $1`,
-                [booking.seat_id]
-            );
-        } else {
-            console.log('ℹ️ Booking has no seat_id, skipping seat release');
-        }
-
-        if (booking.flight_id) {
-            console.log('🧮 Incrementing available seats for flight:', { flight_id: booking.flight_id });
-            await pool.query(
-                `UPDATE flights 
-                 SET available_seats = LEAST(total_seats, available_seats + 1)
-                 WHERE id = $1`,
-                [booking.flight_id]
-            );
-        }
+        // Libera il posto se era riservato
+        const releaseSeatQuery = `
+            UPDATE aircraft_seats 
+            SET seat_status = 'available'
+            WHERE id = (
+                SELECT seat_id FROM bookings 
+                WHERE id = $1 AND user_id = $2
+            )
+            AND seat_status = 'booked'
+        `;
+        
+        await pool.query(releaseSeatQuery, [bookingId, userId]);
 
         console.log('✅ Booking cancelled successfully:', booking.booking_reference);
         
