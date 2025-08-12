@@ -221,10 +221,10 @@ export class FlightSearchComponent implements OnInit {
   }
 
   isFormValid(): boolean {
+    // La data di partenza è ora opzionale: basta che partenza, arrivo siano valorizzati e diversi
     return !!(
       this.searchCriteria.departure &&
       this.searchCriteria.arrival &&
-      this.searchCriteria.departureDate &&
       this.searchCriteria.departure !== this.searchCriteria.arrival
     );
   }
