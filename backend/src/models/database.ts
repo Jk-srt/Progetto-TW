@@ -407,13 +407,34 @@ export class DatabaseService {
     }
 
     async updateAircraftStatus(id: number, status: 'active' | 'maintenance' | 'retired'): Promise<Aircraft> {
-        const query = `
-            UPDATE aircrafts 
-            SET status = $1, updated_at = NOW()
-            WHERE id = $2
-            RETURNING *
-        `;
-        const result = await this.pool.query(query, [status, id]);
+        // Recupera stato precedente per decidere se aggiornare last_maintenance
+        const current = await this.pool.query('SELECT status FROM aircrafts WHERE id = $1', [id]);
+        if (current.rows.length === 0) {
+            throw new Error('Aeromobile non trovato');
+        }
+        const prevStatus = current.rows[0].status as 'active' | 'maintenance' | 'retired';
+
+        let query: string;
+        let values: any[];
+        if (prevStatus === 'maintenance' && status === 'active') {
+            // Reintroduzione in servizio: aggiorna anche last_maintenance a oggi
+            query = `
+                UPDATE aircrafts
+                SET status = $1, last_maintenance = NOW(), updated_at = NOW()
+                WHERE id = $2
+                RETURNING *
+            `;
+            values = [status, id];
+        } else {
+            query = `
+                UPDATE aircrafts
+                SET status = $1, updated_at = NOW()
+                WHERE id = $2
+                RETURNING *
+            `;
+            values = [status, id];
+        }
+        const result = await this.pool.query(query, values);
         return result.rows[0];
     }
 

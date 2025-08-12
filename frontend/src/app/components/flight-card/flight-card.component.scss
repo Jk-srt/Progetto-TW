@@ -67,6 +67,18 @@
   font-weight: 500;
 }
 
+.airline-name {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.city-name {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
 .time {
   font-size: 1rem;
   font-weight: 600;
@@ -120,6 +132,33 @@
   font-weight: 700;
   color: #0f172a;
 }
+
+.price-and-book {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pricing-info { text-align: right; }
+
+.price-breakdown {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.book-btn {
+  background: #667eea;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
+  font-size: 0.9rem;
+}
+
+.book-btn:hover { background: #5a67d8; }
 
 /* Responsive */
 @media (max-width: 768px) {

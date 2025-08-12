@@ -10,46 +10,41 @@ import { AuthService } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="flight-card" style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-bottom: 16px;">
-      <div class="flight-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;">
+    <div class="flight-card" [ngClass]="flight.status?.toLowerCase()">
+      <div class="flight-header">
         <div class="flight-info">
-          <div class="flight-number" style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">Volo {{flight.flight_number}}</div>
-          <div class="airline-name" style="font-size: 0.9rem; color: #64748b; margin-top: 2px;">{{flight.airline || 'N/A'}}</div>
+          <div class="flight-number">Volo {{flight.flight_number}}</div>
+          <div class="airline-name">{{flight.airline || 'N/A'}}</div>
         </div>
-        <div class="status-badge" 
-             [style.background]="getStatusColor()" 
-             style="color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem;">
+        <div class="status-badge" [style.background]="getStatusColor()">
           {{getStatusLabel()}}
         </div>
       </div>
-      
-      <div class="flight-route" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-        <div class="airport" style="flex: 1; text-align: center;">
-          <div class="airport-code" style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">{{getAirportCode(flight.departure_airport)}}</div>
-          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 4px;">{{flight.departure_airport}}</div>
-          <div class="city-name" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px;">{{flight.departure_city || 'N/A'}}</div>
-          <div class="time" style="font-size: 1rem; font-weight: 600; color: #475569;">{{formatTime(flight.departure_time)}}</div>
+
+      <div class="flight-route">
+        <div class="airport">
+          <div class="airport-code">{{getAirportCode(flight.departure_airport)}}</div>
+          <div class="airport-name">{{flight.departure_airport}}</div>
+          <div class="city-name">{{flight.departure_city || 'N/A'}}</div>
+          <div class="time">{{formatTime(flight.departure_time)}}</div>
         </div>
-        <div class="route-line" style="display: flex; align-items: center; justify-content: center; margin: 0 20px; position: relative;">
-          <div style="position: absolute; width: 80px; height: 2px; background: linear-gradient(to right, #cbd5e1, #667eea, #cbd5e1);"></div>
-          <div class="airplane-icon" style="background: white; border-radius: 50%; padding: 8px; font-size: 1.2rem; position: relative; z-index: 2; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">✈️</div>
+        <div class="route-line">
+          <div class="airplane-icon">✈️</div>
         </div>
-        <div class="airport" style="flex: 1; text-align: center;">
-          <div class="airport-code" style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">{{getAirportCode(flight.arrival_airport)}}</div>
-          <div class="airport-name" style="font-size: 0.85rem; color: #64748b; margin-bottom: 4px;">{{flight.arrival_airport}}</div>
-          <div class="city-name" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px;">{{flight.arrival_city || 'N/A'}}</div>
-          <div class="time" style="font-size: 1rem; font-weight: 600; color: #475569;">{{formatTime(flight.arrival_time)}}</div>
+        <div class="airport">
+          <div class="airport-code">{{getAirportCode(flight.arrival_airport)}}</div>
+          <div class="airport-name">{{flight.arrival_airport}}</div>
+          <div class="city-name">{{flight.arrival_city || 'N/A'}}</div>
+          <div class="time">{{formatTime(flight.arrival_time)}}</div>
         </div>
-      </div> 
-      
-      <div class="flight-details" style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9;">
-        <div class="flight-date" style="color: #64748b; font-size: 0.9rem;">{{formatDate(flight.departure_time)}}</div>
-        <div class="price-and-book" style="display: flex; align-items: center; gap: 16px;">
-          <div class="pricing-info" style="text-align: right;">
-            <div class="price" style="font-size: 1.4rem; font-weight: 700; color: #0f172a;">
-              da €{{getLowestPrice()}}
-            </div>
-            <div class="price-breakdown" style="font-size: 0.75rem; color: #64748b;">
+      </div>
+
+      <div class="flight-details">
+        <div class="flight-date">{{formatDate(flight.departure_time)}}</div>
+        <div class="price-and-book">
+          <div class="pricing-info">
+            <div class="price">da €{{getLowestPrice()}}</div>
+            <div class="price-breakdown">
               <span *ngIf="flight.flight_surcharge && flight.flight_surcharge > 0">
                 Base + €{{flight.flight_surcharge}} sovrapprezzo
               </span>
@@ -58,18 +53,10 @@ import { AuthService } from '../../services/auth.service';
               </span>
             </div>
           </div>
-          <button 
-            *ngIf="!isFlightUnavailable() && !isAirlineUser"
-            (click)="bookFlight()"
-            style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem;"
-            onmouseover="this.style.background='#5a67d8'"
-            onmouseout="this.style.background='#667eea'">
+          <button *ngIf="!isFlightUnavailable() && !isAirlineUser" (click)="bookFlight()" class="book-btn">
             Prenota
           </button>
-          <div 
-            *ngIf="isFlightUnavailable()"
-            class="unavailable-badge"
-            style="background: #ef4444; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-align: center;">
+          <div *ngIf="isFlightUnavailable()" class="unavailable-badge">
             Non Disponibile
           </div>
         </div>

@@ -28,22 +28,22 @@ interface FlightSegment {
         <p>Completa la prenotazione per entrambi i segmenti</p>
       </div>
 
-      <div class="connection-summary" *ngIf="connection">
+      <div class="connection-summary" *ngIf="connection && segments.length >= 2">
         <div class="summary-card">
           <h2>{{ connection.totalDuration }} - {{ connection.totalPrice | currency:'EUR':'symbol':'1.2-2' }}</h2>
           <div class="route-display">
-            <span class="city">{{ segments[0]?.departure || '' }}</span>
+            <span class="city">{{ segments[0].departure }}</span>
             <div class="flight-path">
-              <span class="flight-number">{{ segments[0]?.flightNumber || '' }}</span>
+              <span class="flight-number">{{ segments[0].flightNumber }}</span>
               <div class="arrow">✈️ →</div>
             </div>
-            <span class="city">{{ segments[0]?.arrival || '' }}</span>
+            <span class="city">{{ segments[0].arrival }}</span>
             <div class="stopover">🔄 SCALO</div>
             <div class="flight-path">
-              <span class="flight-number">{{ segments[1]?.flightNumber || '' }}</span>
+              <span class="flight-number">{{ segments[1].flightNumber }}</span>
               <div class="arrow">✈️ →</div>
             </div>
-            <span class="city">{{ segments[1]?.arrival || '' }}</span>
+            <span class="city">{{ segments[1].arrival }}</span>
           </div>
         </div>
       </div>

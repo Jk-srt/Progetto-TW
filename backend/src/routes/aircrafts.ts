@@ -345,7 +345,8 @@ router.patch('/:id/status', authenticateToken, verifyAirlineUser, async (req: Au
             return res.status(403).json({ error: 'Non autorizzato a modificare questo aeromobile' });
         }
 
-        // Utilizza il metodo del DatabaseService per aggiornare lo status
+    // Utilizza il metodo del DatabaseService per aggiornare lo status.
+    // Se il passaggio è da 'maintenance' a 'active' imposta automaticamente last_maintenance = NOW()
         const updatedAircraft = await dbService.updateAircraftStatus(aircraftId, status);
 
         console.log('[INFO] Aircraft status updated:', {
