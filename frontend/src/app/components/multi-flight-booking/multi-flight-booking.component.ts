@@ -42,7 +42,7 @@ interface BookingStep {
             </div>
             <p>Volo {{ steps.length > 0 && steps[0] ? steps[0].flightNumber : '' }}</p>
             <p *ngIf="steps.length > 0 && steps[0] && steps[0].selectedSeats && steps[0].selectedSeats.length > 0">
-              Posti selezionati: {{ steps[0]?.selectedSeats?.length || 0 }}
+              Posti selezionati: {{ steps[0].selectedSeats.length || 0 }}
             </p>
           </div>
 
@@ -57,7 +57,7 @@ interface BookingStep {
             </div>
             <p>Volo {{ steps.length > 1 && steps[1] ? steps[1].flightNumber : '' }}</p>
             <p *ngIf="steps.length > 1 && steps[1] && steps[1].selectedSeats && steps[1].selectedSeats.length > 0">
-              Posti selezionati: {{ steps[1]?.selectedSeats?.length || 0 }}
+              Posti selezionati: {{ steps[1].selectedSeats.length || 0 }}
             </p>
           </div>
         </div>

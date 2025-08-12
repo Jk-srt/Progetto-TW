@@ -105,14 +105,30 @@ import { User } from '../models/user.model';
         <table class="flights-table">
           <thead>
             <tr>
-              <th>Numero Volo</th>
-              <th>Compagnia</th>
-              <th>Rotta</th>
-              <th>Partenza</th>
-              <th>Arrivo</th>
-              <th>Sovrapprezzo</th>
-              <th>Posti</th>
-              <th>Stato</th>
+              <th (click)="sortBy('flight_number')" [class.sortable]="true" [class.active]="sortColumn==='flight_number'">
+                Numero Volo <span class="sort-indicator" *ngIf="sortColumn==='flight_number'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('airline_name')" [class.sortable]="true" [class.active]="sortColumn==='airline_name'">
+                Compagnia <span class="sort-indicator" *ngIf="sortColumn==='airline_name'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('route')" [class.sortable]="true" [class.active]="sortColumn==='route'">
+                Rotta <span class="sort-indicator" *ngIf="sortColumn==='route'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('departure_time')" [class.sortable]="true" [class.active]="sortColumn==='departure_time'">
+                Partenza <span class="sort-indicator" *ngIf="sortColumn==='departure_time'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('arrival_time')" [class.sortable]="true" [class.active]="sortColumn==='arrival_time'">
+                Arrivo <span class="sort-indicator" *ngIf="sortColumn==='arrival_time'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('price')" [class.sortable]="true" [class.active]="sortColumn==='price'">
+                Sovrapprezzo <span class="sort-indicator" *ngIf="sortColumn==='price'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('available_seats')" [class.sortable]="true" [class.active]="sortColumn==='available_seats'">
+                Posti <span class="sort-indicator" *ngIf="sortColumn==='available_seats'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
+              <th (click)="sortBy('status')" [class.sortable]="true" [class.active]="sortColumn==='status'">
+                Stato <span class="sort-indicator" *ngIf="sortColumn==='status'">{{ sortDirection==='asc' ? '▲' : '▼' }}</span>
+              </th>
               <th>Azioni</th>
             </tr>
           </thead>
@@ -692,6 +708,69 @@ export class FlightAdminComponent implements OnInit {
       
       return matchesStatus && matchesSearch && matchesAirline;
     });
+    this.applySort();
+  }
+
+  // Stato ordinamento
+  sortColumn: string = 'departure_time';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
+  sortBy(column: string) {
+    if (this.sortColumn === column) {
+      // Toggle direzione
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = column;
+      this.sortDirection = 'asc';
+    }
+    this.applySort();
+  }
+
+  private applySort() {
+    const dir = this.sortDirection === 'asc' ? 1 : -1;
+    this.filteredFlights = [...this.filteredFlights].sort((a: any, b: any) => {
+      let av: any;
+      let bv: any;
+      switch (this.sortColumn) {
+        case 'flight_number':
+          av = a.flight_number || '';
+          bv = b.flight_number || '';
+          break;
+        case 'airline_name':
+          av = a.airline_name || '';
+          bv = b.airline_name || '';
+          break;
+        case 'route':
+          av = `${a.departure_code || ''}${a.departure_city || ''}${a.arrival_code || ''}${a.arrival_city || ''}`.toLowerCase();
+          bv = `${b.departure_code || ''}${b.departure_city || ''}${b.arrival_code || ''}${b.arrival_city || ''}`.toLowerCase();
+          break;
+        case 'departure_time':
+          av = new Date(a.departure_time).getTime();
+          bv = new Date(b.departure_time).getTime();
+          break;
+        case 'arrival_time':
+          av = new Date(a.arrival_time).getTime();
+          bv = new Date(b.arrival_time).getTime();
+          break;
+        case 'price':
+          av = a.price ?? 0;
+          bv = b.price ?? 0;
+          break;
+        case 'available_seats':
+          av = a.available_seats ?? 0;
+          bv = b.available_seats ?? 0;
+          break;
+        case 'status':
+          av = a.status || '';
+          bv = b.status || '';
+          break;
+        default:
+          av = 0; bv = 0;
+      }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
   }
 
   openCreateModal() {
@@ -1204,14 +1283,9 @@ export class FlightAdminComponent implements OnInit {
     }
     try {
       const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-      // Per il backend, usiamo ISO string troncata mantenendo l'ora locale
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+  // Usa formato ISO UTC (senza ms) per evitare shift di fuso lato server
+  // Manteniamo la Z finale per indicare UTC esplicitamente
+  return date.toISOString().slice(0,19) + 'Z';
     } catch (error) {
       console.error('Errore nella conversione della data per il backend:', error);
       return '';
