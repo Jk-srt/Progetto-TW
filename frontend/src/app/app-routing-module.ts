@@ -17,6 +17,7 @@ import { AirlineStatsComponent } from './components/airline-stats.component';
 import { airlineGuard } from './guards/airline.guard';
 import { adminGuard } from './guards/admin.guard';
 import { mustChangePasswordGuard } from './guards/must-change-password.guard';
+import { routeAccessGuard } from './guards/route-access.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [mustChangePasswordGuard] },
@@ -33,7 +34,7 @@ export const routes: Routes = [
   { path: 'settings', component: SettingsComponent },
   { path: 'flight-admin', component: FlightAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] }, // Pannello compagnie aeree
   { path: 'admin/flights', component: FlightAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
-  { path: 'routes', component: RouteAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
+  { path: 'routes', component: RouteAdminComponent, canActivate: [mustChangePasswordGuard, routeAccessGuard] },
   { path: 'admin/routes', component: RouteAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
   { path: 'aircraft-admin', component: AircraftAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] }, // Gestione aeromobili
   { path: 'admin/aircrafts', component: AircraftAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
