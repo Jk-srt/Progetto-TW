@@ -254,11 +254,11 @@ export class FlightSearchComponent implements OnInit {
 
   // Helpers per visualizzare i campi aeroporto
   formatAirportLabel(a: Airport): string {
-    return a ? `${a.name} (${a.iata_code})` : '';
+  return a ? `${a.name} - ${a.city} (${a.iata_code})` : '';
   }
 
   formatAirportValue(a: Airport): string {
-    // Usiamo la label come value: Home component estrae il nome prima delle parentesi
-    return this.formatAirportLabel(a);
+  // Valore usato nella ricerca: SOLO nome aeroporto + codice (senza città) per compatibilità backend
+  return a ? `${a.name} (${a.iata_code})` : '';
   }
 }
