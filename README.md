@@ -173,226 +173,187 @@ Progetto-TW/
 └── README.md                  # Documentazione
 ```
 
-## 🗄️ Schema Database (Neon PostgreSQL)
+## 🗄️ Schema Database (Allineato allo stato attuale)
 
-### Tabelle Principali
+La seguente documentazione riflette la struttura reale del database (derivata da `information_schema.columns`) invece del vecchio schema teorico. Alcune tabelle “storiche” documentate prima (es. campi email/password dentro `users`) sono state normalizzate nella tabella `accesso`.
 
-#### 👥 users
+### Panoramica Tabelle
+
+| Tabella | Scopo Principale |
+|---------|------------------|
+| accesso | Credenziali & ruolo (autenticazione) |
+| users | Dati anagrafici passeggeri (profilo) |
+| airlines | Compagnie aeree |
+| aircrafts | Aerei / flotta compagnie |
+| aircraft_seats | Layout posti fisici per aereo |
+| routes | Rotte (origine/destinazione + distanza) |
+| route_pricing / route_pricing_view | Prezzi base per rotta e classi |
+| airports | Aeroporti (nome, città, coordinate) |
+| flights | Voli programmati legati a rotte |
+| flights_with_airports | Vista arricchita (join rotta + aeroporti) |
+| bookings | Prenotazioni base (stato, prezzo, riferimenti) |
+| booking_details | Vista/denormalizzazione dettagli prenotazione + passeggero + volo |
+| flight_seat_map | Mappa posti per volo (stato/attributi) |
+| flight_seat_availability | Proiezione disponibilità posti volo |
+| seat_bookings | Associazione posto-volo-prenotazione/passeggero |
+| temporary_seat_reservations | Lock temporaneo posti (session based) |
+| temporary_seat_reservations | Lock temporaneo posti (session based) |
+
+### 1. Tabella `accesso`
+Contiene autenticazione e collegamenti opzionali a utente passeggero o compagnia.
 ```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    phone VARCHAR(20),
-    role VARCHAR(20) DEFAULT 'user',
-    airline_id INTEGER REFERENCES airlines(id),
-    airline_name VARCHAR(255),
-    temporary_password BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+id SERIAL PK
+email VARCHAR NOT NULL UNIQUE
+password_hash VARCHAR NOT NULL
+role VARCHAR NOT NULL DEFAULT 'user' -- valori: user | admin | airline
+airline_id INTEGER NULL -- se account compagnia
+user_id INTEGER NULL    -- se account passeggero (riga in users)
+profile_image_url VARCHAR NULL
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
-- **Ruoli**: `user`, `admin`, `airline`
-- **Autenticazione**: JWT con password hash bcrypt
-- **🆕 Collegamento compagnie**: Utenti airline collegati alle compagnie
+Note:
+- Separazione credenziali (accesso) vs profilo (`users`) semplifica privacy e reset.
+- `airline_id` o `user_id` sono mutuamente esclusivi (enforced a livello applicativo).
 
-#### ✈️ flights (🆕 Tabella Ottimizzata con Rotte e Stati)
+### 2. Tabella `users`
+Solo dati anagrafici/passaporto (nessuna email o password qui):
 ```sql
-CREATE TABLE flights (
-    id SERIAL PRIMARY KEY,
-    flight_number VARCHAR(10) NOT NULL,
-    airline_id INTEGER REFERENCES airlines(id),
-    aircraft_id INTEGER REFERENCES aircrafts(id),
-    route_id INTEGER REFERENCES routes(id), -- 🆕 NUOVO: Collegamento alle rotte
-    departure_time TIMESTAMP NOT NULL,
-    arrival_time TIMESTAMP NOT NULL,
-    price DECIMAL(10,2) NOT NULL, -- 🆕 Sovrapprezzo della compagnia
-    total_seats INTEGER NOT NULL,
-    available_seats INTEGER NOT NULL,
-    status VARCHAR(20) DEFAULT 'scheduled', -- 🆕 Stati: scheduled, delayed, cancelled, completed
-    delay_minutes INTEGER DEFAULT 0, -- 🆕 Minuti di ritardo (calcolato automaticamente)
-    economy_price DECIMAL(10,2), -- 🆕 Prezzo economy calcolato (route + surcharge)
-    business_price DECIMAL(10,2), -- 🆕 Prezzo business calcolato (route + surcharge)  
-    first_price DECIMAL(10,2), -- 🆕 Prezzo first class calcolato (route + surcharge)
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+id SERIAL PK
+first_name VARCHAR NULL
+last_name  VARCHAR NOT NULL
+phone VARCHAR NULL
+date_of_birth DATE NULL
+nationality VARCHAR NULL
+passport_number VARCHAR NULL
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
-- **🆕 Sistema Rotte**: I voli ora utilizzano `route_id` invece di aeroporti separati
-- **🆕 Stati Avanzati**: `scheduled`, `delayed`, `cancelled`, `completed` con gestione completa
-- **🆕 Gestione Ritardi**: Campo `delay_minutes` per tracking ritardi automatico
-- **🆕 Pricing Dinamico**: Prezzi calcolati per economia, business e first class
-- **🆕 Relazioni complete**: Collegamenti a airlines, aircrafts tramite rotte
-- **🆕 Gestione posti**: Posti totali e disponibili con aggiornamento dinamico
 
-#### 🛣️ routes (🆕 Tabella Rotte)
+### 3. Tabella `airlines`
 ```sql
-CREATE TABLE routes (
-    id SERIAL PRIMARY KEY,
-    route_name VARCHAR(255) NOT NULL,
-    departure_airport_id INTEGER REFERENCES airports(id),
-    arrival_airport_id INTEGER REFERENCES airports(id),
-    airline_id INTEGER REFERENCES airlines(id),
-    distance_km INTEGER,
-    estimated_duration VARCHAR(10),
-    default_price DECIMAL(10,2),
-    business_price DECIMAL(10,2),
-    first_price DECIMAL(10,2),
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+id SERIAL PK
+name VARCHAR NOT NULL
+iata_code VARCHAR NOT NULL
+icao_code VARCHAR NOT NULL
+country VARCHAR NOT NULL
+founded_year INTEGER NULL
+website VARCHAR NULL
+logo_url VARCHAR NULL
+active BOOLEAN DEFAULT true
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
-- **🆕 Normalizzazione**: Rotte predefinite per ogni compagnia aerea
-- **🆕 Pricing Stratificato**: Prezzi per classe di servizio
-- **🆕 Metadati**: Distanza e durata stimata
-- **🆕 Stato**: Attiva/Inattiva per gestione operativa
 
-#### 🏢 airlines (🆕 Compagnie Aeree Complete)
+### 4. Tabella `aircrafts` & `aircraft_seats`
+`aircrafts` descrive l'aereo; `aircraft_seats` il layout dettagliato.
 ```sql
-CREATE TABLE airlines (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    iata_code VARCHAR(3) UNIQUE,
-    icao_code VARCHAR(4) UNIQUE,
-    country VARCHAR(100),
-    founded_year INTEGER,
-    website VARCHAR(255),
-    logo_url VARCHAR(500),
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-- **Codici Standard**: IATA e ICAO
-- **🆕 Metadati**: Fondazione, sito web, logo
-- **🆕 Stato**: Attivo/Inattivo
+aircrafts(id PK, airline_id FK, registration UNIQUE, aircraft_type, manufacturer, model,
+      seat_capacity, business_class_seats, economy_class_seats, manufacturing_year,
+      last_maintenance DATE, status, created_at, updated_at)
 
-#### 🛩️ aircrafts (🆕 Flotta Aerei)
-```sql
-CREATE TABLE aircrafts (
-    id SERIAL PRIMARY KEY,
-    airline_id INTEGER REFERENCES airlines(id),
-    registration VARCHAR(20) UNIQUE NOT NULL,
-    aircraft_type VARCHAR(50) NOT NULL,
-    manufacturer VARCHAR(100),
-    model VARCHAR(100) NOT NULL,
-    seat_capacity INTEGER NOT NULL,
-    business_class_seats INTEGER DEFAULT 0,
-    economy_class_seats INTEGER,
-    manufacturing_year INTEGER,
-    last_maintenance DATE,
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+aircraft_seats(id PK, aircraft_id FK, seat_number, seat_row INT, seat_column CHAR,
+           seat_class VARCHAR DEFAULT 'economy', is_window BOOL, is_aisle BOOL,
+           is_emergency_exit BOOL, status VARCHAR DEFAULT 'available', created_at TIMESTAMP)
 ```
-- **🆕 Dettagli Tecnici**: Produttore, modello, capacità
-- **🆕 Classi di Servizio**: Business e Economy
-- **🆕 Manutenzione**: Tracking ultimo intervento
 
-#### 🏛️ airports (🆕 Aeroporti Mondiali)
+### 5. Tabella `airports`
 ```sql
-CREATE TABLE airports (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    iata_code VARCHAR(3) UNIQUE NOT NULL,
-    city VARCHAR(100) NOT NULL,
-    country VARCHAR(100) NOT NULL,
-    latitude DECIMAL(10,8),
-    longitude DECIMAL(11,8),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+id SERIAL PK
+name VARCHAR NOT NULL
+iata_code VARCHAR NOT NULL
+city VARCHAR NOT NULL
+country VARCHAR NOT NULL
+latitude NUMERIC NULL
+longitude NUMERIC NULL
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
-- **🆕 Geolocalizzazione**: Coordinate GPS
-- **🆕 Codici Standard**: IATA per identificazione
 
-#### 🎫 bookings (Sistema Prenotazioni)
+### 6. Tabelle Rotte & Pricing
 ```sql
-CREATE TABLE bookings (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id),
-    flight_id INTEGER REFERENCES flights(id),
-    passenger_name VARCHAR(255) NOT NULL,
-    passenger_email VARCHAR(255) NOT NULL,
-    seat_number VARCHAR(10),
-    booking_status VARCHAR(20) DEFAULT 'confirmed',
-    total_price DECIMAL(10,2) NOT NULL,
-    booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    payment_status VARCHAR(20) DEFAULT 'pending'
-);
-```
-- **🆕 Tracking Completo**: Passeggero, posto, pagamento
-- **🆕 Stati**: Confermato, Annullato, Check-in, Completato
-### 🔗 Relazioni Database
-- **users** ↔ **airlines**: Utenti collegati alle compagnie (1:N)
-- **flights** ↔ **routes**: Voli operano su rotte predefinite (N:1) 🆕
-- **routes** ↔ **airlines**: Rotte gestite dalle compagnie (N:1) 🆕
-- **routes** ↔ **airports**: Aeroporti di partenza e arrivo delle rotte (N:1) 🆕
-- **flights** ↔ **aircrafts**: Aerei utilizzati per i voli (N:1)
-- **bookings** ↔ **users**: Prenotazioni degli utenti (N:1)
-- **bookings** ↔ **flights**: Prenotazioni sui voli (N:1)
-- **aircrafts** ↔ **airlines**: Flotta delle compagnie (N:1)
+routes(id PK, route_name, departure_airport_id FK, arrival_airport_id FK,
+       distance_km, estimated_duration, default_price NUMERIC, status DEFAULT 'active',
+       airline_id, created_at, updated_at)
 
-### 🎯 Vista Compatibilità (flights_with_airports) 🆕
-```sql
-CREATE VIEW flights_with_airports AS
-SELECT 
-    f.*,
-    r.route_name,
-    r.distance_km,
-    r.estimated_duration as route_duration,
-    -- 🆕 Calcolo dinamico delay_minutes e prezzi
-    CASE 
-        WHEN f.status = 'delayed' AND f.departure_time > CURRENT_TIMESTAMP 
-        THEN EXTRACT(EPOCH FROM (f.departure_time - 
-            (SELECT departure_time FROM flights WHERE id = f.id AND status = 'scheduled'))) / 60
-        ELSE COALESCE(f.delay_minutes, 0)
-    END AS calculated_delay_minutes,
-    -- 🆕 Prezzi calcolati per classi di servizio
-    (r.default_price + COALESCE(f.price, 0)) AS economy_price,
-    (COALESCE(r.business_price, r.default_price * 1.5) + COALESCE(f.price, 0)) AS business_price,
-    (COALESCE(r.first_price, r.default_price * 2.0) + COALESCE(f.price, 0)) AS first_price,
-    da.name as departure_airport,
-    da.iata_code as departure_code,
-    da.city as departure_city,
-    aa.name as arrival_airport,
-    aa.iata_code as arrival_code,
-    aa.city as arrival_city,
-    al.name as airline_name,
-    al.iata_code as airline_code,
-    ac.registration as aircraft_registration,
-    ac.aircraft_type,
-    ac.model as aircraft_model
-FROM flights f
-JOIN routes r ON f.route_id = r.id
-JOIN airports da ON r.departure_airport_id = da.id
-JOIN airports aa ON r.arrival_airport_id = aa.id
-JOIN airlines al ON f.airline_id = al.id
-JOIN aircrafts ac ON f.aircraft_id = ac.id;
-```
-- **🆕 Compatibilità Retroattiva**: Mantiene le informazioni degli aeroporti per i componenti esistenti
-- **🆕 Calcoli Dinamici**: Delay_minutes e prezzi calcolati automaticamente nella vista
-- **🆕 Pricing Intelligente**: Prezzi base rotta + sovrapprezzo compagnia per ogni classe
-- **🆕 Dati Arricchiti**: Include informazioni complete di rotte, aeroporti, compagnie e aerei
-- **🆕 Performance**: Un'unica query per ottenere tutti i dati necessari con calcoli ottimizzati
+route_pricing(id PK, route_id FK, seat_class, base_price, created_at, updated_at)
 
-### 🚀 Indici e Performance
-```sql
--- Indici ottimizzati per query frequenti
-CREATE INDEX idx_flights_departure_time ON flights(departure_time);
-CREATE INDEX idx_flights_airline_id ON flights(airline_id);
-CREATE INDEX idx_flights_route_id ON flights(route_id); -- 🆕 NUOVO
-CREATE INDEX idx_flights_status ON flights(status);
-CREATE INDEX idx_routes_airline_id ON routes(airline_id); -- 🆕 NUOVO
-CREATE INDEX idx_routes_departure_airport ON routes(departure_airport_id); -- 🆕 NUOVO
-CREATE INDEX idx_routes_arrival_airport ON routes(arrival_airport_id); -- 🆕 NUOVO
-CREATE INDEX idx_bookings_user_id ON bookings(user_id);
-CREATE INDEX idx_bookings_flight_id ON bookings(flight_id);
-CREATE INDEX idx_aircrafts_airline_id ON aircrafts(airline_id);
+route_pricing_view(route_id, route_name, departure_airport_id, arrival_airport_id,
+           departure_airport, departure_code, departure_city,
+           arrival_airport, arrival_code, arrival_city,
+           seat_class, base_price, distance_km, estimated_duration, status)
 ```
+`route_pricing_view` unisce rotta + prezzi per classe per consultazione rapida.
+
+### 7. Tabelle Voli
+```sql
+flights(id PK, flight_number, departure_time, arrival_time, price NUMERIC,
+    total_seats, available_seats, status DEFAULT 'scheduled', created_at,
+    updated_at, airline_id, aircraft_id, route_id, seat_class DEFAULT 'economy')
+
+flights_with_airports(...) -- vista di join arricchita (rotta + aeroporti + compagnia + aereo)
+```
+Stati tipici: scheduled | delayed | cancelled | completed (gestiti a livello applicativo).
+
+### 8. Prenotazioni
+Base + dettagli denormalizzati:
+```sql
+bookings(id PK, user_id FK, flight_id FK, seat_id FK, booking_reference,
+     booking_class DEFAULT 'economy', price NUMERIC, booking_status DEFAULT 'confirmed',
+     special_requests TEXT, booking_date TIMESTAMP, updated_at TIMESTAMP,
+     passenger_first_name, passenger_last_name, passenger_email, passenger_phone)
+
+booking_details(...) -- tabella/vista di dettaglio combinando booking + volo + posto + passeggero
+```
+
+### 9. Gestione Posti Volo
+```sql
+flight_seat_map(flight_id, seat_id, seat_number, seat_row, seat_column, seat_class,
+        is_window, is_aisle, is_emergency_exit, seat_status, availability_status,
+        reservation_expires, reserved_by_session)
+
+flight_seat_availability(flight_id, flight_number, seat_id, seat_number, seat_row, seat_column,
+             seat_class, is_window, is_aisle, is_emergency_exit, is_available,
+             additional_price, booking_reference)
+
+temporary_seat_reservations(id PK, flight_id, seat_id, session_id, user_id, expires_at, created_at)
+
+seat_bookings(id PK, booking_id, flight_id, seat_id, passenger_name, passenger_email,
+          passenger_phone, passenger_document_type DEFAULT 'passport',
+          passenger_document_number, passenger_date_of_birth, passenger_nationality, created_at)
+```
+Uso tipico:
+- `temporary_seat_reservations` blocca un posto per session (timeout via `expires_at`).
+- Conferma → riga in `seat_bookings` + aggiornamento disponibilità.
+- Viste (`flight_seat_map` / `flight_seat_availability`) supportano UI real‑time.
+
+### 10. Relazioni Principali
+- accesso (1) → users (1) / airlines (1) tramite FK opzionali
+- flights (N) → routes (1) → airports (2) (partenza/arrivo)
+- flights (N) → aircrafts (1) → airlines (1)
+- bookings (N) → flights (1); bookings (N) → users (1)
+- seat_bookings (N) → bookings (1) & flights (1) & seats (aircraft_seats via seat_id)
+
+### 11. Indici Consigliati (principali)
+```sql
+CREATE INDEX IF NOT EXISTS idx_flights_departure_time ON flights(departure_time);
+CREATE INDEX IF NOT EXISTS idx_flights_status ON flights(status);
+CREATE INDEX IF NOT EXISTS idx_flights_route_id ON flights(route_id);
+CREATE INDEX IF NOT EXISTS idx_routes_airline_id ON routes(airline_id);
+CREATE INDEX IF NOT EXISTS idx_aircrafts_airline_id ON aircrafts(airline_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_flight_id ON bookings(flight_id);
+CREATE INDEX IF NOT EXISTS idx_accesso_email ON accesso(email);
+```
+
+### 12. Differenze rispetto al precedente README
+- Email/password spostate da `users` → `accesso`.
+- Aggiunte tabelle granulari per posti (`aircraft_seats`, `flight_seat_*`, `seat_bookings`, `temporary_seat_reservations`).
+- Introdotte viste di supporto (`flights_with_airports`, `route_pricing_view`, `booking_details`).
+- Prezzi per classe ora gestiti via `route_pricing` invece di campi fissi nella tabella voli.
+
+> Nota: I nomi delle viste possono essere implementati come vere viste SQL o tabelle materializzate a seconda della configurazione di inizializzazione (`database/postgres-init`).
+
+---
 
 ## 🚀 Avvio Rapido
 
