@@ -44,12 +44,12 @@ Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnol
 - **🎯 UX Migliorata**: Interfaccia intuitiva con colori e icone per ogni stato volo
 
 ### 🆕 Nuove Funzionalità (v3.0) - Sistema Rotte
-- **�️ Gestione Rotte**: Sistema normalizzato con rotte predefinite per le compagnie aeree
-- **� Architettura Normalizzata**: I voli ora utilizzano route_id invece di aeroporti separati
+- **🛣️ Gestione Rotte**: Sistema normalizzato con rotte predefinite per le compagnie aeree
+- **🏗️ Architettura Normalizzata**: I voli ora utilizzano route_id invece di aeroporti separati
 - **🏢 Rotte per Compagnia**: Ogni compagnia aerea gestisce solo le proprie rotte autorizzate
 - **🎯 Selezione Intelligente**: Il form di creazione voli mostra solo le rotte della propria compagnia
 - **📊 Compatibilità Retroattiva**: Vista database flights_with_airports per mantenere compatibilità
-- **� Ricerca Estesa**: Filtri di ricerca includono anche i nomi delle rotte
+- **🔍 Ricerca Estesa**: Filtri di ricerca includono anche i nomi delle rotte
 - **⚡ Performance Ottimizzate**: Join ottimizzati per query veloci con informazioni complete
 
 ### 🔧 Tecnologie Utilizzate
@@ -524,7 +524,7 @@ docker-compose up --build -d
 - **CORS** configurato per domini specifici
 - **Validazione input** su tutti gli endpoint
 
-## �️ Sistema Gestione Stati Voli 🆕
+## 🛫 Sistema Gestione Stati Voli 🆕
 
 ### 📊 Stati Volo Supportati
 - **🟢 scheduled**: Volo programmato (prenotabile)
@@ -578,7 +578,117 @@ PUT /api/flights/:id/status
 GET /api/flights?status=delayed&includeDelayMinutes=true
 ```
 
-## �📊 Monitoraggio
+## 📊 Monitoraggio
+## 📚 Funzionalità Complete del Sito
+
+Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente implementate (frontend + backend), organizzate per dominio.
+
+### 1. Autenticazione & Accesso
+- Registrazione utente standard
+- Login (utente, compagnia, admin) con JWT
+- Ruoli supportati: user, airline, admin
+- Associazione account airline a `airline_id`
+- Forzatura cambio password primo accesso compagnia (guard mustChangePassword)
+- Logout client (rimozione token)
+- Protezione rotte Angular con guard multipli (role + mustChangePassword + combinato rotte)
+
+### 2. Gestione Compagnie Aeree
+- Creazione compagnia (admin)
+- Stato compagnia (active/inactive) con visibilità admin su inattive
+- Login compagnia bloccato fino a cambio password iniziale
+- Selezione compagnie inattive evidenziate nel pannello voli
+
+### 3. Gestione Rotte
+- CRUD rotte (admin + airline proprietaria)
+- Filtra rotte per compagnia
+- Calcolo distanza / durata salvati sulla rotta
+- Stato rotta (active)
+- Vista arricchita prezzi per classe (`route_pricing_view`)
+
+### 4. Prezzi & Pricing Dinamico
+- Prezzo base da rotta + sovrapprezzo compagnia
+- Prezzi per classi (economy/business/first) derivati
+- Endpoint pricing rotte dedicato
+
+### 5. Gestione Aerei & Posti
+- CRUD aerei (admin / airline)
+- Generazione / import layout posti (`aircraft_seats`)
+- Vista mappa posti per volo (`flight_seat_map` / `flight_seat_availability`)
+- Attributi posto: finestrino, corridoio, uscita emergenza, classe
+- Stato posto (available / reserved / blocked)
+
+### 6. Sistema Voli
+- Creazione voli legati a rotta + aereo + compagnia
+- Stati supportati: scheduled, delayed, cancelled, completed
+- Aggiornamento stato con endpoint dedicati
+- Gestione ritardi (ritardo minuti + aggiornamento orari)
+- Calcolo prezzi finali per classe via vista
+- Ricerca voli (per aeroporto, rotta, stato)
+- Visualizzazione range prezzi nel frontend
+
+### 7. Ricerca & UX Voli
+- Ricerca one-way senza data obbligatoria
+- Dropdown aeroporti con etichetta “Nome - Città (CODICE)” e value compatibile backend
+- Filtri per stato / compagnia / rotta (frontend + backend)
+- Visual indicator stati (badge colorati + icone)
+
+### 8. Prenotazioni
+- Creazione prenotazione volo con selezione posto
+- Visualizzazione prenotazioni utente
+- Cancellazione prenotazione (>24h prima partenza) con rilascio posto
+- Tracking stato prenotazione (confirmed / cancelled)
+- Dettagli booking denormalizzati (`booking_details`)
+
+### 9. Gestione Selezione Posti (Seat Reservation Layer)
+- Lock temporaneo posto (tabella `temporary_seat_reservations` con scadenza)
+- Conferma converte lock in `seat_bookings`
+- Aggiornamento disponibilità posti volo e contatore seats
+- Mappa posti compatta / espansa (toggle UI)
+
+### 10. Sicurezza
+- Hash password con bcrypt
+- JWT stateless + middleware validazione
+- Helmet + CORS configurati
+- Guard ruoli in backend per endpoint protetti
+
+### 11. Monitoraggio & Logging
+- Endpoint health `/api/health`
+- Endpoint test DB `/api/db-test`
+- Logging HTTP con Morgan
+- Log diagnostici per errori CRUD rotte/voli/prenotazioni
+
+### 12. Gestione Errori & UX Feedback
+- Messaggi utente per azioni critiche (cancellazione volo / ritardo / prenotazione)
+- Pulsanti disabilitati in base a stato volo/posto
+- Spinner / loader nelle viste prenotazioni
+
+### 13. Amministrazione
+- Dashboard admin riepilogo
+- Pannello voli (admin + airline) con filtri avanzati
+- Gestione rotte dedicata
+- Gestione aerei (manutenzione / stato)
+
+### 14. Ottimizzazioni Performance
+- Indici su campi chiave (route_id, departure_time, status, airline_id)
+- Connection pooling lato backend
+- Viste aggregate per ridurre join ripetuti
+
+### 15. Architettura & DevOps
+- Docker Compose (frontend, backend, db)
+- Script start cross-platform (sh/ps1)
+- Multi-stage Docker build
+- Inizializzazione DB automatica script SQL
+
+### 16. Accessibilità & UI
+- Contrasto elevato nei pulsanti azione
+- Stato disabilitato chiaro per azioni non permesse
+- Layout responsive grid per form ricerca voli
+
+### 17. Funzionalità Rimosse / Pianificate
+- Rimosso: download dati personali (bottone placeholder eliminato)
+- Pianificato: data export strutturato (JSON + zip), pagamenti, PWA, real-time notifiche
+
+> Se una funzionalità risultasse non più presente, aggiornare questa lista contestualmente alla modifica del codice.
 
 - Health check endpoints disponibili
 - Logging dettagliato con Morgan
