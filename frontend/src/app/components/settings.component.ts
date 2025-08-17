@@ -34,43 +34,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
           </div>
         </div>
 
-        <div class="settings-card">
-          <h2>Configurazione account</h2>
-          <div class="settings-section">
-            <div class="setting-item">
-              <div class="setting-info">
-                <h3>Notifiche email</h3>
-                <p>Ricevi aggiornamenti sui tuoi voli via email</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" checked>
-                <span class="slider"></span>
-              </label>
-            </div>
-            
-            <div class="setting-item">
-              <div class="setting-info">
-                <h3>Notifiche SMS</h3>
-                <p>Ricevi promemoria e aggiornamenti via SMS</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox">
-                <span class="slider"></span>
-              </label>
-            </div>
-            
-            <div class="setting-item">
-              <div class="setting-info">
-                <h3>Newsletter</h3>
-                <p>Ricevi offerte speciali e promozioni</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" checked>
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
+  <!-- Card Configurazione account rimossa perché non necessaria -->
         
         <!-- Sezione Gestione Flotta (solo per compagnie aeree) -->
         <div class="settings-card" *ngIf="isAirlineUser()">
@@ -91,9 +55,6 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
         <div class="settings-card">
           <h2>Privacy e sicurezza</h2>
           <div class="settings-section">
-            <button class="action-button secondary">
-              Scarica i miei dati
-            </button>
             <button *ngIf="isPassengerUser()" class="action-button danger" (click)="confirmDeleteAccount()" [disabled]="isDeleting">
               {{ isDeleting ? 'Eliminazione...' : 'Elimina account' }}
             </button>
