@@ -33,12 +33,15 @@ services:
     container_name: taw-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: development
-      PORT: 3000
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
-      DATABASE_URL: postgresql://neondb_owner:npg_VATdkwzO94Wr@ep-holy-water-a2lusn2u-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-secureTemporaryPwd}
+      - NODE_ENV=development
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
+      # Impostato per Neon di default (sslmode=require). Per usare il DB locale commentare questa riga e scommentare quella sotto.
+      - DATABASE_URL=${DATABASE_URL:-postgresql://neondb_owner:npg_VATdkwzO94Wr@ep-holy-water-a2lusn2u-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+      # - DATABASE_URL=postgresql://taw_user:taw_password@database:5432/taw_flights
+      - DB_SSL=true
+      - ADMIN_EMAIL=admin@example.com
+      - ADMIN_PASSWORD=secureTemporaryPwd
     env_file:
       - ./.env
     ports:

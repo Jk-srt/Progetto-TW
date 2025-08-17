@@ -1,5 +1,6 @@
 import express from 'express';
 import { Pool } from 'pg';
+import { getPool } from './db/pool';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -49,10 +50,8 @@ export const seatWebSocketService = new SeatWebSocketService(server);
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 
-// Database connection
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+// Database connection centralizzata (pool singleton)
+const pool = getPool();
 
 // Database service instance
 const dbService = new DatabaseService(pool);

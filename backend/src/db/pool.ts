@@ -1,24 +1,24 @@
 import { Pool } from 'pg';
 
-let pool: Pool | null = null;
+let _pool: Pool | null = null;
 
-function getPool(): Pool {
-  if (!pool) {
-    if (!process.env.DATABASE_URL) {
+export function getPool(): Pool {
+  if (!_pool) {
+    const url = process.env.DATABASE_URL;
+    if (!url) {
       console.error('[ERROR] DATABASE_URL not found in environment variables');
       throw new Error('DATABASE_URL not configured');
     }
-    
-    console.log('[DEBUG] Creating database pool with URL:', process.env.DATABASE_URL.substring(0, 50) + '...');
-    
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
+    const useSSL = (process.env.DB_SSL || '').toLowerCase() === 'true' || url.includes('sslmode=require');
+    console.log('[DB] Creating pool. SSL=', useSSL, ' URL(head)=', url.substring(0, 60) + '...');
+    _pool = new Pool({
+      connectionString: url,
+      ssl: useSSL ? { rejectUnauthorized: false } : undefined
     });
   }
-  
-  return pool;
+  return _pool;
 }
 
-export default getPool();
+export const pool = getPool();
+export default pool;
 

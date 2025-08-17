@@ -134,8 +134,8 @@ Progetto-TW/
 │   ├── 📁 src/
 │   │   ├── app.ts              # 🆕 Server Express ottimizzato
 │   │   ├── 📁 db/              # Database connection
-│   │   │   ├── pool.ts         # 🆕 Connection pooling
-│   │   │   └── poll.ts         # Database polling
+│   │   │   ├── pool.ts         # 🆕 Connection pooling (singleton)
+│   │   │   └── websocket/      # Servizi WebSocket (seat updates)
 │   │   ├── 📁 middleware/      # Middleware Express
 │   │   │   └── auth.ts         # 🆕 JWT authentication
 │   │   ├── 📁 models/          # Modelli database
@@ -196,7 +196,6 @@ La seguente documentazione riflette la struttura reale del database (derivata da
 | flight_seat_map | Mappa posti per volo (stato/attributi) |
 | flight_seat_availability | Proiezione disponibilità posti volo |
 | seat_bookings | Associazione posto-volo-prenotazione/passeggero |
-| temporary_seat_reservations | Lock temporaneo posti (session based) |
 | temporary_seat_reservations | Lock temporaneo posti (session based) |
 
 ### 1. Tabella `accesso`
@@ -370,12 +369,13 @@ cd Progetto-TW
 ```
 
 ### 2. Configura Environment (🆕 Neon Database)
-Il progetto è preconfigurato per utilizzare **Neon PostgreSQL** cloud. 
-Crea un file `.env` nella root del progetto se vuoi personalizzare:
+Il progetto è preconfigurato per utilizzare **Neon PostgreSQL** cloud.
+Per ragioni di sicurezza NON inserire credenziali reali direttamente nel README o committare `.env`.
+Creare un file `.env` nella root del progetto se vuoi personalizzare:
 
 ```env
-# 🆕 Neon Database (Preconfigurato)
-DATABASE_URL=postgresql://neondb_owner:9IrmP6f6XaFO@ep-weathered-darkness-a5ytvuoe.us-east-2.aws.neon.tech/neondb?sslmode=require
+# 🆕 Neon Database (Preconfigurato) - Esempio (sostituire con le proprie credenziali)
+DATABASE_URL=postgresql://<NEON_USER>:<NEON_PASSWORD>@<NEON_HOST>/<NEON_DB>?sslmode=require
 
 # JWT Configuration
 JWT_SECRET=your_super_secure_jwt_secret_key_here_change_in_production
@@ -407,7 +407,21 @@ docker-compose logs -f backend
 docker-compose logs -f frontend
 ```
 
-### 4. Script di Avvio Rapido
+### 4. Switch Rapido Database (Neon ↔ Locale)
+
+Nel file `docker-compose.yml` sono presenti due righe alternative per `DATABASE_URL` (Neon di default + locale commentata). Per usare il database locale:
+
+1. Commenta la riga Neon e de-commenta quella locale nel servizio `backend`:
+  - `# DATABASE_URL=postgresql://neondb_owner...` (commentata)
+  - `DATABASE_URL=postgresql://taw_user:taw_password@database:5432/taw_flights`
+2. Imposta `DB_SSL=false` (già configurato per locale) oppure `true` per Neon.
+3. Se è la prima volta che usi il DB locale ed esiste un volume precedente con utente diverso, rimuovi il volume:
+  - `docker volume rm taw_postgres_data` (ATTENZIONE: perderai i dati locali)
+4. Ricostruisci: `docker compose up -d --build backend database`.
+
+Per tornare a Neon ripristina la riga con l'URL Neon e rimetti `DB_SSL=true`.
+
+### 5. Script di Avvio Rapido
 ```bash
 # Windows (PowerShell)
 .\scripts\start.ps1
@@ -417,7 +431,7 @@ chmod +x scripts/start.sh
 ./scripts/start.sh
 ```
 
-### 4. Accedi all'Applicazione
+### 6. Accedi all'Applicazione
 - **Frontend**: http://localhost:4200
 - **Backend API**: http://localhost:3000
 - **Health Check**: http://localhost:3000/api/health
@@ -489,7 +503,7 @@ Il database viene inizializzato automaticamente con:
 - `GET /api/bookings` - Le mie prenotazioni
 
 ### 🔍 Utility
-- `GET /api/health` - Health check
+- `GET /api/health` - Health check (restituisce `{ "status": "ok", "uptime": <seconds> }`)
 - `GET /api/db-test` - Test connessione database
 
 ## 🐳 Docker
@@ -705,7 +719,18 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 
 ## 📝 Changelog
 
-### 🆕 Versione 3.1.0 - Sistema Stati Voli Avanzato (Agosto 2025)
+### 🆕 Versione 3.2.0 - UX Prenotazioni & Compagnie (Agosto 2025)
+Principali novità (riassunto della sezione iniziale):
+- Cancellazione prenotazioni lato utente (>24h) con rilascio posto atomico
+- Dashboard prenotazioni airline con tabs metriche / mappa posti / distribuzione classi
+- Ricerca voli semplificata one-way e caricamento aeroporti dinamico
+- Navigazione diretta verso selezione posti per voli diretti
+- Mappa posti compatta (toggle) e miglioramenti accessibilità
+- UI ruoli: airline nascosti pulsanti prenotazione
+- Gestione rotte robusta (aggiornamenti parziali via COALESCE)
+- Logging diagnostico esteso frontend/backend
+
+### Versione 3.1.0 - Sistema Stati Voli Avanzato (Agosto 2025)
 #### 🚨 Gestione Stati Completa
 - **✅ Stati Dinamici**: Sistema completo scheduled/delayed/cancelled/completed con logica avanzata
 - **✅ Calcolo Ritardi**: Visualizzazione automatica minuti di ritardo per voli delayed
@@ -724,7 +749,7 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 - **✅ Validazioni**: Controlli business logic per transizioni stati valide
 - **✅ Error Handling**: Gestione errori migliorata con messaggi utente chiari
 
-### 🆕 Versione 3.0.0 - Sistema Rotte (Agosto 2025)
+### Versione 3.0.0 - Sistema Rotte (Agosto 2025)
 #### 🛣️ Architettura Normalizzata
 - **✅ Nuovo Sistema Rotte**: Implementazione completa tabella `routes` per normalizzazione database
 - **✅ Migrazione Database**: Script automatico per migrazione da aeroporti diretti a sistema rotte
@@ -743,14 +768,14 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 - **✅ Gestione Errori**: Fallback automatico con filtro lato client
 - **✅ Logging Dettagliato**: Debug avanzato per troubleshooting
 
-### 📊 Versione 2.0.0 - Flight Management (Luglio 2025)
+### Versione 2.0.0 - Flight Management (Luglio 2025)
 - ✅ Flight Admin Panel completo per compagnie aeree
 - ✅ Sistema autenticazione multi-ruolo (user/admin/airline)
 - ✅ Database cloud Neon PostgreSQL
 - ✅ API RESTful complete per tutte le entità
 - ✅ Docker ottimizzato per sviluppo
 
-### 🚀 Versione 1.0.0 - MVP (Giugno 2025)
+### Versione 1.0.0 - MVP (Giugno 2025)
 - ✅ Frontend Angular con visualizzazione voli
 - ✅ Backend Node.js/Express
 - ✅ Sistema prenotazioni base

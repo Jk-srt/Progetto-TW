@@ -1,14 +1,10 @@
 import express from 'express';
 import { DatabaseService } from '../models/database';
-import { Pool } from 'pg';
+import pool from '../db/pool';
 
 const router = express.Router();
 
-// Connessione al database
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
-
+// Connessione centralizzata
 const dbService = new DatabaseService(pool);
 
 // API Compagnie aeree

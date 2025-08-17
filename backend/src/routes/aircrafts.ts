@@ -1,15 +1,11 @@
 import express, { Request, Response } from 'express';
 import { DatabaseService } from '../models/database';
-import { Pool } from 'pg';
+import pool from '../db/pool';
 import { authenticateToken, verifyAirlineAdmin, verifyAirlineAccess, verifyAdminOrAirlineAdmin, verifyAirlineUser, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
-// Connessione al database
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
-
+// Connessione centralizzata (istanza condivisa)
 const dbService = new DatabaseService(pool);
 
 // API Aerei - Lista tutti gli aerei (admin generale) o della propria compagnia (admin airline)

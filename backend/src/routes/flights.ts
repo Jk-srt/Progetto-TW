@@ -1,13 +1,11 @@
 import express from 'express';
-import { Pool } from 'pg';
+import pool from '../db/pool';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
-// Connessione al database
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+// Connessione al database centralizzata
+// pool già istanza condivisa
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
