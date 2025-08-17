@@ -511,6 +511,54 @@ Il database viene inizializzato automaticamente con:
 ### Servizi Disponibili
 - **frontend**: Applicazione Angular (porta 4200)
 - **backend**: API Node.js (porta 3000)
+- **database** (opzionale): PostgreSQL locale per sviluppo (profilo `local`)
+  - Di default NON è usato se stai puntando a Neon.
+  - Abilitabile con: `docker compose --profile local up -d database`
+
+### Modalità Database
+
+| Modalità | Variabile `DATABASE_URL` | `DB_SSL` | Avvio container `database` | Note |
+|----------|--------------------------|---------|----------------------------|------|
+| Neon (default) | URL Neon con `sslmode=require` | true | No (può restare fermo) | Produzione / dati condivisi |
+| Locale | `postgresql://taw_user:taw_password@database:5432/taw_flights` | false | Sì (`--profile local`) | Sviluppo offline / test |
+
+Cambio rapido:
+1. Edita `docker-compose.yml` e commuta la riga `DATABASE_URL` (commenta Neon, decommenta locale o viceversa).
+2. Imposta coerentemente `DB_SSL` (true per Neon, false per locale).
+3. (Solo prima volta locale) Rimuovi il volume se vuoi rigenerare lo schema: `docker volume rm taw_postgres_data`.
+4. Riavvia: `docker compose --profile local up -d --build backend database`.
+
+Per tornare a Neon:
+1. Ripristina URL Neon e `DB_SSL=true`.
+2. Puoi lasciare il container `database` spento: `docker compose stop database`.
+
+### Connection Pooling / PgBouncer (Opzionale)
+
+Non incluso di default (un vecchio container orfano potrebbe comparire come `taw-pgbouncer`). Se vuoi aggiungerlo:
+1. Aggiungi un servizio `pgbouncer` nel `docker-compose.yml`.
+2. Modifica `DATABASE_URL` del backend puntando a `postgres://user:pass@pgbouncer:6432/dbname`.
+3. Mantieni comunque `DB_SSL=true` se PgBouncer connette verso Neon con SSL.
+
+Esempio snippet (non aggiunto automaticamente):
+```yaml
+  pgbouncer:
+    image: bitnami/pgbouncer:1
+    environment:
+      - POSTGRESQL_HOST=<neon-host>
+      - POSTGRESQL_PORT=5432
+      - POSTGRESQL_USERNAME=<user>
+      - POSTGRESQL_PASSWORD=<password>
+      - POSTGRESQL_DATABASE=<db>
+    ports:
+      - "6432:6432"
+    networks:
+      - taw-network
+```
+
+### Variabili Chiave Backend
+- `DATABASE_URL`: Se definito anche in `.env`, la priorità dipende dall'ordine di caricamento; l'env inline del compose può essere sovrascritto da `env_file`.
+- `DB_SSL`: Flag interno per forzare SSL quando l'URL non include `sslmode=require` (Neon già lo include, resta comunque true per coerenza).
+- Evitare commit di credenziali reali: usare placeholder e `.env` locale.
 
 ### Comandi Utili
 ```bash
