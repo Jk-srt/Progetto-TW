@@ -151,7 +151,7 @@ import { Flight } from '../models/flight.model';
             <div class="flight-route">
               <div class="route-info">
                 <div class="departure">
-                  <span class="time">{{formatTime(flight.departure_time)}}</span>
+                  <span class="time">{{formatTime(flight.departure_time)}}<small class="date"> {{formatDate(flight.departure_time)}}</small></span>
                   <span class="airport">{{flight.departure_airport}}</span>
                   <span class="city">{{flight.departure_city}}</span>
                 </div>
@@ -164,7 +164,7 @@ import { Flight } from '../models/flight.model';
                 </div>
 
                 <div class="arrival">
-                  <span class="time">{{formatTime(flight.arrival_time)}}</span>
+                  <span class="time">{{formatTime(flight.arrival_time)}}<small class="date"> {{formatDate(flight.arrival_time)}}</small></span>
                   <span class="airport">{{flight.arrival_airport}}</span>
                   <span class="city">{{flight.arrival_city}}</span>
                 </div>
@@ -400,6 +400,15 @@ export class FlightsViewComponent implements OnInit {
       });
     } catch {
       return 'N/A';
+    }
+  }
+
+  formatDate(timeString: string | undefined): string {
+    if (!timeString) return '';
+    try {
+      return new Date(timeString).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    } catch {
+      return '';
     }
   }
 

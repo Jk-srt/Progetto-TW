@@ -68,7 +68,7 @@ import { AuthService } from '../../services/auth.service';
             </div>
           </div>
 
-          <!-- Volo diretto -->
+    <!-- Volo diretto -->
           <div class="flight-segment" *ngIf="connection.isDirectFlight">
             <div class="flight-info">
               <div class="flight-number">
@@ -78,7 +78,7 @@ import { AuthService } from '../../services/auth.service';
               
               <div class="route-visual">
                 <div class="departure">
-                  <span class="time">{{formatTime(connection.outboundFlight.departure_time)}}</span>
+      <span class="time">{{formatTime(connection.outboundFlight.departure_time)}}<small class="date"> {{formatDate(connection.outboundFlight.departure_time)}}</small></span>
                   <span class="airport">{{connection.outboundFlight.departure_code}}</span>
                   <span class="city">{{connection.outboundFlight.departure_city}}</span>
                 </div>
@@ -89,7 +89,7 @@ import { AuthService } from '../../services/auth.service';
                 </div>
                 
                 <div class="arrival">
-                  <span class="time">{{formatTime(connection.outboundFlight.arrival_time)}}</span>
+      <span class="time">{{formatTime(connection.outboundFlight.arrival_time)}}<small class="date"> {{formatDate(connection.outboundFlight.arrival_time)}}</small></span>
                   <span class="airport">{{connection.outboundFlight.arrival_code}}</span>
                   <span class="city">{{connection.outboundFlight.arrival_city}}</span>
                 </div>
@@ -110,7 +110,7 @@ import { AuthService } from '../../services/auth.service';
                 
                 <div class="route-visual">
                   <div class="departure">
-                    <span class="time">{{formatTime(connection.outboundFlight.departure_time)}}</span>
+                    <span class="time">{{formatTime(connection.outboundFlight.departure_time)}}<small class="date"> {{formatDate(connection.outboundFlight.departure_time)}}</small></span>
                     <span class="airport">{{connection.outboundFlight.departure_code}}</span>
                     <span class="city">{{connection.outboundFlight.departure_city}}</span>
                   </div>
@@ -121,7 +121,7 @@ import { AuthService } from '../../services/auth.service';
                   </div>
                   
                   <div class="arrival">
-                    <span class="time">{{formatTime(connection.outboundFlight.arrival_time)}}</span>
+                    <span class="time">{{formatTime(connection.outboundFlight.arrival_time)}}<small class="date"> {{formatDate(connection.outboundFlight.arrival_time)}}</small></span>
                     <span class="airport">{{connection.outboundFlight.arrival_code}}</span>
                     <span class="city">{{connection.outboundFlight.arrival_city}}</span>
                   </div>
@@ -149,7 +149,7 @@ import { AuthService } from '../../services/auth.service';
                 
                 <div class="route-visual">
                   <div class="departure">
-                    <span class="time">{{formatTime(connection.connectionFlight.departure_time)}}</span>
+                    <span class="time">{{formatTime(connection.connectionFlight.departure_time)}}<small class="date"> {{formatDate(connection.connectionFlight.departure_time)}}</small></span>
                     <span class="airport">{{connection.connectionFlight.departure_code}}</span>
                     <span class="city">{{connection.connectionFlight.departure_city}}</span>
                   </div>
@@ -160,7 +160,7 @@ import { AuthService } from '../../services/auth.service';
                   </div>
                   
                   <div class="arrival">
-                    <span class="time">{{formatTime(connection.connectionFlight.arrival_time)}}</span>
+                    <span class="time">{{formatTime(connection.connectionFlight.arrival_time)}}<small class="date"> {{formatDate(connection.connectionFlight.arrival_time)}}</small></span>
                     <span class="airport">{{connection.connectionFlight.arrival_code}}</span>
                     <span class="city">{{connection.connectionFlight.arrival_city}}</span>
                   </div>
@@ -304,6 +304,18 @@ export class FlightResultsComponent {
       });
     } catch (error) {
       return 'N/A';
+    }
+  }
+
+  formatDate(dateString: string | undefined): string {
+    if (!dateString) return '';
+    try {
+      return new Date(dateString).toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'short'
+      });
+    } catch (e) {
+      return '';
     }
   }
 

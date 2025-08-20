@@ -12,6 +12,7 @@ import {readFile} from "node:fs/promises";
 import { DatabaseService } from './models/database';
 import { createServer } from 'http';
 import SeatWebSocketService from './websocket/seatSocket';
+import { initFlightStatusJob } from './jobs/flightStatusJob';
 
 // Load environment variables from workspace root .env FIRST
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -331,6 +332,8 @@ async function startServer() {
         await runInitSql();
         await createAdminIfNotExists();
         await ensureAdminExists();
+    // Avvio job aggiornamento stato voli (configurabile via env)
+    initFlightStatusJob(pool);
         
         server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server in ascolto su http://0.0.0.0:${PORT}`);
