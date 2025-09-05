@@ -174,7 +174,12 @@ router.get('/search', async (req, res) => {
 // Nuovo endpoint per ricerca avanzata con connessioni/scali
 router.get('/connections', async (req, res) => {
   try {
-    const { departure_city, arrival_city, departure_date, max_connections = 1 } = req.query;
+  const { departure_city, arrival_city, departure_date, max_connections = 1 } = req.query;
+  // Parametri opzionali per la finestra di connessione (in minuti)
+  const minRaw = parseInt((req.query.min_connection_minutes as string) || '');
+  const maxRaw = parseInt((req.query.max_connection_minutes as string) || '');
+  const minConn = Number.isFinite(minRaw) ? Math.max(0, minRaw) : 30;   // default 30 minuti
+  const maxConn = Number.isFinite(maxRaw) ? Math.max(minConn, maxRaw) : 480; // default 8 ore
     
     if (!departure_city || !arrival_city) {
       return res.status(400).json({ 
@@ -208,10 +213,25 @@ router.get('/connections', async (req, res) => {
       'Barcellona El Prat': ['Barcelona', 'Barcellona']
     };
 
-    const connections = [];
+    const connections = [] as any[];
+
+    // Normalizza la data accettando anche formati dd/mm/yyyy o dd-mm-yyyy
+    let normalizedDate: string | undefined;
+    if (typeof departure_date === 'string' && departure_date.length > 0) {
+      const d = departure_date.trim();
+      const m = d.match(/^([0-3]?\d)[\/\-]([0-1]?\d)[\/\-](\d{4})$/); // dd/mm/yyyy o dd-mm-yyyy
+      if (m) {
+        const dd = m[1].padStart(2, '0');
+        const mm = m[2].padStart(2, '0');
+        const yyyy = m[3];
+        normalizedDate = `${yyyy}-${mm}-${dd}`; // ISO
+      } else {
+        normalizedDate = d; // si presume già ISO o compatibile con Postgres
+      }
+    }
     
     // 1. Cerca voli diretti utilizzando la mappatura delle città
-    let directQuery = `
+  let directQuery = `
       SELECT 
         fwa.id,
         fwa.flight_number,
@@ -267,10 +287,10 @@ router.get('/connections', async (req, res) => {
     directQuery += ` AND (${arrivalCityConditions})`;
     directParamIndex += arrivalCities.length;
     
-    // Aggiungi filtro per data solo se fornita
-    if (departure_date) {
+    // Aggiungi filtro per data solo se fornita (normalizzata)
+    if (normalizedDate) {
       directQuery += ` AND DATE(fwa.departure_time) = $${directParamIndex}`;
-      directParams.push(departure_date as string);
+      directParams.push(normalizedDate);
     }
     
     directQuery += ` ORDER BY fwa.departure_time ASC`;
@@ -284,10 +304,34 @@ router.get('/connections', async (req, res) => {
   //    Rimosso il limite directResult.rows.length < 10 per mostrare sempre le opzioni con scalo
   if (parseInt(max_connections as string) >= 1) {
       // Quando la data non è fornita, limitiamo la ricerca alle prossime 48 ore
-      const useDateParam = !!departure_date;
-      const dateFilter = useDateParam 
-        ? `AND DATE(f1.departure_time) = DATE($3::date)`
-        : `AND DATE(f1.departure_time) BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '2 days')`;
+      const useDateParam = !!normalizedDate;
+      // Placeholders dinamici: li calcoliamo dopo aver costruito i filtri città
+      let connectionParams: any[] = [];
+      let idx = 1;
+
+      // Filtri città partenza (OR su sinonimi)
+      const depCities = cityMapping[departure_city as string] || [departure_city as string];
+      const depCond = depCities.map((c: string, i: number) => {
+        connectionParams.push(`%${c}%`);
+        return `f1.departure_city ILIKE $${idx + i}`;
+      }).join(' OR ');
+      idx += depCities.length;
+
+      // Filtri città arrivo (OR su sinonimi)
+      const arrCities = cityMapping[arrival_city as string] || [arrival_city as string];
+      const arrCond = arrCities.map((c: string, i: number) => {
+        connectionParams.push(`%${c}%`);
+        return `f2.arrival_city ILIKE $${idx + i}`;
+      }).join(' OR ');
+      idx += arrCities.length;
+
+      // Data (opzionale)
+      let dateFilter = `AND DATE(f1.departure_time) BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '2 days')`;
+      if (useDateParam) {
+        dateFilter = `AND DATE(f1.departure_time) = $${idx}`;
+        connectionParams.push(normalizedDate);
+        idx += 1;
+      }
 
       const connectionQuery = `
         WITH connection_flights AS (
@@ -333,12 +377,12 @@ router.get('/connections', async (req, res) => {
             EXTRACT(EPOCH FROM (f2.departure_time - f1.arrival_time)) / 60 as connection_minutes
           FROM flights_with_airports f1
           JOIN flights_with_airports f2 ON (
-            -- Stesso aeroporto di connessione
-            f1.arrival_city = f2.departure_city
-            -- Connessione valida: almeno 2 ore ma meno di 5 ore
-            AND f2.departure_time > f1.arrival_time + INTERVAL '2 hours'
-            AND f2.departure_time < f1.arrival_time + INTERVAL '5 hours'
-            -- Finestra temporale
+            -- Stesso aeroporto (IATA) oppure stessa città per consentire scalo inter-airport
+            (f1.arrival_code = f2.departure_code OR f1.arrival_city = f2.departure_city)
+            -- Connessione valida: finestra temporale configurabile
+            AND EXTRACT(EPOCH FROM (f2.departure_time - f1.arrival_time)) / 60 >= ${minConn}
+            AND EXTRACT(EPOCH FROM (f2.departure_time - f1.arrival_time)) / 60 <= ${maxConn}
+            -- Finestra del giorno
             ${dateFilter}
           )
           LEFT JOIN airlines airlines1 ON f1.airline_id = airlines1.id
@@ -351,10 +395,8 @@ router.get('/connections', async (req, res) => {
           LEFT JOIN route_pricing rp2_first ON f2.route_id = rp2_first.route_id AND rp2_first.seat_class = 'first'
           WHERE f1.status IN ('scheduled','delayed') 
             AND f2.status IN ('scheduled','delayed')
-            AND f1.departure_city ILIKE $1
-            AND f2.arrival_city ILIKE $2
-            AND f1.arrival_city != $1  -- Il punto di connessione non può essere uguale alla partenza
-            AND f2.departure_city != $2 -- Il punto di connessione non può essere uguale alla destinazione
+            AND (${depCond})
+            AND (${arrCond})
         )
         SELECT 
           first_flight_id,
@@ -396,19 +438,11 @@ router.get('/connections', async (req, res) => {
           'connection' as connection_type
           
         FROM connection_flights
-        WHERE connection_minutes >= 120  -- Minimo 2 ore di scalo
-          AND connection_minutes <= 300  -- Massimo 5 ore di scalo
+        WHERE connection_minutes >= ${minConn}
+          AND connection_minutes <= ${maxConn}
         ORDER BY total_economy_price ASC, total_duration_minutes ASC
         LIMIT 20
       `;
-      
-      const connectionParams: any[] = [
-        `%${departureCities[0]}%`,  // Usa la prima città mappata per la partenza
-        `%${arrivalCities[0]}%`     // Usa la prima città mappata per l'arrivo
-      ];
-      if (useDateParam) {
-        connectionParams.push(departure_date);
-      }
       const connectionResult = await pool.query(connectionQuery, connectionParams);
       
       // Trasforma i risultati delle connessioni nel formato corretto

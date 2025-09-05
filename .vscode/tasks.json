@@ -9,6 +9,13 @@
 			"isBackground": true,
 			"args": [],
 			"problemMatcher": []
+		},
+		{
+			"label": "Start Full Application",
+			"type": "shell",
+			"command": "docker-compose up",
+			"isBackground": true,
+			"group": "build"
 		}
 	]
 }
