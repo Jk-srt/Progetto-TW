@@ -19,25 +19,26 @@ import { adminGuard } from './guards/admin.guard';
 import { mustChangePasswordGuard } from './guards/must-change-password.guard';
 import { routeAccessGuard } from './guards/route-access.guard';
 
+// Merged routes: keep mustChangePasswordGuard baseline + role guards + routeAccessGuard where appropriate
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [mustChangePasswordGuard] },
-  { path: 'flights', component: FlightsViewComponent, canActivate: [mustChangePasswordGuard] }, // Pagina voli con filtri e ricerca
-  { path: 'flights/:id/seats', component: SeatSelectionComponent, canActivate: [mustChangePasswordGuard] }, // Selezione posti per un volo specifico
-  { path: 'multi-segment-booking', component: MultiSegmentSeatsComponent, canActivate: [mustChangePasswordGuard] }, // Prenotazione voli con scalo
-  { path: 'checkout', component: CheckoutComponent, canActivate: [mustChangePasswordGuard] }, // Pagina di checkout per finalizzare prenotazione
+  { path: 'flights', component: FlightsViewComponent, canActivate: [mustChangePasswordGuard] },
+  { path: 'flights/:id/seats', component: SeatSelectionComponent, canActivate: [mustChangePasswordGuard] },
+  { path: 'multi-segment-booking', component: MultiSegmentSeatsComponent, canActivate: [mustChangePasswordGuard] },
+  { path: 'checkout', component: CheckoutComponent, canActivate: [mustChangePasswordGuard] },
   { path: 'login', component: UserLoginComponent },
-  { path: 'admin', component: AdminDashboardComponent, canActivate: [mustChangePasswordGuard, adminGuard] }, // Pannello amministratore
+  { path: 'admin', component: AdminDashboardComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
   { path: 'register', component: UserRegisterComponent, canActivate: [mustChangePasswordGuard] },
   { path: 'profile', component: ProfileComponent, canActivate: [mustChangePasswordGuard] },
   { path: 'bookings', component: BookingsComponent, canActivate: [mustChangePasswordGuard] },
-  { path: 'my-bookings', component: BookingsComponent, canActivate: [mustChangePasswordGuard] }, // Alias per le prenotazioni utente
-  { path: 'settings', component: SettingsComponent },
-  { path: 'flight-admin', component: FlightAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] }, // Pannello compagnie aeree
+  { path: 'my-bookings', component: BookingsComponent, canActivate: [mustChangePasswordGuard] },
+  { path: 'settings', component: SettingsComponent, canActivate: [mustChangePasswordGuard] },
+  { path: 'flight-admin', component: FlightAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] },
   { path: 'admin/flights', component: FlightAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
   { path: 'routes', component: RouteAdminComponent, canActivate: [mustChangePasswordGuard, routeAccessGuard] },
   { path: 'admin/routes', component: RouteAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
-  { path: 'aircraft-admin', component: AircraftAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] }, // Gestione aeromobili
+  { path: 'aircraft-admin', component: AircraftAdminComponent, canActivate: [mustChangePasswordGuard, airlineGuard] },
   { path: 'admin/aircrafts', component: AircraftAdminComponent, canActivate: [mustChangePasswordGuard, adminGuard] },
   { path: 'airline-stats', component: AirlineStatsComponent, canActivate: [mustChangePasswordGuard, airlineGuard] },
-  { path: '**', redirectTo: '' } // Redirect per tutte le altre rotte
+  { path: '**', redirectTo: '' }
 ];

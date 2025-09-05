@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
 import { environment } from '@environments/environment';
 
@@ -165,7 +165,8 @@ export class UserLoginComponent {
 
   constructor(
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   onLogin() {
@@ -188,14 +189,21 @@ export class UserLoginComponent {
             window.dispatchEvent(new Event('auth-changed'));
             
             console.log('Login successful:', response);
-            
+
             // Forza cambio password per airline al primo accesso
             if (response.user.role === 'airline' && response.user.must_change_password) {
               this.router.navigate(['/settings'], { queryParams: { forcePassword: '1' } });
               return;
             }
 
-            // Redirect based on user role
+            // Se c'è un returnUrl, priorità a quello
+            const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+            if (returnUrl) {
+              this.router.navigateByUrl(returnUrl);
+              return;
+            }
+
+            // Altrimenti routing per ruolo
             switch (response.user.role) {
               case 'admin':
                 this.router.navigate(['/admin']);

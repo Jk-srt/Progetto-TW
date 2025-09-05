@@ -48,6 +48,13 @@ interface PassengerForm {
   nationality: string;
   email: string;
   phone: string;
+  // Extras (enhanced)
+  baggageCount?: number; // 0,1,2
+  baggageType?: 'light15' | 'standard23' | 'heavy32';
+  extraLegroom?: boolean; // only if eligible (exit row)
+  preferredSeat?: boolean; // only if seat is window/aisle
+  priorityBoarding?: boolean;
+  premiumMeal?: boolean;
 }
 
 @Component({
@@ -234,7 +241,6 @@ interface PassengerForm {
                   </div>
                   
                   <div class="form-group">
-                    <label for="lastName_{{i}}">Cognome *</label>
                     <input 
                       type="text" 
                       id="lastName_{{i}}"
@@ -242,6 +248,63 @@ interface PassengerForm {
                       placeholder="Cognome">
                     <div class="error" *ngIf="getPassengerControl(i, 'lastName')?.invalid && getPassengerControl(i, 'lastName')?.touched">
                       Cognome obbligatorio
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Extras per passeggero -->
+                <div class="extras-section">
+                  <h4>Extra</h4>
+                  <div class="form-row">
+                    <!-- Baggage count/type -->
+                    <div class="form-group">
+                      <label for="baggageCount_{{i}}">Bagagli aggiuntivi</label>
+                      <select id="baggageCount_{{i}}" formControlName="baggageCount">
+                        <option [value]="0">0</option>
+                        <option [value]="1">1</option>
+                        <option [value]="2">2</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="baggageType_{{i}}">Tipo bagaglio</label>
+                      <select id="baggageType_{{i}}" formControlName="baggageType" [disabled]="passengersFormArray.at(i)?.get('baggageCount')?.value === 0">
+                        <option value="light15">Light 15kg</option>
+                        <option value="standard23">Standard 23kg</option>
+                        <option value="heavy32">Heavy 32kg</option>
+                      </select>
+                      <div class="hint">Costo: {{ getBaggagePrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <!-- Legroom (exit row) -->
+                    <div class="form-group">
+                      <label class="checkbox" [class.disabled]="!isLegroomEligible(i)">
+                        <input type="checkbox" formControlName="extraLegroom" [disabled]="!isLegroomEligible(i)"> Spazio extra gambe (fila uscita)
+                      </label>
+                      <div class="hint">Costo: {{ getLegroomExtraPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
+                    </div>
+                    <!-- Preferred seat (window/aisle) -->
+                    <div class="form-group">
+                      <label class="checkbox" [class.disabled]="!isPreferredEligible(i)">
+                        <input type="checkbox" formControlName="preferredSeat" [disabled]="!isPreferredEligible(i)"> Posto preferito (finestrino/corridoio)
+                      </label>
+                      <div class="hint">Costo: {{ getPreferredSeatPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <!-- Priority boarding -->
+                    <div class="form-group">
+                      <label class="checkbox">
+                        <input type="checkbox" formControlName="priorityBoarding"> Imbarco prioritario
+                      </label>
+                      <div class="hint">Costo: {{ getPriorityBoardingPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
+                    </div>
+                    <!-- Premium meal -->
+                    <div class="form-group">
+                      <label class="checkbox">
+                        <input type="checkbox" formControlName="premiumMeal"> Pasto premium
+                      </label>
+                      <div class="hint">Costo: {{ getPremiumMealPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
                     </div>
                   </div>
                 </div>
@@ -343,6 +406,10 @@ interface PassengerForm {
                   <span>Posto {{ seat.seat_number }} ({{ seat.seat_class | titlecase }})</span>
                   <span>€{{ getSeatPrice(seat) }}</span>
                 </div>
+                <div class="price-item extras" *ngFor="let seat of checkoutData?.selectedSeats; let i = index">
+                  <span>Extra passeggero {{ i + 1 }}</span>
+                  <span>€{{ getExtrasPriceForSeat(i, seat) }}</span>
+                </div>
                 <div class="price-total">
                   <strong>
                     <span>Totale</span>
@@ -413,7 +480,22 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     // Sottoscrizione ai dati dell'utente corrente
     this.userSubscription = this.authService.currentUser$.subscribe(user => {
       this.currentUser = user;
-      this.initializeForm();
+      if (!this.checkoutForm) {
+        this.initializeForm();
+      } else if (user) {
+        const passengers = this.checkoutForm.get('passengers') as FormArray;
+        const first = passengers?.at(0) as FormGroup;
+        if (first) {
+          first.patchValue({
+            firstName: user.first_name || first.get('firstName')?.value,
+            lastName: user.last_name || first.get('lastName')?.value,
+            dateOfBirth: user.date_of_birth || first.get('dateOfBirth')?.value,
+            nationality: user.nationality || first.get('nationality')?.value,
+            email: user.email || first.get('email')?.value,
+            phone: user.phone || first.get('phone')?.value
+          }, { emitEvent: false });
+        }
+      }
     });
 
     this.loadFlightDetails();
@@ -472,7 +554,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         phone: [
           userData?.phone || '',
           isMainPassenger ? [Validators.required] : []
-        ]
+        ],
+  // Extras (default values)
+  baggageCount: [0],
+  baggageType: ['standard23'],
+  extraLegroom: [false],
+  preferredSeat: [false],
+  priorityBoarding: [false],
+  premiumMeal: [false]
       });
       
       passengersArray.push(passengerForm);
@@ -562,6 +651,120 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Eligibility helpers
+  isLegroomEligible(index: number): boolean {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    return !!seat?.is_emergency_exit && seat.seat_class !== 'first';
+  }
+
+  isPreferredEligible(index: number): boolean {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    return !!seat && (seat.is_window || seat.is_aisle) && seat.seat_class !== 'first';
+  }
+
+  // Pricing helpers (by class and type)
+  private baggagePrice(seatClass: string, count: number, type: string): number {
+    if (!count) return 0;
+    const table: any = {
+      economy: { light15: 20, standard23: 30, heavy32: 45 },
+      business: { light15: 15, standard23: 25, heavy32: 35 },
+      first: { light15: 0, standard23: 0, heavy32: 0 }
+    };
+    const unit = table[seatClass]?.[type] ?? 30;
+    return unit * count;
+  }
+
+  private legroomExtra(seatClass: string, eligible: boolean, selected: boolean): number {
+    if (!eligible || !selected) return 0;
+    switch (seatClass) {
+      case 'economy': return 18;
+      case 'business': return 12;
+      default: return 0;
+    }
+  }
+
+  private preferredSeatExtra(seatClass: string, eligible: boolean, selected: boolean): number {
+    if (!eligible || !selected) return 0;
+    switch (seatClass) {
+      case 'economy': return 6;
+      case 'business': return 4;
+      default: return 0;
+    }
+  }
+
+  private priorityBoardingExtra(seatClass: string, selected: boolean): number {
+    if (!selected) return 0;
+    switch (seatClass) {
+      case 'economy': return 12;
+      case 'business': return 6;
+      default: return 0;
+    }
+  }
+
+  private premiumMealExtra(seatClass: string, selected: boolean): number {
+    if (!selected) return 0;
+    switch (seatClass) {
+      case 'economy': return 14;
+      case 'business': return 9;
+      default: return 0;
+    }
+  }
+
+  getBaggagePrice(index: number): number {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    if (!seat) return 0;
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const count = Number(fg?.get('baggageCount')?.value || 0);
+    const type = fg?.get('baggageType')?.value || 'standard23';
+    return this.baggagePrice(seat.seat_class, count, type);
+  }
+
+  getLegroomExtraPrice(index: number): number {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    if (!seat) return 0;
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const eligible = this.isLegroomEligible(index);
+    const selected = !!fg?.get('extraLegroom')?.value;
+    return this.legroomExtra(seat.seat_class, eligible, selected);
+  }
+
+  getPreferredSeatPrice(index: number): number {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    if (!seat) return 0;
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const eligible = this.isPreferredEligible(index);
+    const selected = !!fg?.get('preferredSeat')?.value;
+    return this.preferredSeatExtra(seat.seat_class, eligible, selected);
+  }
+
+  getPriorityBoardingPrice(index: number): number {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    if (!seat) return 0;
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const selected = !!fg?.get('priorityBoarding')?.value;
+    return this.priorityBoardingExtra(seat.seat_class, selected);
+  }
+
+  getPremiumMealPrice(index: number): number {
+    const seat = this.checkoutData?.selectedSeats?.[index];
+    if (!seat) return 0;
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const selected = !!fg?.get('premiumMeal')?.value;
+    return this.premiumMealExtra(seat.seat_class, selected);
+  }
+
+  getExtrasPriceForSeat(index: number, seat: FlightSeatMap, flightData?: any): number {
+    const fg = this.passengersFormArray.at(index) as FormGroup;
+    const count = Number(fg?.get('baggageCount')?.value || 0);
+    const type = fg?.get('baggageType')?.value || 'standard23';
+    const baggage = this.baggagePrice(seat.seat_class, count, type);
+    const legroom = this.legroomExtra(seat.seat_class, this.isLegroomEligible(index), !!fg?.get('extraLegroom')?.value);
+    const preferred = this.preferredSeatExtra(seat.seat_class, this.isPreferredEligible(index), !!fg?.get('preferredSeat')?.value);
+    const priority = this.priorityBoardingExtra(seat.seat_class, !!fg?.get('priorityBoarding')?.value);
+    const meal = this.premiumMealExtra(seat.seat_class, !!fg?.get('premiumMeal')?.value);
+    return baggage + legroom + preferred + priority + meal;
+  }
+
   getTotalPrice(): number {
     // Se è un volo multi-segmento e abbiamo il prezzo totale
     if (this.checkoutData?.isMultiSegment && this.checkoutData?.totalPrice) {
@@ -574,15 +777,19 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       
       // Primo volo
       if (this.checkoutData.firstFlight?.selectedSeats && this.checkoutData.firstFlight?.flight) {
-        total += this.checkoutData.firstFlight.selectedSeats.reduce((sum, seat) => {
-          return sum + this.getSeatPrice(seat, this.checkoutData!.firstFlight!.flight);
+        total += this.checkoutData.firstFlight.selectedSeats.reduce((sum, seat, idx) => {
+          const base = this.getSeatPrice(seat, this.checkoutData!.firstFlight!.flight);
+          const extras = this.getExtrasPriceForSeat(idx, seat, this.checkoutData!.firstFlight!.flight);
+          return sum + base + extras;
         }, 0);
       }
       
       // Secondo volo
       if (this.checkoutData.secondFlight?.selectedSeats && this.checkoutData.secondFlight?.flight) {
-        total += this.checkoutData.secondFlight.selectedSeats.reduce((sum, seat) => {
-          return sum + this.getSeatPrice(seat, this.checkoutData!.secondFlight!.flight);
+        total += this.checkoutData.secondFlight.selectedSeats.reduce((sum, seat, idx) => {
+          const base = this.getSeatPrice(seat, this.checkoutData!.secondFlight!.flight);
+          const extras = this.getExtrasPriceForSeat(idx, seat, this.checkoutData!.secondFlight!.flight);
+          return sum + base + extras;
         }, 0);
       }
       
@@ -592,8 +799,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     // Altrimenti calcola dai posti selezionati
     if (!this.checkoutData?.selectedSeats) return 0;
     
-    return this.checkoutData.selectedSeats.reduce((total, seat) => {
-      return total + this.getSeatPrice(seat);
+    return this.checkoutData.selectedSeats.reduce((total, seat, idx) => {
+      const base = this.getSeatPrice(seat);
+      const extras = this.getExtrasPriceForSeat(idx, seat);
+      return total + base + extras;
     }, 0);
   }
 
@@ -624,6 +833,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   onSubmit(): void {
     if (this.checkoutForm.valid) {
+      // Verifica token prima di procedere
+      if (!this.authService.ensureValidToken()) {
+        this.notificationService.showError('Sessione scaduta', 'Accedi nuovamente per completare la prenotazione.');
+        return;
+      }
       this.isProcessing = true;
       
       const formData = this.checkoutForm.value;
@@ -686,6 +900,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   private processBooking(bookingData: any): void {
+    if (!this.authService.ensureValidToken()) {
+      this.notificationService.showError('Sessione scaduta', 'Accedi nuovamente per completare la prenotazione.');
+      this.isProcessing = false;
+      return;
+    }
     console.log('Processing booking:', bookingData);
     console.log('Total price calculated:', this.getTotalPrice());
     console.log('Selected seats:', this.checkoutData?.selectedSeats);
@@ -735,7 +954,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         document_number: passenger.documentNumber,
         date_of_birth: passenger.dateOfBirth,
         nationality: passenger.nationality,
-        seat_id: (bookingData.seats && bookingData.seats[index]) ? bookingData.seats[index].seat_id : null
+        seat_id: (bookingData.seats && bookingData.seats[index]) ? bookingData.seats[index].seat_id : null,
+        // Extras payload (rich)
+        extras: {
+          baggage: {
+            count: Number(this.passengersFormArray.at(index)?.get('baggageCount')?.value || 0),
+            type: this.passengersFormArray.at(index)?.get('baggageType')?.value || 'standard23'
+          },
+          legroom: !!this.passengersFormArray.at(index)?.get('extraLegroom')?.value,
+          preferred_seat: !!this.passengersFormArray.at(index)?.get('preferredSeat')?.value,
+          priority_boarding: !!this.passengersFormArray.at(index)?.get('priorityBoarding')?.value,
+          premium_meal: !!this.passengersFormArray.at(index)?.get('premiumMeal')?.value
+        }
       })),
       total_price: bookingData.totalPrice,
       payment_method: 'credit_card',
@@ -863,6 +1093,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Prenotazioni in sequenza per voli con scalo
   private processConnectionBooking(booking1: any, booking2: any): void {
+    if (!this.authService.ensureValidToken()) {
+      this.notificationService.showError('Sessione scaduta', 'Accedi nuovamente per completare la prenotazione.');
+      this.isProcessing = false;
+      return;
+    }
     console.log('Processing connection booking:', { booking1, booking2 });
 
     const mainPassenger = (booking1.passengers || [])[0];
@@ -885,7 +1120,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         document_number: p.documentNumber,
         date_of_birth: p.dateOfBirth,
         nationality: p.nationality,
-        seat_id: (booking.seats && booking.seats[i]) ? booking.seats[i].seat_id : null
+        seat_id: (booking.seats && booking.seats[i]) ? booking.seats[i].seat_id : null,
+        extras: {
+          baggage: {
+            count: Number(this.passengersFormArray.at(i)?.get('baggageCount')?.value || 0),
+            type: this.passengersFormArray.at(i)?.get('baggageType')?.value || 'standard23'
+          },
+          legroom: !!this.passengersFormArray.at(i)?.get('extraLegroom')?.value,
+          preferred_seat: !!this.passengersFormArray.at(i)?.get('preferredSeat')?.value,
+          priority_boarding: !!this.passengersFormArray.at(i)?.get('priorityBoarding')?.value,
+          premium_meal: !!this.passengersFormArray.at(i)?.get('premiumMeal')?.value
+        }
       })),
       total_price: booking.totalPrice,
       payment_method: 'credit_card',

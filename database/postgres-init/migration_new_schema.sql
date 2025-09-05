@@ -61,3 +61,18 @@ CREATE INDEX IF NOT EXISTS idx_accesso_user_id ON accesso(user_id);
 
 -- 7. Output di conferma
 SELECT 'Migration completata con successo!' as status;
+
+-- 8. Aggiungi tabella per gli extra delle prenotazioni (itemized)
+CREATE TABLE IF NOT EXISTS booking_extras (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    extra_type VARCHAR(50) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_extras_booking_id ON booking_extras(booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_extras_type ON booking_extras(extra_type);

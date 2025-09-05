@@ -13,6 +13,27 @@ const pool = new Pool({
 
 const dbService = new DatabaseService(pool);
 
+// Ensure table for storing booking extras exists
+let extrasTableEnsured = false;
+async function ensureExtrasTable() {
+    if (extrasTableEnsured) return;
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS booking_extras (
+            id SERIAL PRIMARY KEY,
+            booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+            extra_type VARCHAR(50) NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            unit_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            details JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_booking_extras_booking_id ON booking_extras(booking_id);
+        CREATE INDEX IF NOT EXISTS idx_booking_extras_type ON booking_extras(extra_type);
+    `);
+    extrasTableEnsured = true;
+}
+
 // CREATE: Crea una nuova prenotazione (richiede autenticazione)
 router.post('/', authenticateToken, async (req: AuthRequest, res: express.Response) => {
     console.log('📥 POST /bookings - New booking request');
@@ -79,7 +100,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
             });
         }
 
-        // Crea le prenotazioni (una per ogni posto, come richiede la struttura DB)
+    // Assicura tabella extras e crea le prenotazioni (una per ogni posto)
+    await ensureExtrasTable();
         console.log('🔄 Starting booking creation loop...');
         const createdBookings = [];
 
@@ -178,6 +200,91 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                     seatPrice = (flight as any).economy_price || (flight as any).price || 0;
             }
 
+            // Aggiungi costi extra (baggagli, legroom, posto preferito, priority boarding, pasto) e prepara breakdown per persistenza
+            let extrasBreakdown: Array<{ extra_type: string; quantity: number; unit_price: number; total_price: number; details?: any }> = [];
+            try {
+                const extras = (passenger as any).extras || {};
+                // Baggage (count + type)
+                const baggage = extras.baggage || { count: 0, type: 'standard23' };
+                const baggageUnitTable: any = {
+                    economy: { light15: 20, standard23: 30, heavy32: 45 },
+                    business: { light15: 15, standard23: 25, heavy32: 35 },
+                    first: { light15: 0, standard23: 0, heavy32: 0 }
+                };
+                const baggageUnit = baggageUnitTable[seatClass]?.[baggage.type] ?? 30;
+                const baggageQty = Math.max(0, Number(baggage.count) || 0);
+                const baggageTotal = baggageQty * baggageUnit;
+                if (baggageQty > 0 && baggageTotal > 0) {
+                    extrasBreakdown.push({
+                        extra_type: 'baggage',
+                        quantity: baggageQty,
+                        unit_price: baggageUnit,
+                        total_price: baggageTotal,
+                        details: { type: baggage.type }
+                    });
+                }
+
+                // Legroom only if eligible (exit row) and not first class
+                const legroomSelected = !!extras.legroom;
+                const legroomEligible = !!(seat as any).is_emergency_exit && seatClass !== 'first';
+                const legroomPrice = seatClass === 'economy' ? 18 : seatClass === 'business' ? 12 : 0;
+                const legroomTotal = (legroomSelected && legroomEligible) ? legroomPrice : 0;
+                if (legroomTotal > 0) {
+                    extrasBreakdown.push({
+                        extra_type: 'extra_legroom',
+                        quantity: 1,
+                        unit_price: legroomPrice,
+                        total_price: legroomTotal
+                    });
+                }
+
+                // Preferred seat only if window/aisle and not first
+                const preferredSelected = !!extras.preferred_seat;
+                const preferredEligible = ((seat as any).is_window || (seat as any).is_aisle) && seatClass !== 'first';
+                const preferredPrice = seatClass === 'economy' ? 6 : seatClass === 'business' ? 4 : 0;
+                const preferredTotal = (preferredSelected && preferredEligible) ? preferredPrice : 0;
+                if (preferredTotal > 0) {
+                    extrasBreakdown.push({
+                        extra_type: 'preferred_seat',
+                        quantity: 1,
+                        unit_price: preferredPrice,
+                        total_price: preferredTotal
+                    });
+                }
+
+                // Priority boarding
+                const prioritySelected = !!extras.priority_boarding;
+                const priorityPrice = seatClass === 'economy' ? 12 : seatClass === 'business' ? 6 : 0;
+                const priorityTotal = prioritySelected ? priorityPrice : 0;
+                if (priorityTotal > 0) {
+                    extrasBreakdown.push({
+                        extra_type: 'priority_boarding',
+                        quantity: 1,
+                        unit_price: priorityPrice,
+                        total_price: priorityTotal
+                    });
+                }
+
+                // Premium meal
+                const mealSelected = !!extras.premium_meal;
+                const mealPrice = seatClass === 'economy' ? 14 : seatClass === 'business' ? 9 : 0;
+                const mealTotal = mealSelected ? mealPrice : 0;
+                if (mealTotal > 0) {
+                    extrasBreakdown.push({
+                        extra_type: 'premium_meal',
+                        quantity: 1,
+                        unit_price: mealPrice,
+                        total_price: mealTotal
+                    });
+                }
+
+                const extrasTotal = extrasBreakdown.reduce((sum, e) => sum + e.total_price, 0);
+                seatPrice += extrasTotal;
+                console.log(`➕ Extras applied for passenger ${index + 1}:`, extrasBreakdown, '→ total=', extrasTotal);
+            } catch (e) {
+                console.warn('⚠️ Failed to apply extras pricing, proceeding without extras:', (e as Error).message);
+            }
+
             // Genera codice prenotazione unico per questa specifica prenotazione
             const uniqueBookingReference = generateBookingReference();
 
@@ -201,6 +308,38 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                     passenger.phone || ''
                 ]
             );
+
+            // Persist extras breakdown items, if any
+            try {
+                if (extrasBreakdown.length > 0) {
+                    const bookingId = bookingResult.rows[0].id;
+                    for (const item of extrasBreakdown) {
+                        const insertRes = await pool.query(
+                            `INSERT INTO booking_extras (booking_id, extra_type, quantity, unit_price, total_price, details)
+                             VALUES ($1, $2, $3, $4, $5, $6)
+                             RETURNING id`,
+                            [
+                                bookingId,
+                                item.extra_type,
+                                item.quantity,
+                                item.unit_price,
+                                item.total_price,
+                                item.details ? JSON.stringify(item.details) : null
+                            ]
+                        );
+                        console.log(`🧾 Extra persisted (booking_id=${bookingId}) ->`, {
+                            id: insertRes.rows[0].id,
+                            type: item.extra_type,
+                            qty: item.quantity,
+                            unit: item.unit_price,
+                            total: item.total_price,
+                            details: item.details || null
+                        });
+                    }
+                }
+            } catch (extrasErr) {
+                console.warn('⚠️ Failed to persist booking extras:', (extrasErr as Error).message);
+            }
 
             // IMPORTANTE: Marca il posto come occupato nella tabella aircraft_seats
             await pool.query(
@@ -298,6 +437,15 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
                     CONCAT(b.passenger_first_name, ' ', b.passenger_last_name) as passenger_name,
                     COALESCE(seats.seat_number, 'Non specificato') as seat_number,
                     COALESCE(b.booking_class, 'Economy') as seat_class,
+                    COALESCE((
+                        SELECT json_agg(json_build_object(
+                            'type', be.extra_type,
+                            'quantity', be.quantity,
+                            'unit_price', be.unit_price,
+                            'total_price', be.total_price,
+                            'details', be.details
+                        )) FROM booking_extras be WHERE be.booking_id = b.id
+                    ), '[]'::json) as extras,
                     u.first_name as customer_first_name,
                     u.last_name as customer_last_name,
                     u.phone as customer_phone
@@ -337,7 +485,16 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
                     CONCAT(f.flight_number, ' - ', dep_airport.city, ' to ', arr_airport.city) as flight_name,
                     CONCAT(b.passenger_first_name, ' ', b.passenger_last_name) as passenger_name,
                     COALESCE(seats.seat_number, 'Non specificato') as seat_number,
-                    COALESCE(b.booking_class, 'Economy') as seat_class
+                    COALESCE(b.booking_class, 'Economy') as seat_class,
+                    COALESCE((
+                        SELECT json_agg(json_build_object(
+                            'type', be.extra_type,
+                            'quantity', be.quantity,
+                            'unit_price', be.unit_price,
+                            'total_price', be.total_price,
+                            'details', be.details
+                        )) FROM booking_extras be WHERE be.booking_id = b.id
+                    ), '[]'::json) as extras
                 FROM bookings b
                 JOIN flights f ON b.flight_id = f.id
                 JOIN routes r ON f.route_id = r.id

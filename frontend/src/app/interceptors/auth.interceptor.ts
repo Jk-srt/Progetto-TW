@@ -20,7 +20,8 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: 
         if (!router.url.startsWith('/login')) {
           alert('Sessione scaduta o permessi insufficienti. Effettua nuovamente l\'accesso.');
         }
-        router.navigate(['/login']);
+  const returnUrl = router.url;
+  router.navigate(['/login'], { queryParams: { returnUrl } });
       }
       return throwError(() => error);
     })

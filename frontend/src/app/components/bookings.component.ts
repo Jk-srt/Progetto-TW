@@ -209,6 +209,18 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                     <span class="label">Posto:</span>
                     <span class="value">{{ booking.seat_number }} ({{ getClassLabel(booking.seat_class) }})</span>
                   </div>
+
+                  <!-- Extras acquistati -->
+                  <div class="detail-item" *ngIf="booking.extras && booking.extras.length">
+                    <span class="label">Extra:</span>
+                    <span class="value">
+                      <ng-container *ngFor="let ex of booking.extras; let i = index">
+                        {{ mapExtraLabel(ex) }}<span *ngIf="ex.quantity && ex.quantity > 1"> ×{{ ex.quantity }}</span>
+                        <span class="extra-price">(+€{{ ex.total_price | number:'1.2-2' }})</span>
+                        <span *ngIf="i < booking.extras.length - 1">, </span>
+                      </ng-container>
+                    </span>
+                  </div>
                   
                   <!-- Informazioni cliente aggiuntive per compagnie aeree -->
                   <div *ngIf="isAirlineAdmin && booking.customer_phone" class="detail-item customer-info">
@@ -1283,6 +1295,26 @@ export class BookingsComponent implements OnInit, OnDestroy {
       'first': 'First Class'
     };
     return classLabels[seatClass] || seatClass;
+  }
+
+  mapExtraLabel(ex: any): string {
+    const labels: Record<string, string> = {
+      baggage: 'Bagaglio aggiuntivo',
+      extra_legroom: 'Spazio extra gambe',
+      preferred_seat: 'Posto preferito',
+      priority_boarding: 'Imbarco prioritario',
+      premium_meal: 'Pasto premium'
+    };
+    if (ex.type === 'baggage' && ex.details?.type) {
+      const typeMap: Record<string, string> = {
+        light15: '15kg',
+        standard23: '23kg',
+        heavy32: '32kg'
+      };
+      const weight = typeMap[ex.details.type] || ex.details.type;
+      return `${labels[ex.type] || ex.type} (${weight})`;
+    }
+    return labels[ex.type] || ex.type;
   }
 
   formatDateTime(dateString: string): string {

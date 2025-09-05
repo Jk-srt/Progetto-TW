@@ -4,6 +4,14 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
+export interface BookingExtraItem {
+  type: 'baggage' | 'extra_legroom' | 'preferred_seat' | 'priority_boarding' | 'premium_meal' | string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  details?: any;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -37,6 +45,13 @@ export interface UserBooking {
   booking_status: 'confirmed' | 'cancelled' | 'pending';
   total_price: number;
   created_at: string;
+  extras?: Array<{
+    type: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    details?: any;
+  }>;
   // Campi aggiuntivi per compagnie aeree
   customer_first_name?: string;
   customer_last_name?: string;
@@ -160,5 +175,35 @@ export class AuthService {
     return this.http.get<User>(`${this.baseUrl}/users/profile`, {
       headers: this.getAuthHeaders()
     });
+  }
+
+  // Decode JWT payload safely (no external lib)
+  private decodeToken(token: string): any | null {
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+      const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(decodeURIComponent(escape(json)));
+    } catch {
+      return null;
+    }
+  }
+
+  isTokenExpired(withLeewaySeconds: number = 30): boolean {
+    const token = this.getToken();
+    if (!token) return true;
+    const decoded = this.decodeToken(token);
+    if (!decoded || !decoded.exp) return true;
+    const now = Math.floor(Date.now() / 1000);
+    return decoded.exp <= (now + withLeewaySeconds);
+  }
+
+  ensureValidToken(): boolean {
+    if (this.isTokenExpired()) {
+      console.warn('AuthService: token scaduto o mancante. Richiesto nuovo login.');
+      this.logout();
+      return false;
+    }
+    return true;
   }
 }
