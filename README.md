@@ -2,7 +2,7 @@
 
 Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnologie moderne. Il progetto include un frontend Angular, un backend Node.js/TypeScript e un database PostgreSQL con integrazione cloud Neon.
 
-![TAW Flights](https://img.shields.io/badge/Version-3.2.0-blue.svg)
+![TAW Flights](https://img.shields.io/badge/Version-3.3.0-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3.0-blue.svg)
 ![Angular](https://img.shields.io/badge/Angular-17+-red.svg)
@@ -24,6 +24,17 @@ Un sistema completo per la gestione e prenotazione di voli sviluppato con tecnol
 - **Sistema Prenotazioni**: Prenotazione voli con gestione posti e tracking
 - **Database Cloud**: Integrazione con Neon PostgreSQL per performance ottimali
 - **API RESTful Completa**: Endpoints per tutte le operazioni CRUD
+
+### 🆕 Nuove Funzionalità (v3.3) - Inviti Compagnie & Booking Extras (Settembre 2025)
+- **Invito Compagnie (Registration by Invitation)**: le compagnie non possono più auto‑registrarsi; solo un admin può crearle con password temporanea.
+- **must_change_password**: nuovo flag (colonna in `accesso`) che forza il cambio password al primo login della compagnia prima dell'attivazione definitiva (`airlines.active` passa da FALSE a TRUE solo dopo cambio password).
+- **Workflow Attivazione**: creazione -> airline `active = FALSE` + credenziali con `must_change_password = TRUE` -> login iniziale restituisce `must_change_password` -> endpoint `/api/auth/force-change-password` -> attivazione.
+- **Eliminazione Compagnie Migliorata**: `DELETE /api/auth/airlines/:id` ora esegue hard delete se la compagnia non ha voli; soft delete (disattivazione) se esistono voli, con opzione `?force=true` per rimuovere anche le credenziali.
+- **Risposta Endpoint Delete**: ritorna `action: hard_deleted | soft_deleted`, `flights_count` e messaggi esplicativi.
+- **Booking Extras Itemizzati**: confermata integrazione tabella `booking_extras`; calcolo totale lato UI aggiornato includendo solo gli extra supportati.
+- **Pulizia Extra Deprecati**: rimossi dalla visualizzazione gli extra legacy `extra_legroom` e `preferred_seat` (non più mostrati nelle prenotazioni).
+- **Prezzo Biglietto Aggiornato**: nel riepilogo prenotazioni il prezzo visualizzato include automaticamente il totale degli extra attivi (baggage / priority_boarding / premium_meal).
+- **Hard/Soft Delete Reporting**: aggiunta semantica di audit nelle risposte JSON per debugging amministrativo.
 
 ### 🆕 Nuove Funzionalità (v3.2) - UX Prenotazioni, Compagnie e Rotte
 - **Cancellazione Prenotazioni Utente**: ora puoi annullare una prenotazione se mancano più di 24 ore alla partenza; il posto viene liberato e i posti disponibili del volo si aggiornano automaticamente (UI con stato “Annullando…” e notifiche).
@@ -655,10 +666,11 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 - Protezione rotte Angular con guard multipli (role + mustChangePassword + combinato rotte)
 
 ### 2. Gestione Compagnie Aeree
-- Creazione compagnia (admin)
+- Creazione compagnia (admin) con password temporanea (invito)
 - Stato compagnia (active/inactive) con visibilità admin su inattive
-- Login compagnia bloccato fino a cambio password iniziale
+- Login compagnia bloccato fino a cambio password iniziale tramite flag `must_change_password`
 - Selezione compagnie inattive evidenziate nel pannello voli
+- Eliminazione avanzata (hard se nessun volo, soft altrimenti, `?force=true` per rimuovere credenziali)
 
 ### 3. Gestione Rotte
 - CRUD rotte (admin + airline proprietaria)
@@ -700,6 +712,9 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 - Cancellazione prenotazione (>24h prima partenza) con rilascio posto
 - Tracking stato prenotazione (confirmed / cancelled)
 - Dettagli booking denormalizzati (`booking_details`)
+- Prezzo visualizzato comprensivo di extra supportati
+- Extra itemizzati tramite tabella `booking_extras` (baggage, priority_boarding, premium_meal)
+- Rimozione visualizzazione extra deprecati (extra_legroom, preferred_seat)
 
 ### 9. Gestione Selezione Posti (Seat Reservation Layer)
 - Lock temporaneo posto (tabella `temporary_seat_reservations` con scadenza)
@@ -748,6 +763,7 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 
 ### 17. Funzionalità Rimosse / Pianificate
 - Rimosso: download dati personali (bottone placeholder eliminato)
+- Rimosso: visualizzazione extra_legroom / preferred_seat nelle prenotazioni (deprecati)
 - Pianificato: data export strutturato (JSON + zip), pagamenti, PWA, real-time notifiche
 
 > Se una funzionalità risultasse non più presente, aggiornare questa lista contestualmente alla modifica del codice.
@@ -767,7 +783,16 @@ Questa sezione elenca in maniera sistematica tutte le funzionalità attualmente 
 
 ## 📝 Changelog
 
-### 🆕 Versione 3.2.0 - UX Prenotazioni & Compagnie (Agosto 2025)
+### 🆕 Versione 3.3.0 - Inviti Compagnie & Booking Extras (Settembre 2025)
+Novità principali:
+- Registrazione compagnie solo tramite admin (invito) con password temporanea
+- Flag `must_change_password` e attivazione airline post cambio password
+- Endpoint eliminazione compagnie con soft/hard delete e parametro `force`
+- Prezzo prenotazioni aggiornato lato UI con somma extra supportati
+- Pulizia extra deprecati dalla UI
+- Migliorata trasparenza risposte API con campo `action` per delete compagnie
+
+### Versione 3.2.0 - UX Prenotazioni & Compagnie (Agosto 2025)
 Principali novità (riassunto della sezione iniziale):
 - Cancellazione prenotazioni lato utente (>24h) con rilascio posto atomico
 - Dashboard prenotazioni airline con tabs metriche / mappa posti / distribuzione classi
