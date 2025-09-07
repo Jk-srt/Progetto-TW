@@ -276,22 +276,6 @@ interface PassengerForm {
                     </div>
                   </div>
                   <div class="form-row">
-                    <!-- Legroom (exit row) -->
-                    <div class="form-group">
-                      <label class="checkbox" [class.disabled]="!isLegroomEligible(i)">
-                        <input type="checkbox" formControlName="extraLegroom" [disabled]="!isLegroomEligible(i)"> Spazio extra gambe (fila uscita)
-                      </label>
-                      <div class="hint">Costo: {{ getLegroomExtraPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
-                    </div>
-                    <!-- Preferred seat (window/aisle) -->
-                    <div class="form-group">
-                      <label class="checkbox" [class.disabled]="!isPreferredEligible(i)">
-                        <input type="checkbox" formControlName="preferredSeat" [disabled]="!isPreferredEligible(i)"> Posto preferito (finestrino/corridoio)
-                      </label>
-                      <div class="hint">Costo: {{ getPreferredSeatPrice(i) | currency:'EUR':'symbol-narrow':'1.0-0' }}</div>
-                    </div>
-                  </div>
-                  <div class="form-row">
                     <!-- Priority boarding -->
                     <div class="form-group">
                       <label class="checkbox">
