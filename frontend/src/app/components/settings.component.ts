@@ -45,21 +45,19 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
               <button class="action-button primary" (click)="navigateToAircraftAdmin()" *ngIf="isAirlineUser()">
                 ✈️ Gestisci Aeromobili
               </button>
-              <button class="action-button secondary" (click)="viewFleetStats()" *ngIf="isAirlineUser()">
-                📊 Statistiche Flotta
-              </button>
             </div>
           </div>
         </div>
-        
-        <div class="settings-card">
+
+        <!-- Sezione Privacy rimossa per semplificazione richiesta -->
+        <div class="settings-card" *ngIf="isPassengerUser()">
           <h2>Privacy e sicurezza</h2>
           <div class="settings-section">
-            <button *ngIf="isPassengerUser()" class="action-button danger" (click)="confirmDeleteAccount()" [disabled]="isDeleting">
+            <button class="action-button danger" (click)="confirmDeleteAccount()" [disabled]="isDeleting">
               {{ isDeleting ? 'Eliminazione...' : 'Elimina account' }}
             </button>
-            <div *ngIf="!isPassengerUser()" class="info-text" style="font-size:0.85rem;color:#666;">
-              Eliminazione disponibile solo per account passeggero.
+            <div class="info-text" style="font-size:0.8rem;color:#666;">
+              L'eliminazione è definitiva e rimuove tutte le tue prenotazioni future.
             </div>
           </div>
         </div>

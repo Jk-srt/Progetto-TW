@@ -49,7 +49,7 @@ import { User } from '../models/user.model';
           </div>
         </div>
         <div class="header-actions">
-          <button class="nav-style-btn" (click)="goToStats()">📊 Statistiche</button>
+          <!-- Pulsante Statistiche rimosso: ora disponibile nella navbar principale -->
           <button class="nav-style-btn primary-btn" (click)="openCreateModal()">
             ➕ Nuovo Volo
           </button>
@@ -1402,7 +1402,5 @@ export class FlightAdminComponent implements OnInit {
     this.router.navigate(['/']);
   }
 
-  goToStats() {
-    this.router.navigate(['/airline-stats']);
-  }
+  // Metodo goToStats rimosso (spostato nella navbar globale)
 }

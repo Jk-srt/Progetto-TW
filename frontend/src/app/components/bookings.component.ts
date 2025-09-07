@@ -1334,10 +1334,16 @@ export class BookingsComponent implements OnInit, OnDestroy {
   }
 
   getDisplayPrice(booking: UserBooking): number {
-    const extrasTotal = (booking.extras || []).reduce((sum, extra) => sum + extra.total_price, 0);
-    // Ensure total_price is a number before adding
-    const basePrice = typeof booking.total_price === 'number' ? booking.total_price : 0;
-    return basePrice + extrasTotal;
+    // Il backend salva già booking.total_price comprensivo degli extra.
+    // Può arrivare come string (DECIMAL). Effettuiamo parsing sicuro.
+    const raw = (booking as any).total_price;
+    let value = 0;
+    if (typeof raw === 'number') value = raw;
+    else if (typeof raw === 'string') {
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed)) value = parsed; // usa il numero solo se valido
+    }
+    return value;
   }
 
   // User booking actions (esistenti)

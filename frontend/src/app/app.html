@@ -34,7 +34,11 @@
                routerLink="/admin"
                class="nav-link admin-link"
                routerLinkActive="active">
-               👨‍💼 Admin Panel
+               👨‍💼 Pannello Admin
+            </a>
+
+            <a *ngIf="currentUser?.role === 'airline'" routerLink="/airline-stats" class="nav-link" routerLinkActive="active">
+              📊 Statistiche
             </a>
 
             <!-- User Profile Menu -->

@@ -41,12 +41,17 @@ import { NotificationsComponent } from './components/notifications.component';
                  ✈️ Gestisci Voli
               </a>
 
-              <!-- Admin-only link -->
+              <!-- Admin-only link (renamed) -->
               <a *ngIf="currentUser?.role === 'admin'"
                  routerLink="/admin"
                  class="nav-link admin-link"
                  routerLinkActive="active">
-                 👨‍💼 Admin Panel
+                 👨‍💼 Pannello Admin
+              </a>
+
+              <!-- Statistiche spostate in alto per compagnie aeree -->
+              <a *ngIf="isAirlineUser()" routerLink="/airline-stats" class="nav-link" routerLinkActive="active">
+                📊 Statistiche
               </a>
 
               <!-- User Profile Menu -->

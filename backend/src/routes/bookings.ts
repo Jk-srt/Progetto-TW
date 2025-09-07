@@ -181,22 +181,25 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             const seat = seatCheck.rows[0];
 
-                        // Calcolo prezzo: base (route_pricing o default_price rotta) + surcharge volo (flight.price) + extras
+                        // Calcolo prezzo base allineato alla logica frontend (getSeatPrice) per coerenza totale.
                         const seatClass = seat.seat_class;
-                        let basePrice = 0;
-                        let surcharge = 0;
-                        try {
-                            const rp = await pool.query('SELECT base_price FROM route_pricing WHERE route_id = $1 AND seat_class = $2', [flight.route_id, seatClass]);
-                            if (rp.rows.length > 0) basePrice = parseFloat(rp.rows[0].base_price);
-                        } catch (e) {
-                            console.warn('⚠️ route_pricing lookup failed:', (e as Error).message);
-                        }
-                        if (basePrice === 0) {
-                            basePrice = (flight as any).default_price || 0; // fallback
-                        }
-                        surcharge = typeof flight.price === 'number' ? flight.price : Number(flight.price) || 0;
-                        let seatPrice = basePrice + surcharge;
+                        const flightPriceNum = typeof flight.price === 'number' ? flight.price : Number(flight.price) || 0;
+                        // Determina il prezzo base per classe usando i campi dedicati se presenti
+                        const classBase = (() => {
+                            switch (seatClass) {
+                                case 'business':
+                                    return (flight as any).business_price ? parseFloat((flight as any).business_price) : (flightPriceNum * 1.5);
+                                case 'first':
+                                    return (flight as any).first_price ? parseFloat((flight as any).first_price) : (flightPriceNum * 2);
+                                case 'economy':
+                                default:
+                                    return (flight as any).economy_price ? parseFloat((flight as any).economy_price) : flightPriceNum;
+                            }
+                        })();
+                        let seatPrice = classBase;
                         let extrasValue = 0;
+                        const basePrice = classBase; // per breakdown retro-compatibile
+                        const surcharge = 0; // mantenuto per struttura breakdown; logica incorporata in classBase
 
             // Aggiungi costi extra (baggagli, legroom, posto preferito, priority boarding, pasto) e prepara breakdown per persistenza
             let extrasBreakdown: Array<{ extra_type: string; quantity: number; unit_price: number; total_price: number; details?: any }> = [];

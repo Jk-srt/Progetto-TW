@@ -28,9 +28,8 @@ interface Airline {
     <div class="admin-panel">
       <div class="admin-header">
         <div class="header-content">
-          <h1>👨‍💼 Pannello Amministratore</h1>
+          <h1>👨‍💼 Pannello Admin</h1>
           <p>Gestione Compagnie Aeree - Sistema TAW Flights</p>
-          <button (click)="logout()" class="logout-btn">🚪 Logout</button>
         </div>
       </div>
 
@@ -169,8 +168,7 @@ interface Airline {
     .header-content { max-width: 1200px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; }
     .header-content h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
     .header-content p { margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 1.1rem; }
-    .logout-btn { background: rgba(255,255,255,0.2); color: white; border: 2px solid rgba(255,255,255,0.3); padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
-    .logout-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+  /* Pulsante logout rimosso */
     .admin-content { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 1fr; gap: 2rem; }
     .form-card, .airlines-card { background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .form-card h3, .airlines-card h3 { margin: 0 0 1.5rem 0; color: #2c3e50; font-size: 1.5rem; font-weight: 600; }

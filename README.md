@@ -110,7 +110,7 @@ Progetto-TW/
 │   │       ├── 📁 components/   # Componenti UI
 │   │       │   ├── home.component.ts
 │   │       │   ├── flights-view.component.ts     # Visualizzazione voli
-│   │       │   ├── flight-admin.component.ts     # 🆕 Admin panel voli con gestione stati
+│   │       │   ├── flight-admin.component.ts     # 🆕 Gestione voli (pannello compagnie)
 │   │       │   ├── user-login.component.ts
 │   │       │   ├── airline-login.component.ts    # 🆕 Login compagnie
 │   │       │   ├── user-register.component.ts
@@ -797,6 +797,12 @@ Novità principali:
 - Pulizia extra deprecati dalla UI
 - Migliorata trasparenza risposte API con campo `action` per delete compagnie
 
+#### Aggiornamenti UI minori (Settembre 2025)
+- Rinominato "Admin Panel" in "Pannello Admin" nella navbar e dashboard.
+- Spostato link "Statistiche" compagnie aeree nella navbar principale (rimosso bottone interno da gestione voli).
+- Rimossa sezione placeholder "Statistiche Flotta" dalle impostazioni (verrà reintrodotta quando implementata la feature reale).
+- Sezione "Privacy e sicurezza" ora visibile solo per utenti passeggeri con opzione eliminazione account.
+
 ### Versione 3.2.0 - UX Prenotazioni & Compagnie (Agosto 2025)
 Principali novità (riassunto della sezione iniziale):
 - Cancellazione prenotazioni lato utente (>24h) con rilascio posto atomico
@@ -847,7 +853,7 @@ Principali novità (riassunto della sezione iniziale):
 - **✅ Logging Dettagliato**: Debug avanzato per troubleshooting
 
 ### Versione 2.0.0 - Flight Management (Luglio 2025)
-- ✅ Flight Admin Panel completo per compagnie aeree
+- ✅ Pannello gestione voli completo per compagnie aeree
 - ✅ Sistema autenticazione multi-ruolo (user/admin/airline)
 - ✅ Database cloud Neon PostgreSQL
 - ✅ API RESTful complete per tutte le entità

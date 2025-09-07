@@ -839,14 +839,23 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           flightId: b1.flightId,
           seats: b1.selectedSeats || [],
           passengers: formData.passengers,
-          totalPrice: (b1.selectedSeats || []).reduce((sum: number, seat: any) => sum + this.getSeatPrice(seat, b1.flight), 0),
+          // Include anche gli extra per ogni passeggero
+          totalPrice: (b1.selectedSeats || []).reduce((sum: number, seat: any, idx: number) => {
+            const base = this.getSeatPrice(seat, b1.flight);
+            const extras = this.getExtrasPriceForSeat(idx, seat, b1.flight);
+            return sum + base + extras;
+          }, 0),
           sessionId: b1.sessionId
         };
         const booking2 = {
           flightId: b2.flightId,
           seats: b2.selectedSeats || [],
           passengers: formData.passengers,
-          totalPrice: (b2.selectedSeats || []).reduce((sum: number, seat: any) => sum + this.getSeatPrice(seat, b2.flight), 0),
+          totalPrice: (b2.selectedSeats || []).reduce((sum: number, seat: any, idx: number) => {
+            const base = this.getSeatPrice(seat, b2.flight);
+            const extras = this.getExtrasPriceForSeat(idx, seat, b2.flight);
+            return sum + base + extras;
+          }, 0),
           sessionId: b2.sessionId
         };
         setTimeout(() => this.processConnectionBooking(booking1, booking2), 500);
@@ -951,7 +960,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           premium_meal: !!this.passengersFormArray.at(index)?.get('premiumMeal')?.value
         }
       })),
-      total_price: bookingData.totalPrice,
+  // Coerenza: total_price già calcolato includendo extras (getTotalPrice). Rimane così.
+  total_price: bookingData.totalPrice,
       payment_method: 'credit_card',
       payment_status: 'completed'
     };
