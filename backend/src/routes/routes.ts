@@ -158,7 +158,8 @@ router.post('/', async (req, res) => {
       airline_id,
       distance_km,
       estimated_duration,
-      default_price = 0,
+  default_price = 0,
+  business_price = 0,
       status = 'active'
     } = req.body;
 
@@ -187,24 +188,65 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Compagnia aerea non esistente' });
     }
 
-    const query = `
-      INSERT INTO routes (
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      console.log('[ROUTE_CREATE] Inizio transazione creazione rotta');
+      const insertRouteQuery = `
+        INSERT INTO routes (
+          route_name, departure_airport_id, arrival_airport_id, airline_id,
+          distance_km, estimated_duration, default_price, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `;
+      const routeValues = [
         route_name, departure_airport_id, arrival_airport_id, airline_id,
         distance_km, estimated_duration, default_price, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `;
-    
-    const values = [
-      route_name, departure_airport_id, arrival_airport_id, airline_id,
-      distance_km, estimated_duration, default_price, status
-    ];
-    
-    const result = await pool.query(query, values);
-    res.status(201).json({ 
-      message: 'Rotta aggiunta con successo', 
-      route: result.rows[0] 
-    });
+      ];
+      const routeResult = await client.query(insertRouteQuery, routeValues);
+      const newRoute = routeResult.rows[0];
+      console.log('[ROUTE_CREATE] Inserita rotta id=%s nome=%s', newRoute.id, newRoute.route_name);
+
+      // Inserimento prezzi per classe in route_pricing
+      // Economy obbligatoria: usa default_price
+      const insEco = await client.query(
+        'INSERT INTO route_pricing (route_id, seat_class, base_price) VALUES ($1, $2, $3) RETURNING id',
+        [newRoute.id, 'economy', default_price]
+      );
+      console.log('[ROUTE_CREATE] Inserito pricing economy id=%s price=%s', insEco.rows[0]?.id, default_price);
+      // Business opzionale se > 0
+      if (business_price && Number(business_price) > 0) {
+        const insBus = await client.query(
+          'INSERT INTO route_pricing (route_id, seat_class, base_price) VALUES ($1, $2, $3) RETURNING id',
+          [newRoute.id, 'business', Number(business_price)]
+        );
+        console.log('[ROUTE_CREATE] Inserito pricing business id=%s price=%s', insBus.rows[0]?.id, Number(business_price));
+      }
+      // First sempre impostata a 0 come richiesto
+      const insFirst = await client.query(
+        'INSERT INTO route_pricing (route_id, seat_class, base_price) VALUES ($1, $2, $3) RETURNING id',
+        [newRoute.id, 'first', 0]
+      );
+      console.log('[ROUTE_CREATE] Inserito pricing first id=%s price=0', insFirst.rows[0]?.id);
+
+      await client.query('COMMIT');
+      console.log('[ROUTE_CREATE] Completata transazione rotta=%s', newRoute.id);
+      res.status(201).json({
+        message: 'Rotta e pricing creati con successo',
+        route: newRoute,
+        pricing: {
+          economy: default_price,
+          business: (business_price && Number(business_price) > 0) ? Number(business_price) : 0,
+          first: 0
+        }
+      });
+    } catch (e) {
+  console.error('[ROUTE_CREATE] Errore, rollback transazione:', e);
+  await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err: any) {
     console.error('Error creating route:', err);
     if (err.code === '23505') { // Violazione vincolo univoco

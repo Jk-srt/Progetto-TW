@@ -195,18 +195,7 @@ import { Airport } from '../models/flight.model';
             </div>
 
             <div class="form-row">
-              <div class="form-group">
-                <label for="first_price">Prezzo First Class (€)</label>
-                <input 
-                  id="first_price"
-                  type="number" 
-                  formControlName="first_price" 
-                  placeholder="499.99"
-                  min="0" 
-                  step="0.01"
-                />
-              </div>
-
+              <!-- Campo First Class rimosso: ora default 0 automatico lato backend se assente -->
               <div class="form-group">
                 <label for="status">Stato</label>
                 <select id="status" formControlName="status">
@@ -646,7 +635,6 @@ export class RouteAdminComponent implements OnInit {
       estimated_duration: ['', Validators.required],
       default_price: [0, [Validators.required, Validators.min(0)]],
       business_price: [0, [Validators.min(0)]],
-      first_price: [0, [Validators.min(0)]],
       status: ['active']
     });
   }
@@ -708,7 +696,11 @@ export class RouteAdminComponent implements OnInit {
       return;
     }
     
-    const formValue = this.routeForm.value;
+    const formValue = { ...this.routeForm.value };
+    // Rimuovi eventuale first_price se presente (non più gestito esplicitamente)
+    if ('first_price' in formValue) {
+      delete (formValue as any).first_price;
+    }
     // DEBUG: Stato form e valori prima dell'invio
     console.group('[RouteAdmin] Save Route');
     console.debug('Mode:', this.isEditing ? 'edit' : 'create', 'CurrentRouteId:', this.currentRouteId);

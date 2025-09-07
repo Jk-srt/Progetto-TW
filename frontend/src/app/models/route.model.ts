@@ -28,6 +28,6 @@ export interface RouteFormData {
   estimated_duration: string;
   default_price: number; // Prezzo economy
   business_price?: number; // Prezzo business opzionale
-  first_price?: number; // Prezzo first class opzionale
+  // first_price rimosso dal form: backend assegna automaticamente 0 se non definito
   status?: string;
 }

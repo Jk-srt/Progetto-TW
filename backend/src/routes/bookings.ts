@@ -181,24 +181,22 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             const seat = seatCheck.rows[0];
 
-            // Calcola il prezzo per questo posto usando i nuovi prezzi del route_pricing
-            const seatClass = seat.seat_class;
-            let seatPrice = 0;
-
-            // Usa i prezzi calcolati dal sistema route_pricing + flight_surcharge
-            switch (seatClass) {
-                case 'economy':
-                    seatPrice = flight.economy_price || flight.price || 0;
-                    break;
-                case 'business':
-                    seatPrice = (flight as any).business_price || (flight as any).price * 1.5 || 0;
-                    break;
-                case 'first':
-                    seatPrice = (flight as any).first_price || (flight as any).price * 2.0 || 0;
-                    break;
-                default:
-                    seatPrice = (flight as any).economy_price || (flight as any).price || 0;
-            }
+                        // Calcolo prezzo: base (route_pricing o default_price rotta) + surcharge volo (flight.price) + extras
+                        const seatClass = seat.seat_class;
+                        let basePrice = 0;
+                        let surcharge = 0;
+                        try {
+                            const rp = await pool.query('SELECT base_price FROM route_pricing WHERE route_id = $1 AND seat_class = $2', [flight.route_id, seatClass]);
+                            if (rp.rows.length > 0) basePrice = parseFloat(rp.rows[0].base_price);
+                        } catch (e) {
+                            console.warn('⚠️ route_pricing lookup failed:', (e as Error).message);
+                        }
+                        if (basePrice === 0) {
+                            basePrice = (flight as any).default_price || 0; // fallback
+                        }
+                        surcharge = typeof flight.price === 'number' ? flight.price : Number(flight.price) || 0;
+                        let seatPrice = basePrice + surcharge;
+                        let extrasValue = 0;
 
             // Aggiungi costi extra (baggagli, legroom, posto preferito, priority boarding, pasto) e prepara breakdown per persistenza
             let extrasBreakdown: Array<{ extra_type: string; quantity: number; unit_price: number; total_price: number; details?: any }> = [];
@@ -280,6 +278,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
                 const extrasTotal = extrasBreakdown.reduce((sum, e) => sum + e.total_price, 0);
                 seatPrice += extrasTotal;
+                extrasValue = extrasTotal;
                 console.log(`➕ Extras applied for passenger ${index + 1}:`, extrasBreakdown, '→ total=', extrasTotal);
             } catch (e) {
                 console.warn('⚠️ Failed to apply extras pricing, proceeding without extras:', (e as Error).message);
@@ -353,7 +352,15 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                 [userId, flight_id, passenger.seat_id]
             );
 
-            createdBookings.push(bookingResult.rows[0]);
+                        createdBookings.push({
+                            ...bookingResult.rows[0],
+                            pricing_breakdown: {
+                                base_price: basePrice,
+                                surcharge,
+                                extras: extrasValue,
+                                final_price: seatPrice
+                            }
+                        });
             
             console.log(`✅ Booking created for seat ${passenger.seat_id}:`, bookingResult.rows[0]);
             console.log(`🪑 Seat ${passenger.seat_id} marked as occupied`);
@@ -365,14 +372,20 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         const totalPrice = createdBookings.reduce((sum, booking) => sum + parseFloat(booking.price), 0);
         const bookingReferences = createdBookings.map(booking => booking.booking_reference);
 
-        res.json({
-            success: true,
-            message: 'Prenotazione creata con successo',
-            booking_references: bookingReferences,
-            bookings: createdBookings,
-            total_price: totalPrice,
-            passenger_count
-        });
+                res.json({
+                    success: true,
+                    message: 'Prenotazione creata con successo',
+                    booking_references: bookingReferences,
+                    bookings: createdBookings,
+                    total_price: totalPrice,
+                    pricing_aggregate: {
+                        total_base: createdBookings.reduce((s: number, b: any) => s + (b.pricing_breakdown?.base_price || 0), 0),
+                        total_surcharge: createdBookings.reduce((s: number, b: any) => s + (b.pricing_breakdown?.surcharge || 0), 0),
+                        total_extras: createdBookings.reduce((s: number, b: any) => s + (b.pricing_breakdown?.extras || 0), 0),
+                        total_final: totalPrice
+                    },
+                    passenger_count
+                });
 
     } catch (err) {
         console.error('❌ Booking creation error:', err);

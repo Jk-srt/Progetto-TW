@@ -107,32 +107,48 @@ router.get('/routes-with-pricing', async (req: express.Request, res: express.Res
 router.post('/route/:routeId', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
     const { routeId } = req.params;
-    const { pricing } = req.body; // Array di { seat_class, base_price }
-    
+    let { pricing } = req.body; // Array di { seat_class, base_price }
+
+    if (!Array.isArray(pricing)) {
+      return res.status(400).json({ error: 'Formato pricing non valido: atteso array' });
+    }
+
+    // Normalizzazione: rimuovi duplicati per seat_class mantenendo l'ultimo
+    const map = new Map<string, number>();
+    for (const p of pricing) {
+      if (!p || !p.seat_class) continue;
+      map.set(p.seat_class, Number(p.base_price));
+    }
+    // Se manca first class, aggiungi con base_price = 0
+    if (!map.has('first')) {
+      map.set('first', 0);
+    }
+    // Opzionale: assicura presenza economy (obbligatoria) e business se fornita
+    if (!map.has('economy')) {
+      return res.status(400).json({ error: 'Prezzo economy obbligatorio' });
+    }
+    pricing = Array.from(map.entries()).map(([seat_class, base_price]) => ({ seat_class, base_price }));
+
     // Verifica autorizzazioni
     const userRole = (req as any).userRole;
     if (!['admin', 'airline'].includes(userRole)) {
       return res.status(403).json({ error: 'Accesso negato' });
     }
-    
-    // Inizia transazione
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
-      // Elimina prezzi esistenti per questa rotta
       await client.query('DELETE FROM route_pricing WHERE route_id = $1', [routeId]);
-      
-      // Inserisci i nuovi prezzi
+
       for (const price of pricing) {
         await client.query(
           'INSERT INTO route_pricing (route_id, seat_class, base_price) VALUES ($1, $2, $3)',
           [routeId, price.seat_class, price.base_price]
         );
       }
-      
+
       await client.query('COMMIT');
-      res.json({ message: 'Prezzi aggiornati con successo' });
+      res.json({ message: 'Prezzi aggiornati con successo', pricing });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
