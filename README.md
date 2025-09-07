@@ -305,14 +305,19 @@ flights_with_airports(...) -- vista di join arricchita (rotta + aeroporti + comp
 Stati tipici: scheduled | delayed | cancelled | completed (gestiti a livello applicativo).
 
 ### 8. Prenotazioni
-Base + dettagli denormalizzati:
+Base + dettagli denormalizzati (colonne obsolete rimosse: `special_requests`, `role`):
 ```sql
 bookings(id PK, user_id FK, flight_id FK, seat_id FK, booking_reference,
-     booking_class DEFAULT 'economy', price NUMERIC, booking_status DEFAULT 'confirmed',
-     special_requests TEXT, booking_date TIMESTAMP, updated_at TIMESTAMP,
-     passenger_first_name, passenger_last_name, passenger_email, passenger_phone)
+  booking_class DEFAULT 'economy', price NUMERIC, booking_status DEFAULT 'confirmed',
+  booking_date TIMESTAMP, updated_at TIMESTAMP,
+  passenger_first_name, passenger_last_name, passenger_email, passenger_phone)
 
 booking_details(...) -- tabella/vista di dettaglio combinando booking + volo + posto + passeggero
+```
+Nota: se stai aggiornando da una versione precedente eseguire una migrazione simile a:
+```sql
+ALTER TABLE bookings DROP COLUMN IF EXISTS special_requests;
+ALTER TABLE bookings DROP COLUMN IF EXISTS role; -- presente solo in alcune versioni sperimentali
 ```
 
 ### 9. Gestione Posti Volo

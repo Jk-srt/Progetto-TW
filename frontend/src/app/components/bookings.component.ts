@@ -167,7 +167,7 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                   </span>
                   <span class="booking-ref">{{ booking.booking_reference }}</span>
                 </div>
-                <div class="booking-price">€{{ booking.total_price }}</div>
+                <div class="booking-price">€{{ getDisplayPrice(booking) | number:'1.2-2' }}</div>
               </div>
 
               <!-- Flight name prominently displayed -->
@@ -1333,6 +1333,13 @@ export class BookingsComponent implements OnInit, OnDestroy {
     return date.toLocaleDateString('it-IT');
   }
 
+  getDisplayPrice(booking: UserBooking): number {
+    const extrasTotal = (booking.extras || []).reduce((sum, extra) => sum + extra.total_price, 0);
+    // Ensure total_price is a number before adding
+    const basePrice = typeof booking.total_price === 'number' ? booking.total_price : 0;
+    return basePrice + extrasTotal;
+  }
+
   // User booking actions (esistenti)
   canCancel(booking: UserBooking): boolean {
     const departureTime = new Date(booking.departure_time);
@@ -1342,12 +1349,32 @@ export class BookingsComponent implements OnInit, OnDestroy {
   }
 
   cancelBooking(booking: UserBooking): void {
-    if (confirm(`Sei sicuro di voler annullare la prenotazione ${booking.booking_reference}?`)) {
+    if (confirm(`Sei sicuro di voler annullare la prenotazione ${booking.booking_reference}? Questa azione è irreversibile.`)) {
       this.notificationService.showInfo(
         'Cancellazione in corso',
-        'La cancellazione della prenotazione è in elaborazione...'
+        `Annullamento della prenotazione ${booking.booking_reference}...`
       );
-      console.log('Cancelling booking:', booking.booking_reference);
+      console.log(`[ACTION] Initiating cancellation for booking ID: ${booking.booking_id}`);
+
+      this.authService.cancelBooking(booking.booking_id).subscribe({
+        next: (response) => {
+          console.log('[SUCCESS] Cancellation response:', response);
+          this.notificationService.showSuccess(
+            'Prenotazione Annullata',
+            response.message || `La prenotazione ${booking.booking_reference} è stata cancellata con successo.`
+          );
+          // Ricarica i dati per aggiornare la vista
+          this.loadData();
+        },
+        error: (error) => {
+          console.error('[ERROR] Cancellation failed:', error);
+          const errorMessage = error.error?.message || 'Si è verificato un errore durante la cancellazione.';
+          this.notificationService.showError(
+            'Cancellazione Fallita',
+            errorMessage
+          );
+        }
+      });
     }
   }
 
