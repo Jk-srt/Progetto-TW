@@ -167,7 +167,7 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                   </span>
                   <span class="booking-ref">{{ booking.booking_reference }}</span>
                 </div>
-                <div class="booking-price">€{{ booking.total_price }}</div>
+                <div class="booking-price">€{{ getDisplayPrice(booking) | number:'1.2-2' }}</div>
               </div>
 
               <!-- Flight name prominently displayed -->
@@ -1331,6 +1331,13 @@ export class BookingsComponent implements OnInit, OnDestroy {
   formatDate(dateString: string): string {
     const date = new Date(dateString);
     return date.toLocaleDateString('it-IT');
+  }
+
+  getDisplayPrice(booking: UserBooking): number {
+    const extrasTotal = (booking.extras || []).reduce((sum, extra) => sum + extra.total_price, 0);
+    // Ensure total_price is a number before adding
+    const basePrice = typeof booking.total_price === 'number' ? booking.total_price : 0;
+    return basePrice + extrasTotal;
   }
 
   // User booking actions (esistenti)
