@@ -43,15 +43,8 @@ import { AuthService } from '../../services/auth.service';
         <div class="flight-date">{{formatDate(flight.departure_time)}}</div>
         <div class="price-and-book">
           <div class="pricing-info">
-            <div class="price">da €{{getLowestPrice()}}</div>
-            <div class="price-breakdown">
-              <span *ngIf="flight.flight_surcharge && flight.flight_surcharge > 0">
-                Base + €{{flight.flight_surcharge}} sovrapprezzo
-              </span>
-              <span *ngIf="!flight.flight_surcharge || flight.flight_surcharge === 0">
-                Solo prezzo base
-              </span>
-            </div>
+            <div class="price">€{{formatPrice(getEconomyTotal())}}</div>
+            <div class="price-label">Economy</div>
           </div>
           <button *ngIf="!isFlightUnavailable() && !isAirlineUser" (click)="bookFlight()" class="book-btn">
             Prenota
@@ -172,6 +165,40 @@ export class FlightCardComponent implements OnInit {
     }
     
     return Math.min(...prices);
+  }
+
+  getEconomyBase(): number {
+    if (this.flight && this.flight.economy_base_price !== undefined && this.flight.economy_base_price !== null) {
+      return this.flight.economy_base_price;
+    }
+    // fallback: se abbiamo economy_price e surcharge separati
+    if (this.flight && this.flight.economy_price !== undefined) {
+      const base = (this.flight.economy_price || 0) - (this.flight.flight_surcharge || 0);
+      if (base > 0) return base;
+    }
+    // ultimo fallback: price (alias eventuale) oppure 0
+    return this.flight?.price || 0;
+  }
+
+  getEconomyTotal(): number {
+  const rawBase = this.getEconomyBase();
+  const rawSurcharge = this.flight?.flight_surcharge ?? 0;
+  const base = Number(rawBase) || 0;
+  const surcharge = Number(rawSurcharge) || 0;
+  const total = base + surcharge;
+  // Se surcharge è negativo o dati inconsistenti, fallback al base
+  if (total < 0) return base;
+  return total;
+  }
+
+  showBreakdown(): boolean {
+    return true; // sempre visibile; cambiare in condizione se necessario
+  }
+
+  formatPrice(val: any): string {
+    const n = Number(val);
+    if (!isFinite(n)) return '0.00';
+    return n.toFixed(2);
   }
 
   bookFlight(): void {

@@ -567,14 +567,7 @@ export class DatabaseService {
                 fwa.updated_at,
                 al.name as airline_name,
                 ac.registration as aircraft_registration,
-                -- Calcola prezzi finali per ogni classe
-                COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
-                COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
-                CASE 
-                  WHEN rp_first.base_price IS NULL THEN 0 
-                  ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
-                END as first_price,
-                -- Include anche i prezzi base per riferimento
+                -- Solo prezzi base per classe (senza sovrapprezzo del volo)
                 rp_economy.base_price as economy_base_price,
                 rp_business.base_price as business_base_price,
                 rp_first.base_price as first_base_price
@@ -608,17 +601,17 @@ export class DatabaseService {
             arrival_city: row.arrival_city,
             departure_time: row.departure_time,
             arrival_time: row.arrival_time,
-            price: row.flight_surcharge, // Sovrapprezzo del volo
+            price: row.flight_surcharge, // manteniamo per compatibilità, ma la UI ora usa solo *_base_price
             available_seats: row.available_seats,
             total_seats: row.total_seats,
             status: row.status,
             created_at: row.created_at,
             updated_at: row.updated_at,
             // NUOVI CAMPI PER PREZZI CON ROUTE PRICING
-            flight_surcharge: row.flight_surcharge,
-            economy_price: row.economy_price,
-            business_price: row.business_price,
-            first_price: row.first_price,
+            flight_surcharge: row.flight_surcharge, // non più mostrato
+            economy_price: undefined,
+            business_price: undefined,
+            first_price: undefined,
             economy_base_price: row.economy_base_price,
             business_base_price: row.business_base_price,
             first_base_price: row.first_base_price

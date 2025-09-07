@@ -107,23 +107,26 @@ router.get('/search', async (req, res) => {
         airlines.iata_code as airline_code,
         fwa.route_name,
         fwa.route_id,
-        -- Calcola prezzi finali per ogni classe
-        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
-        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
-        CASE 
+        -- Fallback: se manca route_pricing economy usa routes.default_price
+        ROUND((COALESCE(rp_economy.base_price, r.default_price, 0) + COALESCE(fwa.price, 0))::numeric, 2) as economy_price,
+        ROUND((COALESCE(rp_economy.base_price, r.default_price, 0) + COALESCE(fwa.price, 0))::numeric, 2) as economy_effective_price,
+        ROUND((COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0))::numeric, 2) as business_price,
+        ROUND((CASE 
           WHEN rp_first.base_price IS NULL THEN 0 
           ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
-        END as first_price,
-        -- Include anche i prezzi base per riferimento
-        rp_economy.base_price as economy_base_price,
-        rp_business.base_price as business_base_price,
-        rp_first.base_price as first_base_price
+        END)::numeric, 2) as first_price,
+        -- Prezzi base separati (economy con fallback)
+        ROUND(COALESCE(rp_economy.base_price, r.default_price, 0)::numeric,2) as economy_base_price,
+        ROUND((COALESCE(rp_economy.base_price, r.default_price,0) + COALESCE(fwa.price,0))::numeric,2) as price,
+        ROUND(COALESCE(rp_business.base_price,0)::numeric,2) as business_base_price,
+        ROUND(COALESCE(rp_first.base_price,0)::numeric,2) as first_base_price
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN routes r ON fwa.route_id = r.id
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
-      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
-  LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
-  WHERE fwa.status IN ('scheduled','delayed')
+      LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'
+      LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+      WHERE fwa.status IN ('scheduled','delayed')
     `;
     
     const params: any[] = [];
@@ -251,15 +254,13 @@ router.get('/connections', async (req, res) => {
         airlines.iata_code as airline_code,
         fwa.route_name,
         -- Calcola prezzi finali per ogni classe
-        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
-        COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
-        CASE 
-          WHEN rp_first.base_price IS NULL THEN 0 
-          ELSE rp_first.base_price + COALESCE(fwa.price, 0) 
-        END as first_price,
+        ROUND((COALESCE(rp_economy.base_price, r.default_price, 0) + COALESCE(fwa.price, 0))::numeric,2) as economy_price,
+        ROUND((COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0))::numeric,2) as business_price,
+        ROUND((CASE WHEN rp_first.base_price IS NULL THEN 0 ELSE rp_first.base_price + COALESCE(fwa.price, 0) END)::numeric,2) as first_price,
         'direct' as connection_type
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
+      LEFT JOIN routes r ON fwa.route_id = r.id
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
   LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'

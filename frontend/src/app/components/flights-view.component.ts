@@ -188,16 +188,8 @@ import { Flight } from '../models/flight.model';
               </div>
 
               <div class="price-info">
-                <span class="price">da €{{getLowestPrice(flight)}}</span>
-                <span class="price-label">per persona</span>
-                <div class="price-breakdown" style="font-size: 0.7rem; color: #666; margin-top: 2px;">
-                  <span *ngIf="flight.flight_surcharge && flight.flight_surcharge > 0">
-                    Include €{{flight.flight_surcharge}} sovrapprezzo
-                  </span>
-                  <span *ngIf="!flight.flight_surcharge || flight.flight_surcharge === 0">
-                    Solo prezzo base
-                  </span>
-                </div>
+                <span class="price">€{{formatPrice(flight.economy_base_price)}}</span>
+                <span class="price-label">Economy (solo base)</span>
               </div>
             </div>
 
@@ -446,7 +438,8 @@ export class FlightsViewComponent implements OnInit {
     return new Set(this.flights.map(f => f.arrival_city)).size;
   }
 
-  // Metodo per ottenere il prezzo più basso tra le classi disponibili
+  // Metodo per ottenere il prezzo più basso tra le classi disponibili.
+  // economy_price ora include già (base + sovrapprezzo) dal backend.
   getLowestPrice(flight: any): number {
     const prices = [];
     
@@ -463,9 +456,13 @@ export class FlightsViewComponent implements OnInit {
     
     // Se non ci sono prezzi delle classi, usa il prezzo vecchio come fallback
     if (prices.length === 0) {
-      return flight.price || 0;
+      return flight.price || 0; // fallback retrocompatibilità
     }
-    
     return Math.min(...prices);
+  }
+  formatPrice(value: any): string {
+    const num = Number(value);
+    if (!isFinite(num)) return '0.00';
+    return num.toFixed(2);
   }
 }
