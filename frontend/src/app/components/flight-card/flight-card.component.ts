@@ -46,7 +46,7 @@ import { AuthService } from '../../services/auth.service';
             <div class="price">€{{formatPrice(getEconomyTotal())}}</div>
             <div class="price-label">Economy</div>
           </div>
-          <button *ngIf="!isFlightUnavailable() && !isAirlineUser" (click)="bookFlight()" class="book-btn">
+          <button *ngIf="!isFlightUnavailable() && !isAirlineUser && !isAdminUser()" (click)="bookFlight()" class="book-btn">
             Prenota
           </button>
           <div *ngIf="isFlightUnavailable()" class="unavailable-badge">
@@ -62,6 +62,7 @@ export class FlightCardComponent implements OnInit {
   @Input() flight!: any;
   private airportCodes: { [key: string]: string } = {};
   isAirlineUser = false;
+  private currentUser: any = null;
 
   constructor(
     private router: Router,
@@ -72,10 +73,18 @@ export class FlightCardComponent implements OnInit {
   ngOnInit(): void {
   // Rileva ruolo utente (nascondi prenotazione se airline)
   const user = this.authService.getCurrentUser();
+  this.currentUser = user;
   this.isAirlineUser = user?.role === 'airline';
-  this.authService.currentUser$.subscribe(u => this.isAirlineUser = (u?.role === 'airline'));
+  this.authService.currentUser$.subscribe(u => {
+    this.currentUser = u;
+    this.isAirlineUser = (u?.role === 'airline');
+  });
     // Carica i codici degli aeroporti per questo volo
     this.loadAirportCodes();
+  }
+
+  isAdminUser(): boolean {
+    return this.currentUser?.role === 'admin';
   }
 
   private loadAirportCodes(): void {

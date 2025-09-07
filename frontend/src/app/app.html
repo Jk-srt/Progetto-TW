@@ -19,7 +19,7 @@
           <a routerLink="/" class="nav-link" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
             🏠 Home
           </a>
-          <a routerLink="/flights" class="nav-link" routerLinkActive="active">
+          <a *ngIf="currentUser?.role !== 'admin'" routerLink="/flights" class="nav-link" routerLinkActive="active">
             ✈️ Voli
           </a>
 

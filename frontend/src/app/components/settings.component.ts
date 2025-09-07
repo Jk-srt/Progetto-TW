@@ -34,7 +34,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
           </div>
         </div>
 
-  <!-- Card Configurazione account rimossa perché non necessaria -->
+        <!-- Card Configurazione account rimossa perché non necessaria -->
         
         <!-- Sezione Gestione Flotta (solo per compagnie aeree) -->
         <div class="settings-card" *ngIf="isAirlineUser()">
@@ -42,10 +42,10 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
           <div class="settings-section">
             <p>Gestisci gli aeromobili della tua compagnia aerea</p>
             <div class="fleet-actions">
-              <button class="action-button primary" (click)="navigateToAircraftAdmin()">
+              <button class="action-button primary" (click)="navigateToAircraftAdmin()" *ngIf="isAirlineUser()">
                 ✈️ Gestisci Aeromobili
               </button>
-              <button class="action-button secondary" (click)="viewFleetStats()">
+              <button class="action-button secondary" (click)="viewFleetStats()" *ngIf="isAirlineUser()">
                 📊 Statistiche Flotta
               </button>
             </div>

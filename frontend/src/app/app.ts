@@ -26,10 +26,10 @@ import { NotificationsComponent } from './components/notifications.component';
               <a *ngIf="currentUser?.role !== 'admin'" routerLink="/bookings" class="nav-link" routerLinkActive="active">
                 📋 Prenotazioni
               </a>
-              <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/routes" class="nav-link" routerLinkActive="active">
+              <a *ngIf="isAirlineUser()" routerLink="/routes" class="nav-link" routerLinkActive="active">
                 🗺️ Rotte
               </a>
-              <a *ngIf="isAirlineUser() || currentUser?.role === 'admin'" routerLink="/aircraft-admin" class="nav-link" routerLinkActive="active">
+              <a *ngIf="isAirlineUser()" routerLink="/aircraft-admin" class="nav-link" routerLinkActive="active">
                 ✈️ Aeromobili
               </a>
 
