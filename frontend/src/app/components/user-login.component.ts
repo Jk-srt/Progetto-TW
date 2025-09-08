@@ -199,6 +199,16 @@ export class UserLoginComponent {
             // Se c'è un returnUrl, priorità a quello
             const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
             if (returnUrl) {
+              // Se esiste stato guest salvato, ripristina checkout
+              const pendingRaw = sessionStorage.getItem('guestPendingCheckout');
+              if (pendingRaw) {
+                try {
+                  const pending = JSON.parse(pendingRaw);
+                  sessionStorage.removeItem('guestPendingCheckout');
+                  this.router.navigate(['/checkout'], { state: pending });
+                  return;
+                } catch {}
+              }
               this.router.navigateByUrl(returnUrl);
               return;
             }

@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SeatService } from '../../services/seat.service';
 import { FlightService } from '../../services/flight.service';
+import { AuthService } from '../../services/auth.service';
 import { MultiSegmentBookingService } from '../../services/multi-segment-booking.service';
 import { FlightSeatMap, SeatSelectionState } from '../../models/seat.model';
 import { Flight } from '../../models/flight.model';
@@ -324,10 +325,21 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
     private flightService: FlightService,
     private multiSegmentBookingService: MultiSegmentBookingService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
+    // Se non autenticato forza login prima di qualsiasi logica (evita prenotazioni temporanee senza utente)
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // Determina flight id dal path prima di redirect (se già presente)
+      const snapshotId = this.route.snapshot.params['id'];
+      const returnUrl = snapshotId ? `/flights/${snapshotId}/seats` : '/';
+      this.router.navigate(['/login'], { queryParams: { returnUrl } });
+      return;
+    }
+
     // Ottieni i dati del navigation state se disponibili
     const navigation = this.router.getCurrentNavigation();
     if (navigation?.extras.state) {
@@ -562,6 +574,23 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
 
   proceedToPassengerInfo(): void {
     console.log('🚀 proceedToPassengerInfo chiamato');
+    // Se utente non autenticato: salva stato temporaneo e reindirizza a login
+    const token = localStorage.getItem('token');
+    if (!token) {
+      this.loadFlightDetails().then(flight => {
+        const guestState = {
+          flightId: this.flightId,
+          selectedSeats: this.selectionState.selectedSeats,
+          sessionId: this.selectionState.sessionId,
+          flight,
+          createdAt: Date.now()
+        };
+        sessionStorage.setItem('guestPendingCheckout', JSON.stringify(guestState));
+        // Return URL al checkout (useremo un flag speciale per ripristino)
+        this.router.navigate(['/login'], { queryParams: { returnUrl: '/checkout', restore: '1' } });
+      });
+      return;
+    }
     
     // Controlla se è un volo con scalo usando sessionStorage
     const connectionFlight = sessionStorage.getItem('connectionFlight');

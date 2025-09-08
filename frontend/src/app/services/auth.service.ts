@@ -39,6 +39,7 @@ export interface UserBooking {
   arrival_city: string;
   departure_time: string;
   arrival_time: string;
+  flight_status?: 'scheduled' | 'delayed' | 'cancelled' | 'completed' | string;
   passenger_name: string;
   seat_number: string;
   seat_class: string;

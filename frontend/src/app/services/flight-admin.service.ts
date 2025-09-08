@@ -48,8 +48,23 @@ export class FlightAdminService {
 
   // Gestione voli - solo per la propria compagnia aerea
   getFlights(): Observable<Flight[]> {
-    const headers = this.getAuthHeaders();
-    return this.http.get<Flight[]>(this.API_URL, { headers });
+  const headers = this.getAuthHeaders();
+  // Se l'utente è una compagnia aerea, aggiunge ?my=1 per ottenere solo i propri voli
+  const user = this.getCurrentUser();
+  const url = (user?.role === 'airline') ? `${this.API_URL}?my=1` : this.API_URL;
+    return this.http.get<any>(url, { headers }).pipe(
+      // Normalizza: se la risposta non è array, restituisci array vuoto
+      (source: any) => new Observable(observer => {
+        source.subscribe({
+          next: (data: any) => {
+            const flights = Array.isArray(data) ? data : (Array.isArray(data?.flights) ? data.flights : []);
+            observer.next(flights);
+            observer.complete();
+          },
+          error: (err: any) => observer.error(err)
+        });
+      })
+    );
   }
 
   getFlight(id: number): Observable<Flight> {

@@ -289,7 +289,15 @@ export class UserRegisterComponent {
         console.debug('[DEBUG] Registration success', res);
         this.isLoading = false;
         this.successMessage = 'Registrazione completata con successo!';
-        setTimeout(() => this.router.navigate(['/login']), 1500);
+        setTimeout(() => {
+          // Dopo registrazione vai a login mantenendo returnUrl se c'era stato guest
+          const pending = sessionStorage.getItem('guestPendingCheckout');
+          if (pending) {
+            this.router.navigate(['/login'], { queryParams: { returnUrl: '/checkout', restore: '1' } });
+          } else {
+            this.router.navigate(['/login']);
+          }
+        }, 1200);
       },
       error: (err: HttpErrorResponse) => {
         console.error('[ERROR] Registration error', err);

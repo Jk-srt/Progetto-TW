@@ -76,19 +76,10 @@ import { User } from '../models/user.model';
             (input)="applyFilters()"
             placeholder="Numero volo, aeroporto...">
         </div>
-        <!-- Filtro per compagnie aeree: mostra solo i propri voli -->
+        <!-- Info per compagnia: i voli mostrati sono già filtrati lato server -->
         <div class="filter-group" *ngIf="!isAdmin && currentUser?.airline_name">
-          <label class="checkbox-label">
-            <input 
-              type="checkbox" 
-              [(ngModel)]="showOnlyMyFlights" 
-              (change)="applyFilters()">
-            <span class="checkmark"></span>
-            Solo voli {{currentUser?.airline_name}}
-          </label>
           <small class="filter-info">
-            {{showOnlyMyFlights ? 'Mostrando solo i tuoi voli' : 'Mostrando tutti i voli'}}
-            ({{filteredFlights.length}} voli visualizzati)
+            Mostrando i voli della compagnia {{currentUser?.airline_name}} ({{filteredFlights.length}})
           </small>
         </div>
         <!-- Info per admin -->
@@ -234,8 +225,12 @@ import { User } from '../models/user.model';
                   type="text" 
                   formControlName="flight_number"
                   placeholder="es. AZ123">
-                <div *ngIf="flightForm.get('flight_number')?.invalid && flightForm.get('flight_number')?.touched" 
-                     class="error">Campo obbligatorio</div>
+                <small class="hint">Max 10 caratteri alfanumerici (es: AZ1234)</small>
+                <div *ngIf="flightForm.get('flight_number')?.errors && flightForm.get('flight_number')?.touched" class="error">
+                  <span *ngIf="flightForm.get('flight_number')?.errors?.['required']">Campo obbligatorio</span>
+                  <span *ngIf="flightForm.get('flight_number')?.errors?.['maxlength']">Massimo 10 caratteri</span>
+                  <span *ngIf="flightForm.get('flight_number')?.errors?.['pattern']">Solo lettere e numeri</span>
+                </div>
               </div>
 
               <!-- Mostra dropdown compagnia solo per admin -->
@@ -495,7 +490,7 @@ export class FlightAdminComponent implements OnInit {
   // Filtri
   statusFilter = '';
   searchTerm = '';
-  showOnlyMyFlights = false; // Per le compagnie aeree: di default mostra tutti i voli, poi l'utente può filtrare
+  showOnlyMyFlights = true; // Ora sempre true: backend già filtra
 
   // Autorizzazione
   canAccess = false;
@@ -555,7 +550,7 @@ export class FlightAdminComponent implements OnInit {
     const airlineIdValidators = this.isAdmin ? [Validators.required] : [];
     
     return this.fb.group({
-      flight_number: ['', [Validators.required]],
+  flight_number: ['', [Validators.required, Validators.maxLength(10), Validators.pattern(/^[A-Za-z0-9]+$/)]],
       airline_id: ['', airlineIdValidators],
       aircraft_id: ['', [Validators.required]], // Ora obbligatorio per avere i posti
       route_id: ['', [Validators.required]], // ← NUOVO: Route ID invece di aeroporti separati
@@ -699,14 +694,8 @@ export class FlightAdminComponent implements OnInit {
         (flight.arrival_airport?.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         (flight.route_name?.toLowerCase().includes(this.searchTerm.toLowerCase())); // ← NUOVO: Ricerca anche nel nome della rotta
       
-      // Filtro per compagnie aeree: se la spunta "Solo i miei voli" è attiva, mostra solo i voli della propria compagnia
-      let matchesAirline = true;
-      if (!this.isAdmin && this.showOnlyMyFlights && this.airlineId) {
-        const myAirlineId = parseInt(this.airlineId);
-        matchesAirline = flight.airline_id === myAirlineId;
-      }
-      
-      return matchesStatus && matchesSearch && matchesAirline;
+  // matchesAirline già lato backend per airline; lato admin sempre true
+  return matchesStatus && matchesSearch;
     });
     this.applySort();
   }

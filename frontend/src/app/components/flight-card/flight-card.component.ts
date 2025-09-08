@@ -221,7 +221,13 @@ export class FlightCardComponent implements OnInit {
 
   bookFlight(): void {
     console.log('Prenotazione volo:', this.flight.flight_number);
-    // Naviga alla pagina di selezione posti
+    // Se non loggato reindirizza a login prima di selezionare posti
+    const token = localStorage.getItem('token');
+    if (!token) {
+      const returnUrl = `/flights/${this.flight.id}/seats`;
+      this.router.navigate(['/login'], { queryParams: { returnUrl } });
+      return;
+    }
     this.router.navigate(['/flights', this.flight.id, 'seats']);
   }
 

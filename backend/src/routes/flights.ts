@@ -556,6 +556,28 @@ router.get('/stats', async (req, res) => {
 // Visualizza tutti i voli con informazioni dettagliate
 router.get('/', async (req, res) => {
   try {
+    const onlyMine = req.query.my === '1';
+    let user: JWTPayload | undefined;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token) {
+      try {
+        user = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      } catch (e) {
+        if (onlyMine) {
+          return res.status(401).json({ message: 'Token non valido' });
+        }
+      }
+    } else if (onlyMine) {
+      return res.status(401).json({ message: 'Token di accesso richiesto' });
+    }
+
+    let whereFilter = '';
+    const params: any[] = [];
+    if (onlyMine && user && user.role === 'airline' && user.airlineId) {
+      whereFilter = 'WHERE fwa.airline_id = $1';
+      params.push(user.airlineId);
+    }
     const query = `
       SELECT 
         fwa.id,
@@ -605,9 +627,10 @@ router.get('/', async (req, res) => {
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
       LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+      ${whereFilter}
       ORDER BY fwa.departure_time ASC
     `;
-    const result = await pool.query(query);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching flights:', err);
@@ -740,6 +763,12 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
       return res.status(400).json({ error: 'Rotta non trovata o non attiva' });
     }
 
+    // Normalizza e valida flight_number (colonna varchar(10))
+    const normalizedFlightNumber = String(flight_number).trim().toUpperCase();
+    if (normalizedFlightNumber.length > 10) {
+      return res.status(400).json({ error: `flight_number troppo lungo (max 10). Lunghezza attuale: ${normalizedFlightNumber.length}` });
+    }
+
     // Verifica che l'aereo appartenga alla compagnia aerea specificata
     const aircraftCheck = await pool.query(
       'SELECT airline_id, seat_capacity FROM aircrafts WHERE id = $1',
@@ -769,7 +798,7 @@ router.post('/', authenticateToken, verifyRole(['admin', 'airline']), async (req
     `;
     
     const values = [
-      flight_number, airline_id, aircraft_id, route_id,
+      normalizedFlightNumber, airline_id, aircraft_id, route_id,
       departure_time, arrival_time, price,
       finalTotalSeats, finalAvailableSeats, status
     ];
@@ -855,6 +884,12 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       }
     }
 
+    // Normalizza e valida flight_number se fornito
+    let normalizedUpdateFlightNumber = flight_number ? String(flight_number).trim().toUpperCase() : existingFlight.flight_number;
+    if (normalizedUpdateFlightNumber.length > 10) {
+      return res.status(400).json({ error: `flight_number troppo lungo (max 10). Lunghezza attuale: ${normalizedUpdateFlightNumber.length}` });
+    }
+
     const query = `
       UPDATE flights SET 
         flight_number = $1,
@@ -873,7 +908,7 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
     `;
     
     const values = [
-      flight_number || existingFlight.flight_number,
+      normalizedUpdateFlightNumber,
       airline_id || existingFlight.airline_id,
       aircraft_id || existingFlight.aircraft_id,
       route_id || existingFlight.route_id,

@@ -165,6 +165,9 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                   <span class="status-badge" [class]="'status-' + booking.booking_status">
                     {{ getStatusLabel(booking.booking_status) }}
                   </span>
+                  <span *ngIf="booking.flight_status && booking.flight_status !== 'scheduled'" class="flight-status-badge" [class]="'flight-' + booking.flight_status">
+                    {{ getFlightStatusLabel(booking.flight_status) }}
+                  </span>
                   <span class="booking-ref">{{ booking.booking_reference }}</span>
                 </div>
                 <div class="booking-price">
@@ -405,6 +408,21 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
       background: #fff3cd;
       color: #856404;
     }
+
+    /* Flight status badges */
+    .flight-status-badge {
+      padding: 0.25rem 0.6rem;
+      border-radius: 16px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: inline-block;
+    }
+    .flight-delayed { background: linear-gradient(135deg,#ff9800 0%, #ffc107 100%); color:#212529; }
+    .flight-cancelled { background: linear-gradient(135deg,#dc3545 0%, #e57373 100%); color:#fff; }
+    .flight-completed { background: linear-gradient(135deg,#17a2b8 0%, #20c997 100%); color:#fff; }
+    .flight-scheduled { background: #e2e3e5; color:#343a40; }
 
     .booking-ref {
       font-family: monospace;
@@ -1295,6 +1313,16 @@ export class BookingsComponent implements OnInit, OnDestroy {
       'completed': 'Completata'
     };
     return statusLabels[status] || status;
+  }
+
+  getFlightStatusLabel(status: string): string {
+    const flightStatus: Record<string,string> = {
+      'scheduled': 'Programmato',
+      'delayed': 'Ritardato',
+      'cancelled': 'Cancellato',
+      'completed': 'Completato'
+    };
+    return flightStatus[status] || status;
   }
 
   getClassLabel(seatClass: string): string {
