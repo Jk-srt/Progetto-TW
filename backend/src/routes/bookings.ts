@@ -91,6 +91,14 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         }
         console.log('✅ Flight found:', flight.flight_number);
 
+        // Blocca prenotazione se compagnia inattiva
+        if ((flight as any).airline_active === false) {
+            return res.status(400).json({
+                success: false,
+                message: 'Compagnia aerea non attiva: prenotazione bloccata'
+            });
+        }
+
         // Pricing support: recupera pricing della rotta per derivare prezzi classe quando flight.price è 0
         let routePricingMap: Record<string, number> = {};
         let routeDefaultPrice = 0;

@@ -221,13 +221,6 @@ export class FlightCardComponent implements OnInit {
 
   bookFlight(): void {
     console.log('Prenotazione volo:', this.flight.flight_number);
-    // Se non loggato reindirizza a login prima di selezionare posti
-    const token = localStorage.getItem('token');
-    if (!token) {
-      const returnUrl = `/flights/${this.flight.id}/seats`;
-      this.router.navigate(['/login'], { queryParams: { returnUrl } });
-      return;
-    }
     this.router.navigate(['/flights', this.flight.id, 'seats']);
   }
 
@@ -239,8 +232,10 @@ export class FlightCardComponent implements OnInit {
       case 'scheduled':
         return 'Programmato';
       case 'delayed':
-        const delayMinutes = this.flight.delay_minutes || 30; // Default a 30 minuti se non specificato
-        return `In Ritardo ${delayMinutes}min`;
+        if (typeof this.flight.delay_minutes === 'number' && this.flight.delay_minutes > 0) {
+          return `In Ritardo ${this.flight.delay_minutes}min`;
+        }
+        return 'In Ritardo';
       case 'cancelled':
         return 'Cancellato';
       case 'completed':

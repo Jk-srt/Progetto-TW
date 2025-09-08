@@ -799,7 +799,7 @@ export class FlightAdminComponent implements OnInit {
       route_id: flight.route_id || '', // ← NUOVO: Route ID invece di aeroporti separati
       departure_time: departureTime,
       arrival_time: arrivalTime,
-      price: flight.price || 0, // Questo è già il sovrapprezzo salvato nel database
+  price: (flight as any).flight_surcharge ?? flight.price ?? 0, // Usa sovrapprezzo reale
       status: flight.status || 'scheduled'
       // Non impostare total_seats e available_seats - saranno calcolati automaticamente
     });
@@ -834,7 +834,7 @@ export class FlightAdminComponent implements OnInit {
         route_id: flight.route_id || 0,
         departure_time: flight.departure_time ? this.formatDateTimeForBackend(flight.departure_time) : '',
         arrival_time: flight.arrival_time ? this.formatDateTimeForBackend(flight.arrival_time) : '',
-        price: flight.price || 0,
+  price: (flight as any).flight_surcharge ?? flight.price ?? 0,
         total_seats: flight.total_seats || 0,
         available_seats: 0, // Quando un volo è completato, tutti i posti sono occupati
         status: 'completed' // Cambia lo stato in "completato"
@@ -876,7 +876,7 @@ export class FlightAdminComponent implements OnInit {
         route_id: flight.route_id || 0,
         departure_time: flight.departure_time ? this.formatDateTimeForBackend(flight.departure_time) : '',
         arrival_time: flight.arrival_time ? this.formatDateTimeForBackend(flight.arrival_time) : '',
-        price: flight.price || 0,
+  price: (flight as any).flight_surcharge ?? flight.price ?? 0,
         total_seats: flight.total_seats || 0,
         available_seats: flight.available_seats || 0,
         status: 'cancelled' // Cambia solo lo stato in "cancelled"
@@ -960,7 +960,8 @@ export class FlightAdminComponent implements OnInit {
       price: this.selectedFlightForDelay.price || 0,
       total_seats: this.selectedFlightForDelay.total_seats || 0,
       available_seats: this.selectedFlightForDelay.available_seats || 0,
-      status: 'delayed' // Cambia lo stato a "delayed"
+      status: 'delayed', // Cambia lo stato a "delayed"
+      delay_minutes: this.delayMinutes
     };
 
     this.flightAdminService.updateFlight(this.selectedFlightForDelay.id, updatedFlightData).subscribe({

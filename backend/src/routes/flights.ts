@@ -575,8 +575,11 @@ router.get('/', async (req, res) => {
     let whereFilter = '';
     const params: any[] = [];
     if (onlyMine && user && user.role === 'airline' && user.airlineId) {
-      whereFilter = 'WHERE fwa.airline_id = $1';
+      whereFilter = 'WHERE fwa.airline_id = $1 AND airlines.active = true';
       params.push(user.airlineId);
+    } else {
+      // Mostra solo voli di compagnie attive
+      whereFilter = 'WHERE airlines.active = true';
     }
     const query = `
       SELECT 
@@ -627,7 +630,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
       LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
-      ${whereFilter}
+  ${whereFilter}
       ORDER BY fwa.departure_time ASC
     `;
     const result = await pool.query(query, params);
@@ -834,7 +837,8 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       price,
       total_seats,
       available_seats,
-      status
+      status,
+      delay_minutes
     } = req.body;
 
     // Verifica che il volo esista e che l'utente possa modificarlo
@@ -902,8 +906,9 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
         total_seats = $8,
         available_seats = $9,
         status = $10,
+        delay_minutes = COALESCE($11, delay_minutes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $12
       RETURNING *
     `;
     
@@ -918,6 +923,7 @@ router.put('/:id', authenticateToken, verifyRole(['admin', 'airline']), async (r
       total_seats !== undefined ? total_seats : existingFlight.total_seats,
       available_seats !== undefined ? available_seats : existingFlight.available_seats,
       status || existingFlight.status,
+      delay_minutes !== undefined ? delay_minutes : null,
       id
     ];
     

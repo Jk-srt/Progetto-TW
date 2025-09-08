@@ -24,7 +24,7 @@ import { notAdminGuard } from './guards/not-admin.guard';
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [mustChangePasswordGuard] },
   { path: 'flights', component: FlightsViewComponent, canActivate: [mustChangePasswordGuard, notAdminGuard] },
-  { path: 'flights/:id/seats', component: SeatSelectionComponent, canActivate: [mustChangePasswordGuard, notAdminGuard] },
+  { path: 'flights/:id/seats', component: SeatSelectionComponent, canActivate: [mustChangePasswordGuard] },
   { path: 'multi-segment-booking', component: MultiSegmentSeatsComponent, canActivate: [mustChangePasswordGuard, notAdminGuard] },
   { path: 'checkout', component: CheckoutComponent, canActivate: [mustChangePasswordGuard, notAdminGuard] },
   { path: 'login', component: UserLoginComponent },

@@ -1,5 +1,6 @@
 import express from 'express';
 import { DatabaseService } from '../models/database';
+import { authenticateToken, verifyRole } from '../middleware/auth';
 import pool from '../db/pool';
 
 const router = express.Router();
@@ -58,6 +59,20 @@ router.post('/', async (req: express.Request, res: express.Response) => {
     } catch (error) {
         res.status(500).json({
             error: 'Errore durante la creazione della compagnia aerea',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Soft delete (disattiva) una compagnia aerea - solo admin
+router.delete('/:id', authenticateToken, verifyRole('admin'), async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        await dbService.deleteAirlineById(parseInt(id));
+        res.json({ message: 'Compagnia disattivata e voli/prenotazioni annullati.' });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Errore durante la disattivazione della compagnia aerea',
             message: error instanceof Error ? error.message : 'Unknown error'
         });
     }

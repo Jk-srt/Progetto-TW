@@ -74,6 +74,7 @@ export interface Flight {
     aircraft_id?: number;
     route_id: number;
     airline?: string;
+    airline_active?: boolean;
     aircraft?: string;
     route_name?: string;
     departure_airport: string;
@@ -283,16 +284,39 @@ export class DatabaseService {
 
     async deleteAirlineById(id: number): Promise<void> {
         const client = await this.pool.connect();
-        
         try {
             await client.query('BEGIN');
-            
-            // Prima elimina l'accesso associato
-            await client.query('DELETE FROM accesso WHERE airline_id = $1', [id]);
-            
-            // Poi elimina la compagnia aerea
-            await client.query('DELETE FROM airlines WHERE id = $1', [id]);
-            
+
+            // Verifica esistenza
+            const existing = await client.query('SELECT id FROM airlines WHERE id = $1', [id]);
+            if (existing.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return; // niente da fare
+            }
+
+            // Soft delete airline
+            await client.query('UPDATE airlines SET active = false, updated_at = NOW() WHERE id = $1', [id]);
+
+            // Cancella / disabilita accesso associato (non eliminazione storica prenotazioni)
+            await client.query('UPDATE accesso SET role = role, updated_at = NOW() WHERE airline_id = $1', [id]);
+
+            // Imposta voli a cancelled e salva motivo (se esiste colonna cancellation_reason)
+            try {
+                await client.query("UPDATE flights SET status = 'cancelled', updated_at = NOW() WHERE airline_id = $1 AND status NOT IN ('cancelled','completed')", [id]);
+            } catch (e) {
+                // fallback se status colonna diversa
+            }
+
+            // Annulla bookings collegati ai voli di questa airline (soft)
+            try {
+                await client.query("UPDATE bookings SET status = 'cancelled', updated_at = NOW() WHERE flight_id IN (SELECT id FROM flights WHERE airline_id = $1)", [id]);
+            } catch (e) {
+                // fallback se la colonna si chiama booking_status
+                try {
+                    await client.query("UPDATE bookings SET booking_status = 'cancelled', updated_at = NOW() WHERE flight_id IN (SELECT id FROM flights WHERE airline_id = $1)", [id]);
+                } catch (_) {}
+            }
+
             await client.query('COMMIT');
         } catch (error) {
             await client.query('ROLLBACK');
@@ -552,6 +576,7 @@ export class DatabaseService {
                 fwa.airline_id,
                 fwa.aircraft_id,
                 fwa.route_id,
+                al.active as airline_active,
                 fwa.departure_airport_name as departure_airport,
                 fwa.departure_city,
                 fwa.arrival_airport_name as arrival_airport,
@@ -592,6 +617,7 @@ export class DatabaseService {
             airline_id: row.airline_id,
             aircraft_id: row.aircraft_id,
             route_id: row.route_id,
+            airline_active: row.airline_active,
             airline: row.airline_name || 'N/A',
             aircraft: row.aircraft_registration || 'N/A',
             route_name: row.route_name,

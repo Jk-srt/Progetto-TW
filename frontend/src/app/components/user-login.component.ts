@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpClientModule } from '@angular/common/http';
 import { environment } from '@environments/environment';
+import { SeatService } from '../services/seat.service';
 
 @Component({
   selector: 'app-user-login',
@@ -166,10 +167,11 @@ export class UserLoginComponent {
   constructor(
     private http: HttpClient,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private seatService: SeatService
   ) {}
 
-  onLogin() {
+  async onLogin() {
     this.isLoading = true;
     this.errorMessage = null;
 
@@ -205,6 +207,11 @@ export class UserLoginComponent {
                 try {
                   const pending = JSON.parse(pendingRaw);
                   sessionStorage.removeItem('guestPendingCheckout');
+                  // Reclama prenotazioni temporanee guest (best-effort)
+                  this.seatService.claimGuestReservations().subscribe({
+                    next: () => console.log('✅ Guest reservations claimed'),
+                    error: (e: any) => console.warn('⚠️ Claim guest reservations failed', e)
+                  });
                   this.router.navigate(['/checkout'], { state: pending });
                   return;
                 } catch {}

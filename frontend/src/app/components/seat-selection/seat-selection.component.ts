@@ -330,15 +330,7 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Se non autenticato forza login prima di qualsiasi logica (evita prenotazioni temporanee senza utente)
-    const token = localStorage.getItem('token');
-    if (!token) {
-      // Determina flight id dal path prima di redirect (se già presente)
-      const snapshotId = this.route.snapshot.params['id'];
-      const returnUrl = snapshotId ? `/flights/${snapshotId}/seats` : '/';
-      this.router.navigate(['/login'], { queryParams: { returnUrl } });
-      return;
-    }
+  // Consentito uso guest: il login sarà richiesto solo al passaggio al checkout
 
     // Ottieni i dati del navigation state se disponibili
     const navigation = this.router.getCurrentNavigation();

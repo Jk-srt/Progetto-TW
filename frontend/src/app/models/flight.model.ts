@@ -102,4 +102,5 @@ export interface FlightFormData {
   total_seats: number;
   available_seats: number;
   status: string;
+  delay_minutes?: number; // opzionale per aggiornare ritardi
 }

@@ -379,4 +379,49 @@ router.post('/cleanup', async (req: express.Request, res: express.Response) => {
     }
 });
 
+// Claim delle prenotazioni temporanee guest dopo login
+router.post('/claim', authenticateToken, async (req: AuthRequest, res: express.Response) => {
+    try {
+        const userId = req.userId;
+        const { session_id } = req.body || {};
+        if (!session_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'session_id richiesto'
+            });
+        }
+
+        // Trasferisce le prenotazioni (ancora valide) alla user_id
+        const claimResult = await pool.query(
+            `UPDATE temporary_seat_reservations
+             SET user_id = $1
+             WHERE session_id = $2 AND user_id IS NULL AND expires_at > NOW()
+             RETURNING id, flight_id, seat_id, expires_at`,
+            [userId, session_id]
+        );
+
+        if (claimResult.rows.length === 0) {
+            return res.json({
+                success: true,
+                message: 'Nessuna prenotazione guest da associare (forse scadute o già reclamate)',
+                claimed: 0
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Associate ${claimResult.rows.length} prenotazioni temporanee all\'utente`,
+            claimed: claimResult.rows.length,
+            reservations: claimResult.rows
+        });
+    } catch (error) {
+        console.error('❌ Claim reservations error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nell\'associazione delle prenotazioni guest',
+            error: (error as Error).message
+        });
+    }
+});
+
 export default router;

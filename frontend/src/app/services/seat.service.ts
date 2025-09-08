@@ -90,11 +90,8 @@ export class SeatService {
   // Setup listener per cambiamenti di autenticazione
   private setupAuthListener(): void {
     window.addEventListener('auth-changed', () => {
-      console.log('🔄 Auth changed - clearing seat selection');
-      this.clearSelection();
-      // Genera un nuovo session ID
-      this.sessionId = this.generateSessionId();
-      this.updateSessionId(this.sessionId);
+  console.log('🔄 Auth changed - preserving guest seat selection and claiming reservations');
+  // Non puliamo la selezione: la convertiremo lato backend (claim)
     });
   }
 
@@ -444,6 +441,16 @@ export class SeatService {
       console.error('Errore nel recupero dati utente:', error);
       return null;
     }
+  }
+
+  /**
+   * Richiede al backend di associare le prenotazioni temporanee della session guest all'utente autenticato
+   */
+  claimGuestReservations(): Observable<any> {
+    const headers = this.getHeaders();
+    return this.http.post(`${environment.apiUrl}/seat-reservations/claim`, {
+      session_id: this.sessionId
+    }, { headers });
   }
 
   ngOnDestroy(): void {
