@@ -841,7 +841,15 @@ export class FlightAdminComponent implements OnInit {
       };
 
       this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
-        next: () => {
+        next: (resp) => {
+          const updated = resp?.flight;
+          if (updated) {
+            const idx = this.flights.findIndex(f => f.id === updated.id);
+            if (idx !== -1) {
+              this.flights[idx] = { ...this.flights[idx], departure_time: updated.departure_time, arrival_time: updated.arrival_time, status: updated.status } as any;
+              this.applyFilters();
+            }
+          }
           this.loadFlights();
           alert(`Volo ${flight.flight_number} completato con successo. Lo stato è stato cambiato in "Completato".`);
         },
@@ -883,7 +891,15 @@ export class FlightAdminComponent implements OnInit {
       };
 
       this.flightAdminService.updateFlight(flight.id, updatedFlightData).subscribe({
-        next: () => {
+        next: (resp) => {
+          const updated = resp?.flight;
+          if (updated) {
+            const idx = this.flights.findIndex(f => f.id === updated.id);
+            if (idx !== -1) {
+              this.flights[idx] = { ...this.flights[idx], departure_time: updated.departure_time, arrival_time: updated.arrival_time, status: updated.status } as any;
+              this.applyFilters();
+            }
+          }
           this.loadFlights();
           alert(`Volo ${flight.flight_number} cancellato con successo. Lo stato è stato cambiato in "Cancellato".`);
         },
@@ -965,7 +981,15 @@ export class FlightAdminComponent implements OnInit {
     };
 
     this.flightAdminService.updateFlight(this.selectedFlightForDelay.id, updatedFlightData).subscribe({
-      next: () => {
+      next: (resp) => {
+        const updated = resp?.flight;
+        if (updated) {
+          const idx = this.flights.findIndex(f => f.id === updated.id);
+          if (idx !== -1) {
+            this.flights[idx] = { ...this.flights[idx], departure_time: updated.departure_time, arrival_time: updated.arrival_time, status: updated.status, delay_minutes: updated.delay_minutes } as any;
+            this.applyFilters();
+          }
+        }
         this.closeDelayModal();
         this.loadFlights();
         alert(`Ritardo di ${this.delayMinutes} minuti aggiunto al volo ${this.selectedFlightForDelay?.flight_number}`);
