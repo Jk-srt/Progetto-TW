@@ -342,14 +342,16 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
 
     // Controlla se è un volo con scalo tramite query params
     this.route.queryParams.subscribe(queryParams => {
+      // Per il nuovo flusso sequenziale dei voli con scalo NON abilitiamo più la logica multi-segmento aggregata
       if (queryParams['isConnectionFlight'] === 'true') {
-        this.isMultiSegment = true;
         if (queryParams['step'] === '1of2') {
           this.currentSegmentIndex = 0;
           this.totalSegments = 2;
+          sessionStorage.setItem('currentConnectionStep', '1');
         } else if (queryParams['step'] === '2of2') {
           this.currentSegmentIndex = 1;
           this.totalSegments = 2;
+          sessionStorage.setItem('currentConnectionStep', '2');
         }
       }
     });
@@ -571,83 +573,21 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
     });
     
     if (connectionFlight && currentStep) {
+      // Nuovo flusso sequenziale: ogni segmento (scalo) va in checkout separato
       const connection = JSON.parse(connectionFlight);
-      
-      if (currentStep === '1') {
-        // Primo volo completato, salva i dati e vai al secondo volo
-        console.log('🔗 Primo volo completato, salvando i dati e procedendo al secondo volo');
-        
-        // Salva i dati del primo volo
-        const firstFlightData = {
-          flightId: this.flightId,
-          selectedSeats: this.selectionState.selectedSeats,
-          sessionId: this.selectionState.sessionId
-        };
-        sessionStorage.setItem('firstFlightBooking', JSON.stringify(firstFlightData));
-        sessionStorage.setItem('currentConnectionStep', '2');
-        
-        // Naviga al secondo volo
-        // Importante: puliamo la selezione locale per evitare che i posti del primo volo
-        // compaiano anche nel secondo passaggio
-        try {
-          // Non rilasciare le prenotazioni del primo volo: servono fino al checkout
-          this.seatService.resetLocalSelection();
-        } catch (e) {
-          console.warn('Impossibile pulire la selezione prima del secondo segmento:', e);
-        }
-
-        this.router.navigate(['/flights', connection.connectionFlight.id, 'seats'], {
-          queryParams: { isConnectionFlight: 'true', step: '2of2' }
+      this.loadFlightDetails().then(flight => {
+        this.router.navigate(['/checkout'], {
+          state: {
+            flightId: this.flightId,
+            selectedSeats: this.selectionState.selectedSeats,
+            sessionId: this.selectionState.sessionId,
+            flight: flight,
+            // Se siamo al primo step indichiamo che dopo la prenotazione bisogna passare al secondo volo
+            connectionFollowUp: currentStep === '1',
+            connection
+          }
         });
-      } else if (currentStep === '2') {
-        // Secondo volo completato, procedi al checkout con entrambi i voli
-        console.log('🔗 Secondo volo completato, procedendo al checkout');
-        
-        const firstFlightData = JSON.parse(sessionStorage.getItem('firstFlightBooking') || '{}');
-        console.log('📁 Dati primo volo salvati:', firstFlightData);
-        console.log('📁 Dati secondo volo attuali:', {
-          flightId: this.flightId,
-          selectedSeats: this.selectionState.selectedSeats,
-          sessionId: this.selectionState.sessionId
-        });
-        
-        // Carica i dettagli di entrambi i voli
-        Promise.all([
-          this.loadFlightDetailsById(firstFlightData.flightId),
-          this.loadFlightDetails()
-        ]).then(([firstFlight, secondFlight]) => {
-          console.log('✈️ Dettagli voli caricati:', { firstFlight, secondFlight });
-          
-          // Assicuriamoci che i posti del secondo volo appartengano a questo flightId
-          const secondFlightSeats = (this.selectionState.selectedSeats || []).filter(s => (s as any).flight_id === this.flightId);
-
-          this.router.navigate(['/checkout'], {
-            state: {
-              isConnectionFlight: true,
-              firstFlight: {
-                flightId: firstFlightData.flightId,
-                selectedSeats: firstFlightData.selectedSeats,
-                sessionId: firstFlightData.sessionId,
-                flight: firstFlight
-              },
-              secondFlight: {
-                flightId: this.flightId,
-                selectedSeats: secondFlightSeats,
-                sessionId: this.selectionState.sessionId,
-                flight: secondFlight
-              },
-              connection: connection
-            }
-          });
-          
-          // Pulisci i dati della sessione
-          sessionStorage.removeItem('connectionFlight');
-          sessionStorage.removeItem('currentConnectionStep');
-          sessionStorage.removeItem('firstFlightBooking');
-        }).catch(error => {
-          console.error('Errore nel caricamento dei dettagli voli:', error);
-        });
-      }
+      });
     } else if (this.isMultiSegment) {
       // Flusso multi-segmento esistente (per compatibilità)
       this.handleMultiSegmentProgress();

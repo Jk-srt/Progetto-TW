@@ -15,6 +15,8 @@ interface CheckoutData {
   selectedSeats?: FlightSeatMap[];
   sessionId?: string;
   flight?: any;
+  // Flag per nuovo flusso sequenziale voli con scalo: dopo questa prenotazione apri secondo volo
+  connectionFollowUp?: boolean;
   
   // Supporto per voli multi-segmento
   isMultiSegment?: boolean;
@@ -483,6 +485,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
 
     this.loadFlightDetails();
+    // Se è un checkout singolo (anche secondo segmento) assicurati di avere i prezzi
+    setTimeout(() => {
+      if (!this.checkoutData?.isConnectionFlight) {
+        this.ensureFlightPricing();
+      }
+    }, 0);
   }
 
   ngOnDestroy(): void {
@@ -577,6 +585,52 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       // Implementa la chiamata API per ottenere i dettagli del volo
       console.log('Loading flight details for ID:', this.checkoutData.flightId);
     }
+  }
+
+  // Recupera prezzi aggiornati se mancanti o zero
+  private ensureFlightPricing(): void {
+    if (!this.checkoutData?.flight) return;
+    const f = this.checkoutData.flight;
+    const needsPricing = [f.economy_price, f.business_price, f.first_price]
+      .every((p: any) => !p || p === '0' || p === 0);
+    if (!needsPricing) return;
+    const flightId = this.checkoutData.flightId || f.id;
+    if (!flightId) return;
+    const pricingEndpoints = [
+      `${this.baseUrl}/flights/pricing/${flightId}`,
+      `${this.baseUrl}/flights/${flightId}/pricing`
+    ];
+    console.log('🔍 ensureFlightPricing: fetching pricing for flight', flightId);
+    const tryFetch = (idx: number) => {
+      if (idx >= pricingEndpoints.length) {
+        console.warn('❌ ensureFlightPricing: all pricing endpoints failed');
+        return;
+      }
+      this.http.get<any>(pricingEndpoints[idx]).subscribe({
+        next: data => {
+          console.log('✅ pricing data received', data);
+          // Normalizza campi
+          f.economy_price = data.economy_price ?? data.economy ?? f.economy_price;
+            f.business_price = data.business_price ?? data.business ?? f.business_price;
+            f.first_price = data.first_price ?? data.first ?? f.first_price;
+            // Se ancora vuoti prova a derivare da base + surcharge
+            if (!f.economy_price && data.economy_base_price) {
+              f.economy_price = Number(data.economy_base_price) + (Number(f.flight_surcharge)||0);
+            }
+            if (!f.business_price && data.business_base_price) {
+              f.business_price = Number(data.business_base_price) + (Number(f.flight_surcharge)||0);
+            }
+            if (!f.first_price && data.first_base_price) {
+              f.first_price = Number(data.first_base_price) + (Number(f.flight_surcharge)||0);
+            }
+        },
+        error: err => {
+          console.warn('⚠️ pricing endpoint failed', pricingEndpoints[idx], err.status);
+          tryFetch(idx + 1);
+        }
+      });
+    };
+    tryFetch(0);
   }
 
   get passengersFormArray(): FormArray {
@@ -826,8 +880,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       
       const formData = this.checkoutForm.value;
 
-      // Se volo con scalo, usa sempre il flusso dedicato
-      if (this.checkoutData?.isConnectionFlight) {
+  // Flusso legacy multi-connessione (aggregato) ancora supportato
+  if (this.checkoutData?.isConnectionFlight) {
         const b1 = this.checkoutData.firstFlight;
         const b2 = this.checkoutData.secondFlight;
         if (!b1 || !b2) {
@@ -1000,7 +1054,23 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             // Pulisce la selezione
             this.seatService.clearSelection();
             
-            // Naviga alla pagina delle prenotazioni dopo 3 secondi
+            // Nuovo flusso sequenziale: se è previsto un secondo segmento (connectionFollowUp)
+            if (this.checkoutData?.connectionFollowUp) {
+              const connectionRaw = sessionStorage.getItem('connectionFlight');
+              if (connectionRaw) {
+                const connection = JSON.parse(connectionRaw);
+                // Rimuovi contesto scalo per trattare il secondo segmento come prenotazione nuova
+                sessionStorage.removeItem('currentConnectionStep');
+                sessionStorage.removeItem('connectionFlight');
+                this.notificationService.showInfo('Procedi', 'Seleziona ora i posti del secondo volo', 3500);
+                setTimeout(() => {
+                  this.router.navigate(['/flights', connection.connectionFlight.id, 'seats']);
+                }, 1500);
+                return;
+              }
+            }
+
+            // Naviga alla pagina delle prenotazioni dopo 3 secondi (flusso normale)
             setTimeout(() => {
               this.router.navigate(['/bookings']);
             }, 3000);

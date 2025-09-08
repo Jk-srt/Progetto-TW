@@ -4,6 +4,13 @@ import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
+// Debug helper: log helper with consistent prefix
+const debugLog = (...args: any[]) => {
+  if (process.env.FLIGHTS_DEBUG === '1') {
+    console.log('[FLIGHTS_DEBUG]', ...args);
+  }
+};
+
 // Connessione al database centralizzata
 // pool già istanza condivisa
 
@@ -579,7 +586,8 @@ router.get('/', async (req, res) => {
         aircrafts.aircraft_type,
         aircrafts.model as aircraft_model,
         -- Calcola prezzi finali per ogni classe
-        COALESCE(rp_economy.base_price, 0) + COALESCE(fwa.price, 0) as economy_price,
+        -- Fallback: se manca route_pricing economy usa routes.default_price
+        (COALESCE(rp_economy.base_price, r.default_price, 0) + COALESCE(fwa.price, 0)) as economy_price,
         COALESCE(rp_business.base_price, 0) + COALESCE(fwa.price, 0) as business_price,
         CASE 
           WHEN rp_first.base_price IS NULL THEN 0 
@@ -592,6 +600,8 @@ router.get('/', async (req, res) => {
       FROM flights_with_airports fwa
       LEFT JOIN airlines ON fwa.airline_id = airlines.id
       LEFT JOIN aircrafts ON fwa.aircraft_id = aircrafts.id
+  -- Join aggiunta per poter usare r.default_price come fallback
+  LEFT JOIN routes r ON fwa.route_id = r.id
       LEFT JOIN route_pricing rp_economy ON fwa.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
       LEFT JOIN route_pricing rp_business ON fwa.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
       LEFT JOIN route_pricing rp_first ON fwa.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
@@ -1041,6 +1051,129 @@ router.get('/:id/pricing', async (req, res) => {
   } catch (err) {
     console.error('Error fetching flight pricing:', err);
     res.status(500).json({ error: 'Errore nel recupero dei prezzi del volo' });
+  }
+});
+
+// Endpoint alternativo stabile usato dal frontend: /flights/pricing/:id
+router.get('/pricing/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+  debugLog('Pricing stable endpoint hit', { id });
+    const query = `
+      SELECT 
+        f.id as flight_id,
+        f.flight_number,
+        f.price as flight_surcharge,
+        r.route_name,
+        COALESCE(rp_economy.base_price, 0) + COALESCE(f.price, 0) as economy_price,
+        COALESCE(rp_business.base_price, 0) + COALESCE(f.price, 0) as business_price,
+        CASE 
+          WHEN rp_first.base_price IS NULL THEN 0 
+          ELSE rp_first.base_price + COALESCE(f.price, 0) 
+        END as first_price,
+        rp_economy.base_price as economy_base_price,
+        rp_business.base_price as business_base_price,
+        rp_first.base_price as first_base_price
+      FROM flights f
+      JOIN routes r ON f.route_id = r.id
+      LEFT JOIN route_pricing rp_economy ON f.route_id = rp_economy.route_id AND rp_economy.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_business ON f.route_id = rp_business.route_id AND rp_business.seat_class = 'business'  
+      LEFT JOIN route_pricing rp_first ON f.route_id = rp_first.route_id AND rp_first.seat_class = 'first'
+      WHERE f.id = $1
+    `;
+    const result = await pool.query(query, [id]);
+    debugLog('Pricing query result rowCount', result.rowCount);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+    const row = result.rows[0];
+    debugLog('Pricing row data', row);
+    res.json({
+      flight_id: row.flight_id,
+      flight_number: row.flight_number,
+      route_name: row.route_name,
+      flight_surcharge: row.flight_surcharge,
+      economy_price: row.economy_price,
+      business_price: row.business_price,
+      first_price: row.first_price,
+      economy_base_price: row.economy_base_price,
+      business_base_price: row.business_base_price,
+      first_base_price: row.first_base_price
+    });
+  } catch (err) {
+    console.error('Error fetching flight pricing (stable endpoint):', err);
+    res.status(500).json({ error: 'Errore nel recupero dei prezzi del volo' });
+  }
+});
+
+// Endpoint di debug: restituisce diagnostica completa prezzi per un volo
+router.get('/pricing/:id/debug', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT 
+        f.id,
+        f.flight_number,
+        f.route_id,
+        f.price as flight_surcharge,
+        r.route_name,
+        r.default_price as route_default_price,
+        rp_e.base_price as economy_base_price,
+        rp_b.base_price as business_base_price,
+        rp_f.base_price as first_base_price,
+        (rp_e.base_price IS NULL) as economy_missing_route_pricing,
+        (rp_b.base_price IS NULL) as business_missing_route_pricing,
+        (rp_f.base_price IS NULL) as first_missing_route_pricing,
+        COALESCE(rp_e.base_price, r.default_price, 0) + COALESCE(f.price,0) as computed_economy_price,
+        COALESCE(rp_b.base_price, 0) + COALESCE(f.price,0) as computed_business_price,
+        CASE WHEN rp_f.base_price IS NULL THEN 0 ELSE rp_f.base_price + COALESCE(f.price,0) END as computed_first_price
+      FROM flights f
+      JOIN routes r ON f.route_id = r.id
+      LEFT JOIN route_pricing rp_e ON f.route_id = rp_e.route_id AND rp_e.seat_class = 'economy'
+      LEFT JOIN route_pricing rp_b ON f.route_id = rp_b.route_id AND rp_b.seat_class = 'business'
+      LEFT JOIN route_pricing rp_f ON f.route_id = rp_f.route_id AND rp_f.seat_class = 'first'
+      WHERE f.id = $1
+    `;
+    const result = await pool.query(query, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Volo non trovato' });
+    }
+    const row = result.rows[0];
+    // Aggiunge spiegazione possibili cause
+    const diagnostics: string[] = [];
+    if (row.economy_missing_route_pricing) diagnostics.push('Manca route_pricing economy: usato default_price');
+    if (row.business_missing_route_pricing) diagnostics.push('Manca route_pricing business: prezzo business potrebbe essere 0 se non previsto');
+    if (row.first_missing_route_pricing) diagnostics.push('Manca route_pricing first: prezzo first = 0');
+    if (Number(row.computed_economy_price) === 0) diagnostics.push('Economy calcolato = 0: controlla default_price della rotta e flight_surcharge');
+    if (Number(row.flight_surcharge) === 0) diagnostics.push('Sovrapprezzo volo = 0');
+    res.json({
+      debug: true,
+      flight_id: row.id,
+      flight_number: row.flight_number,
+      route_id: row.route_id,
+      route_name: row.route_name,
+      flight_surcharge: row.flight_surcharge,
+      route_default_price: row.route_default_price,
+      base_prices: {
+        economy: row.economy_base_price,
+        business: row.business_base_price,
+        first: row.first_base_price
+      },
+      computed: {
+        economy: row.computed_economy_price,
+        business: row.computed_business_price,
+        first: row.computed_first_price
+      },
+      missing: {
+        economy: row.economy_missing_route_pricing,
+        business: row.business_missing_route_pricing,
+        first: row.first_missing_route_pricing
+      },
+      diagnostics
+    });
+  } catch (err) {
+    console.error('Error in pricing debug endpoint:', err);
+    res.status(500).json({ error: 'Errore debug pricing' });
   }
 });
 

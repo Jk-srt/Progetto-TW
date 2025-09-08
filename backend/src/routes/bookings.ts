@@ -91,6 +91,28 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
         }
         console.log('✅ Flight found:', flight.flight_number);
 
+        // Pricing support: recupera pricing della rotta per derivare prezzi classe quando flight.price è 0
+        let routePricingMap: Record<string, number> = {};
+        let routeDefaultPrice = 0;
+        try {
+            const rpRes = await pool.query(
+                `SELECT r.default_price, rp.seat_class, rp.base_price
+                 FROM routes r
+                 LEFT JOIN route_pricing rp ON r.id = rp.route_id
+                 WHERE r.id = $1`,
+                [flight.route_id]
+            );
+            for (const row of rpRes.rows) {
+                routeDefaultPrice = Number(row.default_price) || routeDefaultPrice;
+                if (row.seat_class) {
+                    routePricingMap[row.seat_class] = Number(row.base_price) || 0;
+                }
+            }
+            console.log('[PRICING] Loaded route pricing', { route_id: flight.route_id, routeDefaultPrice, routePricingMap });
+        } catch (e) {
+            console.warn('⚠️ Failed to load route pricing:', (e as Error).message);
+        }
+
         // Verifica disponibilità posti
         const passenger_count = passengers.length;
         if (flight.available_seats < passenger_count) {
@@ -181,25 +203,67 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             const seat = seatCheck.rows[0];
 
-                        // Calcolo prezzo base allineato alla logica frontend (getSeatPrice) per coerenza totale.
-                        const seatClass = seat.seat_class;
-                        const flightPriceNum = typeof flight.price === 'number' ? flight.price : Number(flight.price) || 0;
-                        // Determina il prezzo base per classe usando i campi dedicati se presenti
-                        const classBase = (() => {
-                            switch (seatClass) {
-                                case 'business':
-                                    return (flight as any).business_price ? parseFloat((flight as any).business_price) : (flightPriceNum * 1.5);
-                                case 'first':
-                                    return (flight as any).first_price ? parseFloat((flight as any).first_price) : (flightPriceNum * 2);
-                                case 'economy':
-                                default:
-                                    return (flight as any).economy_price ? parseFloat((flight as any).economy_price) : flightPriceNum;
-                            }
-                        })();
-                        let seatPrice = classBase;
-                        let extrasValue = 0;
-                        const basePrice = classBase; // per breakdown retro-compatibile
-                        const surcharge = 0; // mantenuto per struttura breakdown; logica incorporata in classBase
+            // Calcolo prezzo base robusto (include fallback route_pricing / default_price)
+            const seatClass = seat.seat_class;
+            const flightSurcharge = Number(flight.price) || 0; // nel modello è surcharge
+            const flightEconomy = (flight as any).economy_price ? Number((flight as any).economy_price) : 0;
+            const flightBusiness = (flight as any).business_price ? Number((flight as any).business_price) : 0;
+            const flightFirst = (flight as any).first_price ? Number((flight as any).first_price) : 0;
+
+            const deriveClassBase = (): { value: number; source: string } => {
+                // 1. Usa campi del flight se valorizzati (>0)
+                if (seatClass === 'economy' && flightEconomy > 0) return { value: flightEconomy, source: 'flight.economy_price' };
+                if (seatClass === 'business' && flightBusiness > 0) return { value: flightBusiness, source: 'flight.business_price' };
+                if (seatClass === 'first' && flightFirst > 0) return { value: flightFirst, source: 'flight.first_price' };
+                // 2. Usa route_pricing base + surcharge (anche se surcharge = 0)
+                if (routePricingMap[seatClass] && routePricingMap[seatClass] > 0) {
+                    return { value: routePricingMap[seatClass] + flightSurcharge, source: 'route_pricing+flight_surcharge' };
+                }
+                // 3. Se economy mancante, fallback default route + surcharge
+                if (seatClass === 'economy' && routeDefaultPrice > 0) {
+                    return { value: routeDefaultPrice + flightSurcharge, source: 'route_default_price+flight_surcharge' };
+                }
+                // 4. Moltiplicatori se abbiamo un valore base economy noto
+                if (seatClass !== 'economy') {
+                    const baseEco = flightEconomy || routePricingMap['economy'] || routeDefaultPrice;
+                    if (baseEco > 0) {
+                        if (seatClass === 'business') return { value: baseEco * 1.5, source: 'multiplier_from_economy' };
+                        if (seatClass === 'first') return { value: baseEco * 2, source: 'multiplier_from_economy' };
+                    }
+                }
+                // 5. Ultimo fallback: flightSurcharge * multiplier (se >0) altrimenti 0
+                if (flightSurcharge > 0) {
+                    if (seatClass === 'business') return { value: flightSurcharge * 1.5, source: 'surcharge_multiplier' };
+                    if (seatClass === 'first') return { value: flightSurcharge * 2, source: 'surcharge_multiplier' };
+                    return { value: flightSurcharge, source: 'surcharge_raw' };
+                }
+                return { value: 0, source: 'none' };
+            };
+
+            const derived = deriveClassBase();
+            let seatPrice = derived.value;
+            let extrasValue = 0;
+            const basePrice = seatPrice; // sarà aggiornato dopo extras
+            const surcharge = flightSurcharge; // informativo
+            if (seatPrice === 0) {
+                console.warn(`[PRICING] Base price = 0 for seat ${passenger.seat_id} class=${seatClass}`, {
+                    flight_id,
+                    route_id: flight.route_id,
+                    flightEconomy,
+                    flightBusiness,
+                    flightFirst,
+                    flightSurcharge,
+                    routeDefaultPrice,
+                    routePricingMap,
+                    derivation: derived
+                });
+            } else {
+                console.log(`[PRICING] Derived base for seat ${passenger.seat_id}:`, {
+                    class: seatClass,
+                    value: seatPrice,
+                    source: derived.source
+                });
+            }
 
             // Aggiungi costi extra (baggagli, legroom, posto preferito, priority boarding, pasto) e prepara breakdown per persistenza
             let extrasBreakdown: Array<{ extra_type: string; quantity: number; unit_price: number; total_price: number; details?: any }> = [];
@@ -355,15 +419,16 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
                 [userId, flight_id, passenger.seat_id]
             );
 
-                        createdBookings.push({
-                            ...bookingResult.rows[0],
-                            pricing_breakdown: {
-                                base_price: basePrice,
-                                surcharge,
-                                extras: extrasValue,
-                                final_price: seatPrice
-                            }
-                        });
+            createdBookings.push({
+                ...bookingResult.rows[0],
+                pricing_breakdown: {
+                    base_price: basePrice,
+                    surcharge,
+                    extras: extrasValue,
+                    final_price: seatPrice,
+                    derivation_source: derived.source
+                }
+            });
             
             console.log(`✅ Booking created for seat ${passenger.seat_id}:`, bookingResult.rows[0]);
             console.log(`🪑 Seat ${passenger.seat_id} marked as occupied`);
