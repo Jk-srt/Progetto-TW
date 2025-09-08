@@ -188,8 +188,17 @@ import { Flight } from '../models/flight.model';
               </div>
 
               <div class="price-info">
-                <span class="price">€{{formatPrice(flight.economy_base_price)}}</span>
-                <span class="price-label">Economy (solo base)</span>
+                <span class="price">€{{formatPrice(getEconomyTotal(flight))}}</span>
+                <span class="price-label">Economy Totale</span>
+                <div class="breakdown">
+                  <small>
+                    Base €{{formatPrice(getEconomyBase(flight))}}
+                    <span *ngIf="(flight.flight_surcharge||0) > 0"> + Surch. €{{formatPrice(flight.flight_surcharge)}}</span>
+                  </small>
+                </div>
+                <div class="biz" *ngIf="flight.business_price && flight.business_price>0">
+                  <small>Business €{{formatPrice(flight.business_price)}}</small>
+                </div>
               </div>
             </div>
 
@@ -459,6 +468,24 @@ export class FlightsViewComponent implements OnInit {
       return flight.price || 0; // fallback retrocompatibilità
     }
     return Math.min(...prices);
+  }
+
+  getEconomyBase(flight: any): number {
+    if (flight && flight.economy_base_price !== undefined && flight.economy_base_price !== null) {
+      return flight.economy_base_price;
+    }
+    if (flight && flight.economy_price !== undefined) {
+      const base = (flight.economy_price || 0) - (flight.flight_surcharge || 0);
+      if (base > 0) return base;
+    }
+    return flight?.price || 0;
+  }
+
+  getEconomyTotal(flight: any): number {
+    const base = Number(this.getEconomyBase(flight)) || 0;
+    const surcharge = Number(flight?.flight_surcharge) || 0;
+    const total = base + surcharge;
+    return total < 0 ? base : total;
   }
   formatPrice(value: any): string {
     const num = Number(value);

@@ -44,6 +44,9 @@ export interface UserBooking {
   seat_class: string;
   booking_status: 'confirmed' | 'cancelled' | 'pending';
   total_price: number;
+  flight_surcharge?: number; // nuovo: sovrapprezzo volo
+  extras_total?: number; // nuovo: totale extra
+  base_price_derived?: number; // nuovo: base stimata (totale - extras - surcharge)
   created_at: string;
   extras?: Array<{
     type: string;

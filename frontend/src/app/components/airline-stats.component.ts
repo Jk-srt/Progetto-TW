@@ -51,7 +51,6 @@ interface AirlineStatsResponse {
     <div class="stats-page">
       <div class="header">
         <h1>📊 Statistiche Compagnia</h1>
-        <button class="back-btn" (click)="goBack()">← Torna</button>
       </div>
 
       <div *ngIf="loading" class="loading">Caricamento...</div>

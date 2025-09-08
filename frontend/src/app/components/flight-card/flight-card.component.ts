@@ -44,7 +44,16 @@ import { AuthService } from '../../services/auth.service';
         <div class="price-and-book">
           <div class="pricing-info">
             <div class="price">€{{formatPrice(getEconomyTotal())}}</div>
-            <div class="price-label">Economy</div>
+            <div class="price-label">Economy (totale)</div>
+            <div class="sub-price">
+              <small>
+                Base €{{formatPrice(getEconomyBase())}}
+                <span *ngIf="(flight.flight_surcharge||0) > 0"> + Surch. €{{formatPrice(flight.flight_surcharge)}}</span>
+              </small>
+            </div>
+            <div class="sub-price" *ngIf="flight.business_price && flight.business_price > 0">
+              <small>Business €{{formatPrice(flight.business_price)}}</small>
+            </div>
           </div>
           <button *ngIf="!isFlightUnavailable() && !isAirlineUser && !isAdminUser()" (click)="bookFlight()" class="book-btn">
             Prenota

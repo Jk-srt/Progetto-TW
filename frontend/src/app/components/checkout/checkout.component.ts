@@ -390,7 +390,12 @@ interface PassengerForm {
               <div class="price-breakdown">
                 <div class="price-item" *ngFor="let seat of checkoutData?.selectedSeats">
                   <span>Posto {{ seat.seat_number }} ({{ seat.seat_class | titlecase }})</span>
-                  <span>€{{ getSeatPrice(seat) }}</span>
+                  <span>
+                    €{{ getSeatPrice(seat) }}
+                    <small class="breakdown" *ngIf="checkoutData?.flight?.flight_surcharge !== undefined">
+                      (Base €{{ getBaseForSeat(seat) }} + Surch. €{{ checkoutData?.flight?.flight_surcharge || 0 }})
+                    </small>
+                  </span>
                 </div>
                 <div class="price-item extras" *ngFor="let seat of checkoutData?.selectedSeats; let i = index">
                   <span>Extra passeggero {{ i + 1 }}</span>
@@ -674,19 +679,55 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     // Per voli con scalo, usa il flightData passato come parametro
     const flight = flightData || this.checkoutData?.flight;
     if (!flight) return 0;
-    
-    // Usa i prezzi specifici per classe dal sistema route pricing + flight surcharge
-    // Converte sempre i prezzi in numeri per evitare concatenazioni
-    switch (seat.seat_class) {
-      case 'economy':
-        return parseFloat(flight.economy_price) || parseFloat(flight.price) || 0;
-      case 'business':
-        return parseFloat(flight.business_price) || (parseFloat(flight.price) * 1.5) || 0;
-      case 'first':
-        return parseFloat(flight.first_price) || (parseFloat(flight.price) * 2) || 0;
-      default:
-        return parseFloat(flight.economy_price) || parseFloat(flight.price) || 0;
+    const surcharge = Number(flight.flight_surcharge) || 0;
+    const safeFinal = (val: any) => {
+      const n = Number(val);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    let finalPrice = 0;
+    if (seat.seat_class === 'economy') finalPrice = safeFinal(flight.economy_price);
+    else if (seat.seat_class === 'business') finalPrice = safeFinal(flight.business_price);
+    else if (seat.seat_class === 'first') finalPrice = safeFinal(flight.first_price);
+    // Fallback se il prezzo di quella classe non esiste
+    if (finalPrice === 0) {
+      const baseAny = safeFinal(flight.economy_price || flight.price);
+      if (seat.seat_class === 'business') finalPrice = baseAny > 0 ? baseAny * 1.5 : 0;
+      else if (seat.seat_class === 'first') finalPrice = baseAny > 0 ? baseAny * 2 : 0;
+      else finalPrice = baseAny;
+      // Se abbiamo base e surcharge separati e non già incluso, aggiungi surcharge
+      if (finalPrice > 0 && surcharge > 0 && surcharge < finalPrice) {
+        // assumiamo finalPrice era base, quindi ricomponi
+        finalPrice = finalPrice; // già base + (surcharge logic gestita sopra)
+      }
     }
+    return Number(finalPrice.toFixed(2));
+  }
+  
+  // Base (senza surcharge) stimata per il posto (usa prezzi finali meno flight_surcharge)
+  getBaseForSeat(seat: FlightSeatMap): number {
+    const flightInfo = this.checkoutData?.flight || {};
+    const cls = seat.seat_class;
+    const surchargeRaw = Number(flightInfo.flight_surcharge) || 0;
+    const safe = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+    // Usa direttamente i campi base se presenti
+    let directBase = 0;
+    if (cls === 'economy') directBase = safe(flightInfo.economy_base_price);
+    if (cls === 'business') directBase = safe(flightInfo.business_base_price);
+    if (cls === 'first') directBase = safe(flightInfo.first_base_price);
+    // Se li abbiamo, ritorna
+    if (directBase > 0) return Number(directBase.toFixed(2));
+    // Altrimenti deriviamo sottraendo surcharge solo se surcharge < final price (quindi è veramente un sovrapprezzo separato)
+    let finalClass = 0;
+    if (cls === 'economy') finalClass = safe(flightInfo.economy_price);
+    if (cls === 'business') finalClass = safe(flightInfo.business_price);
+    if (cls === 'first') finalClass = safe(flightInfo.first_price);
+    if (finalClass === 0) return 0;
+    if (surchargeRaw > 0 && surchargeRaw < finalClass) {
+      const baseDerived = finalClass - surchargeRaw;
+      return baseDerived > 0 ? Number(baseDerived.toFixed(2)) : 0;
+    }
+    // surcharge inesistente o >= final -> assumiamo final già include tutto e trattiamo come base
+    return Number(finalClass.toFixed(2));
   }
 
   // Eligibility helpers

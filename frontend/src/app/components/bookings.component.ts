@@ -167,7 +167,16 @@ import { AirlineBookingsService, AirlineBookingsData, FlightBookings } from '../
                   </span>
                   <span class="booking-ref">{{ booking.booking_reference }}</span>
                 </div>
-                <div class="booking-price">€{{ getDisplayPrice(booking) | number:'1.2-2' }}</div>
+                <div class="booking-price">
+                  <div class="total">€{{ getDisplayPrice(booking) | number:'1.2-2' }}</div>
+                  <div class="breakdown" *ngIf="booking.base_price_derived !== undefined">
+                    <small>
+                      <span class="bd-item" *ngIf="booking.base_price_derived && booking.base_price_derived > 0">Base €{{ booking.base_price_derived | number:'1.0-2' }}</span>
+                      <span class="bd-item" *ngIf="booking.flight_surcharge && booking.flight_surcharge > 0">+ Surch. €{{ booking.flight_surcharge | number:'1.0-2' }}</span>
+                      <span class="bd-item" *ngIf="booking.extras_total && booking.extras_total > 0">+ Extra €{{ booking.extras_total | number:'1.0-2' }}</span>
+                    </small>
+                  </div>
+                </div>
               </div>
 
               <!-- Flight name prominently displayed -->

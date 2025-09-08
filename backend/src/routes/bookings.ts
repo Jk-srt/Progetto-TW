@@ -205,10 +205,25 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             // Calcolo prezzo base robusto (include fallback route_pricing / default_price)
             const seatClass = seat.seat_class;
-            const flightSurcharge = Number(flight.price) || 0; // nel modello è surcharge
+                        // Interpreta flight.price come possibile sovrapprezzo (surcharge) ma sanifica se incoerente
+                        let flightSurcharge = Number(flight.price) || 0; // nel modello è surcharge
             const flightEconomy = (flight as any).economy_price ? Number((flight as any).economy_price) : 0;
             const flightBusiness = (flight as any).business_price ? Number((flight as any).business_price) : 0;
             const flightFirst = (flight as any).first_price ? Number((flight as any).first_price) : 0;
+
+                        // Determina un valore base minimo noto tra le classi per validare il surcharge
+                        const knownMinClass = [flightEconomy, flightBusiness, flightFirst]
+                            .filter(v => v > 0)
+                            .reduce((min, v) => Math.min(min, v), Number.POSITIVE_INFINITY);
+                        if (Number.isFinite(knownMinClass) && flightSurcharge >= knownMinClass) {
+                                console.warn('[PRICING] Surcharge >= min class price; treating flight.price as already included. Resetting surcharge to 0', {
+                                    flight_id,
+                                    flight_price_raw: flight.price,
+                                    flightSurcharge_before: flightSurcharge,
+                                    knownMinClass
+                                });
+                                flightSurcharge = 0;
+                        }
 
             const deriveClassBase = (): { value: number; source: string } => {
                 // 1. Usa campi del flight se valorizzati (>0)
@@ -501,7 +516,21 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
                     b.id as booking_id,
                     b.booking_reference,
                     COALESCE(b.booking_status, 'confirmed') as booking_status,
-                    b.price as total_price,
+                                        b.price as total_price,
+                                        CASE 
+                                            WHEN f.price IS NULL OR f.price <= 0 THEN 0
+                                            WHEN f.price >= b.price THEN 0 -- evita surcharge maggiore o uguale al totale
+                                            ELSE f.price 
+                                        END AS flight_surcharge,
+                                        COALESCE((SELECT SUM(be.total_price) FROM booking_extras be WHERE be.booking_id = b.id),0) as extras_total,
+                                        GREATEST(0, b.price 
+                                            - COALESCE((SELECT SUM(be.total_price) FROM booking_extras be WHERE be.booking_id = b.id),0)
+                                            - CASE 
+                                                    WHEN f.price IS NULL OR f.price <= 0 THEN 0
+                                                    WHEN f.price >= b.price THEN 0
+                                                    ELSE f.price 
+                                                END
+                                        ) as base_price_derived,
                     1 as passenger_count,
                     COALESCE(b.booking_date, b.updated_at) as created_at,
                     f.id as flight_id,
@@ -550,7 +579,21 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: express.Res
                     b.id as booking_id,
                     b.booking_reference,
                     COALESCE(b.booking_status, 'confirmed') as booking_status,
-                    b.price as total_price,
+                                        b.price as total_price,
+                                        CASE 
+                                            WHEN f.price IS NULL OR f.price <= 0 THEN 0
+                                            WHEN f.price >= b.price THEN 0
+                                            ELSE f.price 
+                                        END AS flight_surcharge,
+                                        COALESCE((SELECT SUM(be.total_price) FROM booking_extras be WHERE be.booking_id = b.id),0) as extras_total,
+                                        GREATEST(0, b.price 
+                                            - COALESCE((SELECT SUM(be.total_price) FROM booking_extras be WHERE be.booking_id = b.id),0)
+                                            - CASE 
+                                                    WHEN f.price IS NULL OR f.price <= 0 THEN 0
+                                                    WHEN f.price >= b.price THEN 0
+                                                    ELSE f.price 
+                                                END
+                                        ) as base_price_derived,
                     1 as passenger_count,
                     COALESCE(b.booking_date, b.updated_at) as created_at,
                     f.id as flight_id,
