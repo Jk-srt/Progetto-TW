@@ -676,30 +676,59 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   getSeatPrice(seat: FlightSeatMap, flightData?: any): number {
-    // Per voli con scalo, usa il flightData passato come parametro
     const flight = flightData || this.checkoutData?.flight;
     if (!flight) return 0;
-    const surcharge = Number(flight.flight_surcharge) || 0;
-    const safeFinal = (val: any) => {
-      const n = Number(val);
-      return Number.isFinite(n) && n > 0 ? n : 0;
+
+    const num = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
     };
-    let finalPrice = 0;
-    if (seat.seat_class === 'economy') finalPrice = safeFinal(flight.economy_price);
-    else if (seat.seat_class === 'business') finalPrice = safeFinal(flight.business_price);
-    else if (seat.seat_class === 'first') finalPrice = safeFinal(flight.first_price);
-    // Fallback se il prezzo di quella classe non esiste
-    if (finalPrice === 0) {
-      const baseAny = safeFinal(flight.economy_price || flight.price);
-      if (seat.seat_class === 'business') finalPrice = baseAny > 0 ? baseAny * 1.5 : 0;
-      else if (seat.seat_class === 'first') finalPrice = baseAny > 0 ? baseAny * 2 : 0;
-      else finalPrice = baseAny;
-      // Se abbiamo base e surcharge separati e non già incluso, aggiungi surcharge
-      if (finalPrice > 0 && surcharge > 0 && surcharge < finalPrice) {
-        // assumiamo finalPrice era base, quindi ricomponi
-        finalPrice = finalPrice; // già base + (surcharge logic gestita sopra)
+    const positive = (v: any) => {
+      const n = num(v);
+      return n > 0 ? n : 0;
+    };
+
+    const surcharge = positive(flight.flight_surcharge);
+    const ecoBase = positive(flight.economy_base_price);
+    const busBase = positive(flight.business_base_price);
+    const firstBase = positive(flight.first_base_price);
+    const ecoFinal = positive(flight.economy_price); // di solito base + surcharge
+    const busFinalRaw = positive(flight.business_price); // può già includere surcharge o solo base
+    const firstFinalRaw = positive(flight.first_price);
+
+    let base = 0;
+    let providedFinal = 0;
+    if (seat.seat_class === 'economy') {
+      base = ecoBase || (ecoFinal > 0 && surcharge > 0 && ecoFinal > surcharge ? ecoFinal - surcharge : ecoFinal) || positive(flight.price);
+      providedFinal = ecoFinal || (base > 0 ? base + surcharge : 0);
+    } else if (seat.seat_class === 'business') {
+      base = busBase || (ecoBase > 0 ? ecoBase * 1.5 : 0);
+      providedFinal = busFinalRaw;
+    } else if (seat.seat_class === 'first') {
+      base = firstBase || (ecoBase > 0 ? ecoBase * 2 : 0);
+      providedFinal = firstFinalRaw;
+    }
+
+    // Determina se il final fornito manca del surcharge (differenza minima tra final e base < 0.01 e surcharge > 0)
+    let finalPrice: number;
+    if (providedFinal > 0) {
+      const diff = providedFinal - base;
+      if (base > 0 && surcharge > 0 && diff < 0.01) {
+        // Surcharge non applicato: aggiungilo
+        finalPrice = base + surcharge;
+      } else {
+        finalPrice = providedFinal; // già completo o impossibile determinare
+      }
+    } else {
+      // Nessun final esplicito: usa semplicemente il prezzo base (senza moltiplicatori) + eventuale surcharge
+      const fallbackBase = base || ecoBase || positive(flight.price) || ecoFinal;
+      if (fallbackBase > 0) {
+        finalPrice = surcharge > 0 ? fallbackBase + surcharge : fallbackBase;
+      } else {
+        finalPrice = 0;
       }
     }
+
     return Number(finalPrice.toFixed(2));
   }
   

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Router, NavigationStart } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, interval, Subscription } from 'rxjs';
 import { 
@@ -32,7 +33,7 @@ export class SeatService {
   private countdownSubject = new BehaviorSubject<number>(0);
   public countdown$ = this.countdownSubject.asObservable();
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private router: Router) {
     this.sessionId = this.generateSessionId();
     this.updateSessionId(this.sessionId);
     
@@ -41,6 +42,21 @@ export class SeatService {
     
     // Ascolta cambiamenti di autenticazione per pulire la selezione
     this.setupAuthListener();
+
+    // Listener navigazione: se l'utente torna alla home (/) libera i posti selezionati
+    this.router.events.subscribe(ev => {
+      if (ev instanceof NavigationStart) {
+        // Normalizza URL (rimuove querystring o hash)
+        const rawUrl = ev.url.split('?')[0].split('#')[0];
+        if (rawUrl === '/' || rawUrl === '') {
+          const current = this.seatSelectionState.value;
+          if (current.selectedSeats.length > 0) {
+            console.log('[SeatService] Navigazione alla home – rilascio prenotazioni temporanee e reset selezione');
+            this.clearSelection();
+          }
+        }
+      }
+    });
   }
 
   private generateSessionId(): string {

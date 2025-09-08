@@ -205,60 +205,110 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: express.Respon
 
             // Calcolo prezzo base robusto (include fallback route_pricing / default_price)
             const seatClass = seat.seat_class;
-                        // Interpreta flight.price come possibile sovrapprezzo (surcharge) ma sanifica se incoerente
+                        // Interpreta flight.price come sovrapprezzo (surcharge) separato
                         let flightSurcharge = Number(flight.price) || 0; // nel modello è surcharge
             const flightEconomy = (flight as any).economy_price ? Number((flight as any).economy_price) : 0;
             const flightBusiness = (flight as any).business_price ? Number((flight as any).business_price) : 0;
             const flightFirst = (flight as any).first_price ? Number((flight as any).first_price) : 0;
 
-                        // Determina un valore base minimo noto tra le classi per validare il surcharge
-                        const knownMinClass = [flightEconomy, flightBusiness, flightFirst]
-                            .filter(v => v > 0)
-                            .reduce((min, v) => Math.min(min, v), Number.POSITIVE_INFINITY);
-                        if (Number.isFinite(knownMinClass) && flightSurcharge >= knownMinClass) {
-                                console.warn('[PRICING] Surcharge >= min class price; treating flight.price as already included. Resetting surcharge to 0', {
-                                    flight_id,
-                                    flight_price_raw: flight.price,
-                                    flightSurcharge_before: flightSurcharge,
-                                    knownMinClass
-                                });
-                                flightSurcharge = 0;
-                        }
+                        // Preleva eventuali prezzi base distinti se presenti nel payload flight
+                        const flightEconomyBase = Number((flight as any).economy_base_price) || 0;
+                        const flightBusinessBase = Number((flight as any).business_base_price) || 0;
+                        const flightFirstBase = Number((flight as any).first_base_price) || 0;
 
-            const deriveClassBase = (): { value: number; source: string } => {
-                // 1. Usa campi del flight se valorizzati (>0)
-                if (seatClass === 'economy' && flightEconomy > 0) return { value: flightEconomy, source: 'flight.economy_price' };
-                if (seatClass === 'business' && flightBusiness > 0) return { value: flightBusiness, source: 'flight.business_price' };
-                if (seatClass === 'first' && flightFirst > 0) return { value: flightFirst, source: 'flight.first_price' };
-                // 2. Usa route_pricing base + surcharge (anche se surcharge = 0)
-                if (routePricingMap[seatClass] && routePricingMap[seatClass] > 0) {
-                    return { value: routePricingMap[seatClass] + flightSurcharge, source: 'route_pricing+flight_surcharge' };
-                }
-                // 3. Se economy mancante, fallback default route + surcharge
-                if (seatClass === 'economy' && routeDefaultPrice > 0) {
-                    return { value: routeDefaultPrice + flightSurcharge, source: 'route_default_price+flight_surcharge' };
-                }
-                // 4. Moltiplicatori se abbiamo un valore base economy noto
-                if (seatClass !== 'economy') {
-                    const baseEco = flightEconomy || routePricingMap['economy'] || routeDefaultPrice;
-                    if (baseEco > 0) {
-                        if (seatClass === 'business') return { value: baseEco * 1.5, source: 'multiplier_from_economy' };
-                        if (seatClass === 'first') return { value: baseEco * 2, source: 'multiplier_from_economy' };
+                        const almostEqual = (a: number, b: number) => Math.abs(a - b) < 0.01;
+
+            const deriveClassBase = (): { value: number; source: string; includesSurcharge: boolean } => {
+                // Economia
+                if (seatClass === 'economy') {
+                    if (flightEconomy > 0) {
+                        // Se abbiamo base distinta e final = base + surcharge riconosci, altrimenti componi
+                        if (flightEconomyBase > 0) {
+                            if (almostEqual(flightEconomy, flightEconomyBase + flightSurcharge)) {
+                                return { value: flightEconomy, source: 'flight.economy_price(final)', includesSurcharge: true };
+                            }
+                            if (almostEqual(flightEconomy, flightEconomyBase)) {
+                                return { value: flightEconomyBase + flightSurcharge, source: 'economy_base+flight_surcharge', includesSurcharge: true };
+                            }
+                        }
+                        // Non abbiamo base distinta: assumiamo che economy_price sia già finale se surcharge piccolo rispetto al prezzo
+                        if (flightSurcharge > 0 && flightEconomy > flightSurcharge && flightEconomyBase === 0) {
+                            // Ambiguo: se non si può determinare, non ri-aggiungere
+                            return { value: flightEconomy, source: 'flight.economy_price(assumed_final)', includesSurcharge: true };
+                        }
+                        // Caso fallback: aggiungi surcharge se presente e chiaramente non incluso
+                        return { value: flightEconomy + (flightSurcharge > 0 ? flightSurcharge : 0), source: 'flight.economy_price+maybe_surcharge', includesSurcharge: flightSurcharge > 0 };
                     }
                 }
-                // 5. Ultimo fallback: flightSurcharge * multiplier (se >0) altrimenti 0
-                if (flightSurcharge > 0) {
-                    if (seatClass === 'business') return { value: flightSurcharge * 1.5, source: 'surcharge_multiplier' };
-                    if (seatClass === 'first') return { value: flightSurcharge * 2, source: 'surcharge_multiplier' };
-                    return { value: flightSurcharge, source: 'surcharge_raw' };
+
+                if (seatClass === 'business') {
+                    if (flightBusiness > 0) {
+                        if (flightBusinessBase > 0) {
+                            if (almostEqual(flightBusiness, flightBusinessBase + flightSurcharge)) {
+                                return { value: flightBusiness, source: 'flight.business_price(final)', includesSurcharge: true };
+                            }
+                            if (almostEqual(flightBusiness, flightBusinessBase)) {
+                                return { value: flightBusinessBase + flightSurcharge, source: 'business_base+flight_surcharge', includesSurcharge: true };
+                            }
+                        }
+                        // Se business <= surcharge, prob. è solo base mancante: somma
+                        if (flightSurcharge > 0 && flightBusiness <= flightSurcharge) {
+                            return { value: flightBusiness + flightSurcharge, source: 'business_price_as_base_plus_surcharge', includesSurcharge: true };
+                        }
+                        // Default: assume già finale
+                        return { value: flightBusiness, source: 'flight.business_price(assumed_final)', includesSurcharge: true };
+                    }
                 }
-                return { value: 0, source: 'none' };
+
+                if (seatClass === 'first') {
+                    if (flightFirst > 0) {
+                        if (flightFirstBase > 0) {
+                            if (almostEqual(flightFirst, flightFirstBase + flightSurcharge)) {
+                                return { value: flightFirst, source: 'flight.first_price(final)', includesSurcharge: true };
+                            }
+                            if (almostEqual(flightFirst, flightFirstBase)) {
+                                return { value: flightFirstBase + flightSurcharge, source: 'first_base+flight_surcharge', includesSurcharge: true };
+                            }
+                        }
+                        if (flightSurcharge > 0 && flightFirst <= flightSurcharge) {
+                            return { value: flightFirst + flightSurcharge, source: 'first_price_as_base_plus_surcharge', includesSurcharge: true };
+                        }
+                        return { value: flightFirst, source: 'flight.first_price(assumed_final)', includesSurcharge: true };
+                    }
+                }
+
+                // Route pricing fallback
+                if (routePricingMap[seatClass] && routePricingMap[seatClass] > 0) {
+                    return { value: routePricingMap[seatClass] + flightSurcharge, source: 'route_pricing+flight_surcharge', includesSurcharge: flightSurcharge > 0 };
+                }
+                if (seatClass === 'economy' && routeDefaultPrice > 0) {
+                    return { value: routeDefaultPrice + flightSurcharge, source: 'route_default_price+flight_surcharge', includesSurcharge: flightSurcharge > 0 };
+                }
+                // Multiplier fallback
+                if (seatClass !== 'economy') {
+                    const baseEco = flightEconomyBase || flightEconomy || routePricingMap['economy'] || routeDefaultPrice;
+                    if (baseEco > 0) {
+                        if (seatClass === 'business') return { value: baseEco * 1.5 + flightSurcharge, source: 'multiplier_from_economy+flight_surcharge', includesSurcharge: flightSurcharge > 0 };
+                        if (seatClass === 'first') return { value: baseEco * 2 + flightSurcharge, source: 'multiplier_from_economy+flight_surcharge', includesSurcharge: flightSurcharge > 0 };
+                    }
+                }
+                if (flightSurcharge > 0) {
+                    if (seatClass === 'business') return { value: flightSurcharge * 1.5, source: 'surcharge_multiplier', includesSurcharge: true };
+                    if (seatClass === 'first') return { value: flightSurcharge * 2, source: 'surcharge_multiplier', includesSurcharge: true };
+                    return { value: flightSurcharge, source: 'surcharge_raw', includesSurcharge: true };
+                }
+                return { value: 0, source: 'none', includesSurcharge: false };
             };
 
             const derived = deriveClassBase();
             let seatPrice = derived.value;
             let extrasValue = 0;
-            const basePrice = seatPrice; // sarà aggiornato dopo extras
+            // Calcola la quota base (senza surcharge) se possiamo isolarla
+            let basePrice = seatPrice;
+            if (flightSurcharge > 0 && derived.includesSurcharge && seatPrice > flightSurcharge) {
+                // Evita sottrazioni che portano negativo
+                basePrice = Number((seatPrice - flightSurcharge).toFixed(2));
+            }
             const surcharge = flightSurcharge; // informativo
             if (seatPrice === 0) {
                 console.warn(`[PRICING] Base price = 0 for seat ${passenger.seat_id} class=${seatClass}`, {

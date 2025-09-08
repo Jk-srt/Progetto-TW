@@ -371,6 +371,15 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
     // Ottieni l'ID del volo dai parametri della route
     this.route.params.subscribe(params => {
       this.flightId = Number(params['id']);
+      // Se i posti selezionati appartengono ad un altro volo, pulisci
+      const currentSel = this.seatService.getCurrentSelection();
+      if (currentSel.selectedSeats.length > 0) {
+        const differentFlight = currentSel.selectedSeats.some(s => (s as any).flight_id && (s as any).flight_id !== this.flightId);
+        if (differentFlight) {
+          console.log('[SeatSelectionComponent] Cambio volo rilevato – reset selezione precedente');
+          this.seatService.clearSelection();
+        }
+      }
       
       // Controlla se l'utente è una compagnia aerea
       this.isAirlineUser = this.seatService.isAirlineUser();
